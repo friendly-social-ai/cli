@@ -26,3 +26,13 @@ func (s *Service) get(user *sdk.Authorization) ([]sdk.FeedEntry, error) {
 
 	return queue.Entries, nil
 }
+
+// connect sends a friend request to the person, which accepts theirs when they sent one first.
+func (s *Service) connect(user *sdk.Authorization, person sdk.UserDetails) error {
+	return s.client.SendFriendRequest(context.Background(), user, person.Id, person.AccessHash)
+}
+
+// skip declines the person, so they leave the queue.
+func (s *Service) skip(user *sdk.Authorization, person sdk.UserDetails) error {
+	return s.client.DeclineFriendRequest(context.Background(), user, person.Id, person.AccessHash)
+}

@@ -2,6 +2,7 @@ package people
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -16,6 +17,19 @@ import (
 
 // refreshMsg asks people screen to reload people for the current user.
 type refreshMsg struct{}
+
+// Messages produced by key actions on the selected person.
+type (
+	connectMsg struct{}
+	skipMsg    struct{}
+)
+
+// failedMsg brings back the person at index whose request failed.
+type failedMsg struct {
+	index int
+	entry sdk.FeedEntry
+	err   error
+}
 
 // loadedMsg carries loaded people. The request wraps it into router.TargetMsg so it reaches this screen even after the user leaves.
 type loadedMsg struct {
@@ -91,6 +105,17 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
 	}
 
+	if len(s.entries) > 0 {
+		desc := "connect"
+		if s.entries[s.content.list.Cursor()].IsRequest {
+			desc = "accept"
+		}
+
+		actions = append(actions,
+			ui.Action{Key: ui.Key("a", desc), Msg: connectMsg{}},
+			ui.Action{Key: ui.Key("x", "skip"), Msg: skipMsg{}})
+	}
+
 	return append(actions,
 		ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}},
 		ui.Action{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}})
@@ -135,10 +160,37 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.load()
 	case refreshMsg:
 		return s, s.load()
+	case connectMsg:
+		return s.take(s.service.connect)
+	case skipMsg:
+		return s.take(s.service.skip)
+	case failedMsg:
+		s.entries = slices.Insert(s.entries, min(msg.index, len(s.entries)), msg.entry)
+		s.content.list.Set(s.items()...)
+		s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
+		return s, nil
 	}
 
 	_, cmd := s.content.list.Update(msg)
 	return s, cmd
+}
+
+// take removes the selected person right away and sends request for them. A failed request brings them back.
+func (s Screen) take(request func(*sdk.Authorization, sdk.UserDetails) error) (screen.Model, tea.Cmd) {
+	index := s.content.list.Cursor()
+	entry := s.entries[index]
+	s.entries = slices.Delete(s.entries, index, index+1)
+	s.content.list.Set(s.items()...)
+	s.content.status.Set("")
+
+	user := s.user
+	return s, func() tea.Msg {
+		if err := request(user, entry.Details); err != nil {
+			return router.TargetMsg{Type: screen.TypePeople, Inner: failedMsg{index: index, entry: entry, err: err}}
+		}
+
+		return nil
+	}
 }
 
 func (s Screen) View() string {
