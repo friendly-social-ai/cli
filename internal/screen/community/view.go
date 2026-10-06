@@ -222,13 +222,13 @@ func metaParts(post sdk.CommunityPost) (string, string) {
 		parts = append(parts, "edited")
 	}
 
-	if len(post.ReplyPreviews) > 0 {
-		names := make([]string, len(post.ReplyPreviews))
-		for i, user := range post.ReplyPreviews {
-			names[i] = user.Nickname.Value()
+	if previews := post.ReplyPreviews; len(previews) > 0 {
+		replies := "replies from " + previews[0].Nickname.Value()
+		if len(previews) > 1 {
+			replies += fmt.Sprintf(" +%d", len(previews)-1)
 		}
 
-		parts = append(parts, "replies from "+strings.Join(names, ", "))
+		parts = append(parts, replies)
 	}
 
 	return post.Owner.Nickname.Value(), strings.Join(parts, " · ")
