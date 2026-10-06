@@ -12,6 +12,7 @@ import (
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/screen/auth"
+	"github.com/friendly-social/cli/internal/screen/user"
 	"github.com/friendly-social/cli/internal/ui"
 	sdk "github.com/friendly-social/golang-sdk"
 )
@@ -48,6 +49,7 @@ type (
 	composeMsg      struct{}
 	closeMsg        struct{}
 	previewMsg      struct{}
+	authorMsg       struct{ owner sdk.UserDetails }
 	// upMsg opens parent index of the opened post, counted from the top of the thread
 	upMsg struct{ index int }
 )
@@ -307,6 +309,20 @@ func (s Screen) selected() (sdk.CommunityPost, bool) {
 	}
 
 	return sdk.CommunityPost{}, false
+}
+
+// cursorPost returns the post under the cursor: a parent, the opened post, a reply or a post of the list.
+func (s Screen) cursorPost() (sdk.CommunityPost, bool) {
+	if cursor := s.content.list.Cursor(); s.mode == modePost {
+		switch {
+		case cursor < s.openedIndex():
+			return s.details.Upstream[cursor], true
+		case cursor == s.openedIndex():
+			return s.details.Post, true
+		}
+	}
+
+	return s.selected()
 }
 
 // selectPending selects the pending post when it is shown, keeping the scroll offset.
@@ -697,6 +713,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.openComposer()
 	case upMsg:
 		return s, s.up(msg.index)
+	case authorMsg:
+		return s, tea.Batch(
+			screen.Send(router.TargetMsg{Type: screen.TypeUser, Inner: user.OpenMsg{Person: msg.owner, From: screen.TypeCommunity}}),
+			screen.Send(screen.ChangeMsg{NewType: screen.TypeUser}))
 	case editMsg:
 		s.editing = true
 		s.content.field.Raw().SetValue(s.details.Post.Text.Value())

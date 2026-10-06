@@ -16,6 +16,7 @@ const (
 	TypePeople    Type = "people"
 	TypeCommunity Type = "community"
 	TypeActivity  Type = "activity"
+	TypeUser      Type = "user"
 )
 
 // Model is a screen, an extended tea.Model with an ID and key bindings.

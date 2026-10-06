@@ -21,6 +21,7 @@ import (
 	"github.com/friendly-social/cli/internal/screen/people"
 	"github.com/friendly-social/cli/internal/screen/profile"
 	"github.com/friendly-social/cli/internal/screen/register"
+	"github.com/friendly-social/cli/internal/screen/user"
 	"github.com/friendly-social/cli/internal/ui"
 	sdk "github.com/friendly-social/golang-sdk"
 )
@@ -56,6 +57,7 @@ func main() {
 		profile.New(profile.NewService(client)),
 		register.New(register.NewService(client)),
 		auth.New(auth.NewService(client)),
+		user.New(user.NewService(client)),
 	}
 
 	wrapper := navigation.NewVimWrapper(router.NewRouter(screens))

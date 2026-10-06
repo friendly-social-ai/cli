@@ -131,6 +131,10 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	}
 
+	if post, ok := s.cursorPost(); ok && post.Owner != nil && !s.owns(post) {
+		actions = append(actions, ui.Action{Key: ui.Key("@", "author"), Msg: authorMsg{owner: *post.Owner}})
+	}
+
 	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
 	if s.mode == modeList {
 		return append(actions, ui.Action{Key: ui.Key("n", "new post"), Msg: composeMsg{}}, refresh)
