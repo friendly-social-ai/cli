@@ -556,7 +556,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case backMsg:
 		if s.mode == modeList {
-			return s, screen.Send(screen.ChangeMsg{NewType: screen.TypeHome})
+			return s, nil
 		}
 
 		// back from a post opened in another post returns to that one and refreshes it in the background

@@ -1,34 +1,21 @@
 package home
 
 import (
-	"fmt"
-
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
-	"github.com/friendly-social/cli/internal/screen/activity"
 	"github.com/friendly-social/cli/internal/screen/auth"
 	"github.com/friendly-social/cli/internal/ui"
 )
 
-// Screen is a model of home screen.
+// Screen is a model of home screen, the menu of a logged out user. After login the tabs replace it.
 type Screen struct {
 	// checked tells that the saved login was checked. The menu stays empty until then.
-	checked  bool
-	loggedIn bool
+	checked bool
 
 	content struct {
 		list *ui.List
-
-		buttons struct {
-			community *ui.Button
-			activity  *ui.Button
-			people    *ui.Button
-			profile   *ui.Button
-			login     *ui.Button
-			register  *ui.Button
-		}
 	}
 }
 
@@ -36,38 +23,15 @@ type Screen struct {
 func New() Screen {
 	result := Screen{}
 
-	result.content.buttons.register = ui.NewButton("Register", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeRegister}
-	})
-	result.content.buttons.community = ui.NewButton("Community", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeCommunity}
-	})
-	result.content.buttons.activity = ui.NewButton("Activity", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeActivity}
-	})
-	result.content.buttons.people = ui.NewButton("People", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypePeople}
-	})
-	result.content.buttons.profile = ui.NewButton("Profile", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeProfile}
-	})
-	result.content.buttons.login = ui.NewButton("Login", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeAuth}
-	})
-
-	result.content.list = ui.NewList()
-	result.content.list.Reset(result.items()...)
+	result.content.list = ui.NewList(
+		ui.NewButton("Login", func() tea.Msg {
+			return screen.ChangeMsg{NewType: screen.TypeAuth}
+		}),
+		ui.NewButton("Register", func() tea.Msg {
+			return screen.ChangeMsg{NewType: screen.TypeRegister}
+		}))
 
 	return result
-}
-
-// items builds menu for the current login state.
-func (s Screen) items() []ui.Component {
-	if s.loggedIn {
-		return []ui.Component{s.content.buttons.community, s.content.buttons.activity, s.content.buttons.people, s.content.buttons.profile}
-	}
-
-	return []ui.Component{s.content.buttons.login, s.content.buttons.register}
 }
 
 func (Screen) ID() screen.Type {
@@ -89,23 +53,10 @@ func (s Screen) Init() tea.Cmd {
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case activity.UnreadMsg:
-		title := "Activity"
-		if msg.Count > 0 {
-			title += ui.MutedStyle.Render(fmt.Sprintf(" · %d new", msg.Count))
-		}
-
-		s.content.buttons.activity.SetTitle(title)
-		return s, nil
-	case auth.LoginMsg:
-		s.checked, s.loggedIn = true, true
-		s.content.list.Reset(s.items()...)
-		return s, nil
-	case auth.LogoutMsg:
-		s.checked, s.loggedIn = true, false
-		s.content.buttons.activity.SetTitle("Activity")
-		s.content.list.Reset(s.items()...)
+	switch msg.(type) {
+	case auth.LoginMsg, auth.LogoutMsg:
+		s.checked = true
+		s.content.list.Select(0)
 		return s, nil
 	}
 

@@ -116,9 +116,7 @@ func (s Screen) actions() []ui.Action {
 			ui.Action{Key: ui.Key("x", "skip"), Msg: skipMsg{}})
 	}
 
-	return append(actions,
-		ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}},
-		ui.Action{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}})
+	return append(actions, ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}})
 }
 
 func (s Screen) Keys() []key.Binding {

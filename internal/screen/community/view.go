@@ -124,11 +124,11 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
-	back := ui.Action{Key: ui.Key("esc", "back"), Msg: backMsg{}}
-
 	if s.mode == modeList {
-		return append(actions, refresh, back)
+		return append(actions, refresh)
 	}
+
+	back := ui.Action{Key: ui.Key("esc", "back"), Msg: backMsg{}}
 
 	switch {
 	case s.editing:

@@ -142,12 +142,10 @@ func (s Screen) actions() []ui.Action {
 			actions = append(actions, ui.Action{Key: ui.Key("v", desc), Msg: toggleEmailMsg{}})
 		}
 
-		return append(actions,
-			ui.Action{Key: ui.Key("x", "logout"), Msg: logoutMsg{}},
-			ui.Action{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}})
+		return append(actions, ui.Action{Key: ui.Key("x", "logout"), Msg: logoutMsg{}})
 	}
 
-	return []ui.Action{{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}}}
+	return nil
 }
 
 func (s Screen) Keys() []key.Binding {

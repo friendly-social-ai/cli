@@ -14,11 +14,6 @@ import (
 	sdk "github.com/friendly-social/golang-sdk"
 )
 
-// UnreadMsg tells how many activities are unread, broadcast whenever it changes.
-type UnreadMsg struct {
-	Count int
-}
-
 // Messages of the screen.
 type (
 	refreshMsg struct{}
@@ -81,9 +76,7 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	}
 
-	return append(actions,
-		ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}},
-		ui.Action{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}})
+	return append(actions, ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}})
 }
 
 func (s Screen) Keys() []key.Binding {
@@ -120,11 +113,6 @@ func (s Screen) unreadCount() int {
 	}
 
 	return count
-}
-
-// unread broadcasts number of unread activities.
-func (s Screen) unread() tea.Cmd {
-	return screen.Send(router.BroadcastMsg{Inner: UnreadMsg{Count: s.unreadCount()}})
 }
 
 // Badge returns number of unread activities for the tab, empty when all are read.
@@ -181,8 +169,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.content.status.Set("")
-
-		return s, s.unread()
+		return s, nil
 	case openMsg:
 		activity := &s.activities[msg.index]
 		cmds := []tea.Cmd{
@@ -198,7 +185,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			activity.IsRead = true
 			s.content.list.Set(s.items()...)
 			user, id := s.user, activity.Id
-			cmds = append(cmds, s.unread(), func() tea.Msg {
+			cmds = append(cmds, func() tea.Msg {
 				_ = s.service.read(user, id)
 				return nil
 			})
