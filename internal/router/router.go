@@ -78,7 +78,7 @@ func (r Router) Update(msg tea.Msg) (Router, tea.Cmd) {
 		r.width = msg.Width
 		r.height = msg.Height
 
-		msg.Height -= lipgloss.Height(r.header())
+		msg.Height -= lipgloss.Height(r.Header())
 		return r.broadcast(msg)
 	case screen.ChangeMsg:
 		r.current = msg.NewType
@@ -88,7 +88,7 @@ func (r Router) Update(msg tea.Msg) (Router, tea.Cmd) {
 	case BroadcastMsg:
 		return r.broadcast(msg.Inner)
 	case ui.ActionMsg:
-		if r.onTab() {
+		if r.OnTab() {
 			for _, tab := range tabs {
 				if msg.Key.String() == tab.key {
 					r.current = tab.screen
@@ -106,8 +106,8 @@ func (r Router) Keys() []key.Binding {
 	return r.screens[r.current].Keys()
 }
 
-// onTab reports whether the current screen is one of tabs.
-func (r Router) onTab() bool {
+// OnTab reports whether the current screen is one of tabs, which digit keys switch.
+func (r Router) OnTab() bool {
 	for _, tab := range tabs {
 		if tab.screen == r.current {
 			return true
@@ -121,7 +121,7 @@ func (r Router) onTab() bool {
 // shows its badge next to its tab.
 func (r Router) title() string {
 	brand := ui.AccentStyle.Render("friendly")
-	if !r.onTab() {
+	if !r.OnTab() {
 		return brand + ui.MutedStyle.Render(" · "+string(r.current))
 	}
 
@@ -142,7 +142,8 @@ func (r Router) title() string {
 	return strings.Join(parts, "  ")
 }
 
-func (r Router) header() string {
+// Header renders the title line over screens, with the status of the current screen.
+func (r Router) Header() string {
 	// the title is cut to one line. The status goes to the right end, cut to the room the title leaves.
 	inner := r.width - 2
 	title := ansi.Truncate(r.title(), max(inner, 0), "…")
@@ -160,7 +161,7 @@ func (r Router) header() string {
 }
 
 func (r Router) View() string {
-	header := r.header()
+	header := r.Header()
 
 	// clip screens taller than the window instead of pushing the header out
 	content := ui.Clip(r.screens[r.current].View(), r.width, r.height-lipgloss.Height(header))

@@ -14,9 +14,11 @@ import (
 
 // Keys handled by VimWrapper itself, shown around the keys of the wrapped model.
 var (
-	keyMove = ui.Key("j/k", "move")
-	keyQuit = ui.Key("q", "quit")
-	keyDone = ui.Key("esc", "done")
+	keyMove  = ui.Key("j/k", "move")
+	keyQuit  = ui.Key("q", "quit")
+	keyDone  = ui.Key("esc", "done")
+	keyHelp  = ui.Key("?", "help")
+	keyClose = ui.Key("any key", "close")
 )
 
 // VimMode represents possible modes for Vim motions.
@@ -31,6 +33,9 @@ const (
 type VimWrapper struct {
 	mode  VimMode
 	model router.Router
+
+	// help shows all keys in place of the screen until the next key press
+	help bool
 
 	width  int
 	height int
@@ -68,12 +73,42 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return w, func() tea.Msg {
 			return ui.UnfocusMsg{}
 		}
+	case tea.MouseWheelMsg:
+		// the wheel moves like j and k. It does nothing while typing, since moving would leave the field.
+		if w.mode == VimModeNormal && !w.help {
+			switch msg.Button {
+			case tea.MouseWheelDown:
+				return w, func() tea.Msg {
+					return ui.MoveMsg{Direction: ui.DirectionDown}
+				}
+			case tea.MouseWheelUp:
+				return w, func() tea.Msg {
+					return ui.MoveMsg{Direction: ui.DirectionUp}
+				}
+			}
+		}
+
+		return w, nil
+	case tea.MouseMsg:
+		return w, nil
 	case tea.KeyPressMsg:
+		if w.help {
+			w.help = false
+			if msg.String() == "ctrl+c" {
+				return w, tea.Quit
+			}
+
+			return w, nil
+		}
+
 		switch w.mode {
 		case VimModeNormal:
 			switch msg.String() {
 			case "q", "ctrl+c":
 				return w, tea.Quit
+			case "?":
+				w.help = true
+				return w, nil
 			case "i", "enter":
 				// i and enter start typing only where the model offers it, so the footer matches. Elsewhere enter interacts.
 				if typable(w.keys()) {
@@ -189,7 +224,39 @@ func renderKeys(bindings []key.Binding) string {
 		}
 	}
 
-	return strings.Join(hints, ui.MutedStyle.Render(" · "))
+	return strings.Join(hints, keySeparator)
+}
+
+// keySeparator goes between key hints.
+var keySeparator = ui.MutedStyle.Render(" · ")
+
+// helpView lists keys of the current screen, then the ones that work on every screen.
+func (w VimWrapper) helpView() string {
+	everywhere := []key.Binding{keyMove, ui.Key("ctrl+d/u", "scroll a long item"), ui.Key("esc", "stop typing")}
+	if w.model.OnTab() {
+		everywhere = append(everywhere, ui.Key("1-4", "switch tabs"))
+	}
+
+	everywhere = append(everywhere, keyHelp, keyQuit)
+	return helpSection("this screen", w.keys()) + "\n\n" + helpSection("everywhere", everywhere)
+}
+
+// helpSection renders title over bindings, one per line with aligned descriptions.
+func helpSection(title string, bindings []key.Binding) string {
+	width := 0
+	for _, binding := range bindings {
+		width = max(width, lipgloss.Width(binding.Help().Key))
+	}
+
+	lines := []string{ui.BoldStyle.Render(title)}
+	for _, binding := range bindings {
+		if binding.Enabled() {
+			k := binding.Help().Key
+			lines = append(lines, "  "+ui.AccentStyle.Render(k)+strings.Repeat(" ", width-lipgloss.Width(k)+2)+binding.Help().Desc)
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (w VimWrapper) footer() string {
@@ -204,10 +271,13 @@ func (w VimWrapper) footer() string {
 		Foreground(ui.ColorOnAccent).
 		Background(color).
 		Render(string(w.mode))
-	var hints string
-	switch w.mode {
-	case VimModeNormal:
-		bindings := []key.Binding{keyMove}
+	// tail stays visible when the rest of hints is cut to the width
+	var hints, tail string
+	switch {
+	case w.help:
+		hints = renderKeys([]key.Binding{keyClose})
+	case w.mode == VimModeNormal:
+		var bindings []key.Binding
 		for _, binding := range w.keys() {
 			// where enter starts typing, its bindings work only while typing
 			if !typable(w.keys()) || !slices.Contains(binding.Keys(), "enter") {
@@ -215,8 +285,9 @@ func (w VimWrapper) footer() string {
 			}
 		}
 
-		hints = renderKeys(append(bindings, keyQuit))
-	case VimModeInsert:
+		hints = renderKeys(bindings)
+		tail = renderKeys([]key.Binding{keyHelp})
+	case w.mode == VimModeInsert:
 		bindings := []key.Binding{keyDone}
 		for _, binding := range w.keys() {
 			if k, ok := shortcut(binding); ok {
@@ -227,7 +298,16 @@ func (w VimWrapper) footer() string {
 		hints = renderKeys(bindings)
 	}
 
-	hints = ansi.Truncate(hints, max(w.width-lipgloss.Width(badge)-4, 0), "…")
+	room := w.width - lipgloss.Width(badge) - 4
+	if tail != "" {
+		room -= lipgloss.Width(tail) + lipgloss.Width(keySeparator)
+	}
+
+	hints = ansi.Truncate(hints, max(room, 0), "…")
+	if hints != "" && tail != "" {
+		hints += keySeparator
+	}
+	hints += tail
 
 	return lipgloss.NewStyle().
 		Width(w.width).
@@ -240,8 +320,14 @@ func (w VimWrapper) footer() string {
 func (w VimWrapper) View() tea.View {
 	footer := w.footer()
 
-	content := ui.Clip(w.model.View(), w.width, w.height-lipgloss.Height(footer))
+	content := w.model.View()
+	if w.help {
+		content = w.model.Header() + "\n" + lipgloss.NewStyle().Padding(1, 1).Render(w.helpView())
+	}
+
+	content = ui.Clip(content, w.width, w.height-lipgloss.Height(footer))
 	view := tea.NewView(content + "\n" + footer)
 	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
 	return view
 }
