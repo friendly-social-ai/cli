@@ -16,10 +16,17 @@ import (
 // refreshMsg asks people screen to reload people for the current user.
 type refreshMsg struct{}
 
+// loadedMsg carries loaded people, always wrapped into router.TargetMsg so it reaches this screen even after leaving it.
+type loadedMsg struct {
+	entries []sdk.FeedEntry
+	err     error
+}
+
 // Screen is a model of people screen.
 type Screen struct {
 	service *Service
 	user    *sdk.Authorization
+	entries []sdk.FeedEntry
 
 	content struct {
 		label *ui.Label
@@ -30,6 +37,9 @@ type Screen struct {
 			home    *ui.Button
 		}
 	}
+
+	width  int
+	height int
 }
 
 // New creates new Screen from Service.
@@ -46,9 +56,9 @@ func New(service *Service) Screen {
 		return screen.ChangeMsg{NewType: screen.TypeHome}
 	})
 
-	result.content.list = ui.NewList(
-		result.content.button.refresh,
-		result.content.button.home)
+	result.content.list = ui.NewList()
+	result.content.list.SetGap(1)
+	result.content.list.Reset(result.items()...)
 
 	return result
 }
@@ -72,18 +82,41 @@ func (s Screen) load() tea.Cmd {
 	s.content.label.Set(ui.MutedStyle.Render("loading..."))
 	return func() tea.Msg {
 		entries, err := s.service.get(s.user)
-		if err != nil {
-			s.content.label.Set(ui.DangerStyle.Render(fmt.Sprintf("error loading people: %s", err.Error())))
-			return screen.TickMsg{}
-		}
-
-		s.content.label.Set(render(entries))
-		return screen.TickMsg{}
+		return router.TargetMsg{Type: screen.TypePeople, Inner: loadedMsg{entries: entries, err: err}}
 	}
+}
+
+// items builds list of controls followed by people.
+func (s Screen) items() []tea.Model {
+	items := []tea.Model{s.content.button.refresh, s.content.button.home}
+	for _, entry := range s.entries {
+		items = append(items, ui.NewLabel(s.card(entry)))
+	}
+
+	return items
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width = msg.Width
+		s.height = msg.Height
+		s.content.list.Set(s.items()...)
+		return s, nil
+	case loadedMsg:
+		switch {
+		case msg.err != nil:
+			s.content.label.Set(ui.DangerStyle.Render(fmt.Sprintf("error loading people: %s", msg.err.Error())))
+			return s, nil
+		case len(msg.entries) == 0:
+			s.content.label.Set(ui.MutedStyle.Render("you are all caught up"))
+		default:
+			s.content.label.Set("")
+		}
+
+		s.entries = msg.entries
+		s.content.list.Reset(s.items()...)
+		return s, nil
 	case auth.LoginMsg:
 		s.user = msg.User
 		return s, s.load()
@@ -96,51 +129,53 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 }
 
 func (s Screen) View() string {
-	// controls go first so they stay visible when people don't fit the screen
-	return lipgloss.JoinVertical(lipgloss.Left,
-		s.content.list.View(),
-		"",
-		s.content.label.View())
+	status := s.content.label.View()
+	if status == "" {
+		s.content.list.SetHeight(s.height)
+		return s.content.list.View()
+	}
+
+	s.content.list.SetHeight(max(s.height-lipgloss.Height(status)-1, 3))
+	return lipgloss.JoinVertical(lipgloss.Left, status, "", s.content.list.View())
 }
 
-func render(entries []sdk.FeedEntry) string {
-	if len(entries) == 0 {
-		return ui.MutedStyle.Render("you are all caught up")
+// card renders a person wrapped to screen width.
+func (s Screen) card(entry sdk.FeedEntry) string {
+	details := entry.Details
+
+	interests := make([]string, len(details.Interests.Value()))
+	for i, interest := range details.Interests.Value() {
+		interests[i] = interest.Value()
 	}
 
-	views := make([]string, len(entries))
-	for i, entry := range entries {
-		details := entry.Details
-
-		interests := make([]string, len(details.Interests.Value()))
-		for j, interest := range details.Interests.Value() {
-			interests[j] = interest.Value()
-		}
-
-		var tags []string
-		if entry.IsRequest {
-			tags = append(tags, "wants to be friends")
-		}
-		if entry.IsExtendedNetwork {
-			tags = append(tags, "extended network")
-		}
-		if n := len(entry.CommonFriends); n > 0 {
-			tags = append(tags, fmt.Sprintf("%d common friends", n))
-		}
-
-		lines := []string{details.Description.Value()}
-		if fields := ui.Fields(
-			"interests", strings.Join(interests, ", "),
-			"social link", details.SocialLink.Value()); fields != "" {
-			lines = append(lines, fields)
-		}
-		if len(tags) > 0 {
-			lines = append(lines, ui.AccentStyle.Render(strings.Join(tags, " · ")))
-		}
-
-		body := lipgloss.NewStyle().PaddingLeft(2).Render(strings.Join(lines, "\n"))
-		views[i] = ui.BoldStyle.Render(details.Nickname.Value()) + "\n" + body
+	var tags []string
+	if entry.IsRequest {
+		tags = append(tags, "wants to be friends")
+	}
+	if entry.IsExtendedNetwork {
+		tags = append(tags, "extended network")
+	}
+	if n := len(entry.CommonFriends); n > 0 {
+		tags = append(tags, fmt.Sprintf("%d common friends", n))
 	}
 
-	return strings.Join(views, "\n\n")
+	lines := []string{details.Description.Value()}
+	if fields := ui.Fields(
+		"interests", strings.Join(interests, ", "),
+		"social link", details.SocialLink.Value()); fields != "" {
+		lines = append(lines, fields)
+	}
+	if len(tags) > 0 {
+		lines = append(lines, ui.AccentStyle.Render(strings.Join(tags, " · ")))
+	}
+
+	// leave room for list marker plus slack for emoji that terminals draw wider than measured,
+	// zero width means no wrapping before the first WindowSizeMsg
+	width := 0
+	if s.width > 0 {
+		width = max(s.width-6, 20)
+	}
+
+	body := lipgloss.NewStyle().PaddingLeft(2).Width(width).Render(strings.Join(lines, "\n"))
+	return ui.BoldStyle.Render(details.Nickname.Value()) + "\n" + body
 }

@@ -1,6 +1,8 @@
 package ui
 
-// Label represents simple string that is need to be a part of UI.
+import tea "github.com/charmbracelet/bubbletea"
+
+// Label represents simple string that is need to be a part of UI. It can be a non-interactive List item.
 type Label struct {
 	title string
 }
@@ -10,6 +12,14 @@ func NewLabel(title string) *Label {
 	return &Label{
 		title: title,
 	}
+}
+
+func (l *Label) Init() tea.Cmd {
+	return nil
+}
+
+func (l *Label) Update(tea.Msg) (tea.Model, tea.Cmd) {
+	return l, nil
 }
 
 func (l *Label) View() string {
