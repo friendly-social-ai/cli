@@ -51,6 +51,9 @@ type (
 	previewMsg       struct{}
 	discardMsg       struct{}
 	cancelDiscardMsg struct{}
+	filterMsg        struct{}
+	filterDoneMsg    struct{}
+	clearFilterMsg   struct{}
 	authorMsg        struct{ owner sdk.UserDetails }
 	// copyMsg puts text in the clipboard. what names the copied thing in the notice.
 	copyMsg struct{ text, what string }
@@ -152,6 +155,7 @@ type Screen struct {
 
 	content struct {
 		status *ui.Label
+		filter *ui.Filter
 		field  *ui.TextArea
 		prompt *ui.Field
 		list   *ui.List
@@ -178,6 +182,7 @@ func New(service *Service, graphics *ui.Graphics) Screen {
 	input.SetHeight(3)
 
 	result.content.status = ui.NewLabel("")
+	result.content.filter = ui.NewFilter()
 	result.content.field = ui.NewTextArea(input)
 
 	prompt := textinput.New()
@@ -284,7 +289,7 @@ func (s *Screen) reload() tea.Cmd {
 // and the opened post in post mode.
 func (s Screen) shown() ([]sdk.CommunityPost, int) {
 	if s.mode == modeList {
-		return s.posts, 0
+		return s.listed(), 0
 	}
 
 	var posts []sdk.CommunityPost
@@ -293,6 +298,19 @@ func (s Screen) shown() ([]sdk.CommunityPost, int) {
 	}
 
 	return posts, s.openedIndex() + 1
+}
+
+// listed returns posts of the list that match the filter by author or text.
+func (s Screen) listed() []sdk.CommunityPost {
+	var posts []sdk.CommunityPost
+	for _, post := range s.posts {
+		author, _ := metaParts(post)
+		if s.content.filter.Match(author + " " + FirstLine(post)) {
+			posts = append(posts, post)
+		}
+	}
+
+	return posts
 }
 
 // indexOfPost returns the list index of post with id, or -1 when it isn't shown.
@@ -608,6 +626,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.confirmDelete, s.loadingMore = false, false
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
+		s.content.filter.Clear()
 		s.content.list.Reset(s.items()...)
 		return s, raw(freed)
 	case auth.LoginMsg:
@@ -735,6 +754,15 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.openComposer()
 	case closeMsg:
 		s.closeComposer()
+		return s, nil
+	case filterMsg:
+		s.content.filter.Start()
+		return s, screen.Send(ui.InsertMsg{})
+	case filterDoneMsg:
+		return s, screen.Send(ui.NormalMsg{})
+	case clearFilterMsg:
+		s.content.filter.Clear()
+		s.content.list.Reset(s.items()...)
 		return s, nil
 	case discardMsg:
 		if s.confirmDiscard {
@@ -896,6 +924,16 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.confirmDelete = false
 		s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
 		return s, nil
+	}
+
+	// typing the filter narrows the list as the query changes
+	if s.content.filter.Typing() {
+		changed, cmd := s.content.filter.Update(msg)
+		if changed {
+			s.content.list.Reset(s.items()...)
+		}
+
+		return s, cmd
 	}
 
 	// the open composer takes typing and focus, and the list stays where it is

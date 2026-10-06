@@ -45,7 +45,7 @@ func (s Screen) items() []ui.Component {
 	}
 
 	if s.mode == modeList {
-		for _, post := range s.posts {
+		for _, post := range s.listed() {
 			items = append(items, s.postButton(post, ""))
 		}
 
@@ -86,6 +86,10 @@ func (s Screen) actions() []ui.Action {
 			{Key: ui.Key("y", "copy link"), Msg: copyMsg{text: l.url, what: "link"}},
 			{Key: ui.Key("esc", "cancel"), Msg: cancelPickMsg{}},
 		}
+	}
+
+	if s.content.filter.Typing() {
+		return []ui.Action{{Key: ui.Key("enter", "done"), Msg: filterDoneMsg{}}}
 	}
 
 	if s.composing && s.confirmDiscard {
@@ -151,7 +155,15 @@ func (s Screen) actions() []ui.Action {
 
 	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
 	if s.mode == modeList {
-		return append(actions, ui.Action{Key: ui.Key("n", "new post"), Msg: composeMsg{}}, refresh)
+		actions = append(actions,
+			ui.Action{Key: ui.Key("n", "new post"), Msg: composeMsg{}},
+			ui.Action{Key: ui.Key("/", "filter"), Msg: filterMsg{}},
+			refresh)
+		if s.content.filter.Query() != "" {
+			actions = append(actions, ui.Action{Key: ui.Key("esc", "clear"), Msg: clearFilterMsg{}})
+		}
+
+		return actions
 	}
 
 	if s.confirmDelete {
@@ -394,6 +406,16 @@ func (s Screen) View() string {
 	var top []string
 	if header := s.header(); header != "" {
 		top = append(top, header)
+	}
+
+	if s.mode == modeList {
+		if filter := s.content.filter.View(s.textWidth()); filter != "" {
+			top = append(top, filter)
+		}
+
+		if s.content.filter.Query() != "" && len(s.listed()) == 0 {
+			top = append(top, ui.MutedStyle.Render("no posts match"))
+		}
 	}
 
 	if s.composing {

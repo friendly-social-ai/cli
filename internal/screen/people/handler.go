@@ -20,8 +20,11 @@ type refreshMsg struct{}
 
 // Messages produced by key actions on the selected person.
 type (
-	connectMsg struct{}
-	skipMsg    struct{}
+	connectMsg     struct{}
+	skipMsg        struct{}
+	filterMsg      struct{}
+	filterDoneMsg  struct{}
+	clearFilterMsg struct{}
 )
 
 // failedMsg brings back the person at index whose request failed.
@@ -45,6 +48,7 @@ type Screen struct {
 
 	content struct {
 		status *ui.Label
+		filter *ui.Filter
 		list   *ui.List
 	}
 
@@ -59,6 +63,7 @@ func New(service *Service) Screen {
 	}
 
 	result.content.status = ui.NewLabel("")
+	result.content.filter = ui.NewFilter()
 
 	result.content.list = ui.NewList()
 	result.content.list.SetGap(1)
@@ -91,23 +96,46 @@ func (s Screen) load() tea.Cmd {
 
 // items builds list of people.
 func (s Screen) items() []ui.Component {
-	items := make([]ui.Component, len(s.entries))
-	for i, entry := range s.entries {
-		items[i] = ui.NewLabel(s.card(entry))
+	listed := s.listed()
+	items := make([]ui.Component, len(listed))
+	for i, index := range listed {
+		items[i] = ui.NewLabel(s.card(s.entries[index]))
 	}
 
 	return items
 }
 
+// listed returns indexes of entries that match the filter by nickname, description or interests.
+func (s Screen) listed() []int {
+	var listed []int
+	for i, entry := range s.entries {
+		details := entry.Details
+		text := []string{details.Nickname.Value(), details.Description.Value()}
+		for _, interest := range details.Interests.Value() {
+			text = append(text, interest.Value())
+		}
+
+		if s.content.filter.Match(strings.Join(text, " ")) {
+			listed = append(listed, i)
+		}
+	}
+
+	return listed
+}
+
 func (s Screen) actions() []ui.Action {
+	if s.content.filter.Typing() {
+		return []ui.Action{{Key: ui.Key("enter", "done"), Msg: filterDoneMsg{}}}
+	}
+
 	var actions []ui.Action
 	if s.content.list.Scrollable() {
 		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
 	}
 
-	if len(s.entries) > 0 {
+	if listed := s.listed(); len(listed) > 0 {
 		desc := "connect"
-		if s.entries[s.content.list.Cursor()].IsRequest {
+		if s.entries[listed[s.content.list.Cursor()]].IsRequest {
 			desc = "accept"
 		}
 
@@ -116,7 +144,14 @@ func (s Screen) actions() []ui.Action {
 			ui.Action{Key: ui.Key("x", "skip"), Msg: skipMsg{}})
 	}
 
-	return append(actions, ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}})
+	actions = append(actions,
+		ui.Action{Key: ui.Key("/", "filter"), Msg: filterMsg{}},
+		ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}})
+	if s.content.filter.Query() != "" {
+		actions = append(actions, ui.Action{Key: ui.Key("esc", "clear"), Msg: clearFilterMsg{}})
+	}
+
+	return actions
 }
 
 func (s Screen) Keys() []key.Binding {
@@ -151,6 +186,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case auth.LogoutMsg:
 		s.user, s.entries = nil, nil
 		s.content.status.Set("")
+		s.content.filter.Clear()
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case auth.LoginMsg:
@@ -158,6 +194,15 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.load()
 	case refreshMsg:
 		return s, s.load()
+	case filterMsg:
+		s.content.filter.Start()
+		return s, screen.Send(ui.InsertMsg{})
+	case filterDoneMsg:
+		return s, screen.Send(ui.NormalMsg{})
+	case clearFilterMsg:
+		s.content.filter.Clear()
+		s.content.list.Reset(s.items()...)
+		return s, nil
 	case connectMsg:
 		return s.take(s.service.connect)
 	case skipMsg:
@@ -169,13 +214,23 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	}
 
+	// typing the filter narrows the list as the query changes
+	if s.content.filter.Typing() {
+		changed, cmd := s.content.filter.Update(msg)
+		if changed {
+			s.content.list.Reset(s.items()...)
+		}
+
+		return s, cmd
+	}
+
 	_, cmd := s.content.list.Update(msg)
 	return s, cmd
 }
 
 // take removes the selected person right away and sends request for them. A failed request brings them back.
 func (s Screen) take(request func(*sdk.Authorization, sdk.UserDetails) error) (screen.Model, tea.Cmd) {
-	index := s.content.list.Cursor()
+	index := s.listed()[s.content.list.Cursor()]
 	entry := s.entries[index]
 	s.entries = slices.Delete(s.entries, index, index+1)
 	s.content.list.Set(s.items()...)
@@ -199,8 +254,23 @@ func (s Screen) View() string {
 		return ui.MutedStyle.Render("you are all caught up")
 	}
 
-	s.content.list.SetHeight(s.height)
-	return s.content.list.View()
+	var top []string
+	if filter := s.content.filter.View(s.width); filter != "" {
+		top = append(top, filter)
+	}
+
+	if s.content.filter.Query() != "" && len(s.listed()) == 0 {
+		top = append(top, ui.MutedStyle.Render("nobody matches"))
+	}
+
+	if len(top) == 0 {
+		s.content.list.SetHeight(s.height)
+		return s.content.list.View()
+	}
+
+	header := strings.Join(top, "\n\n")
+	s.content.list.SetHeight(max(s.height-lipgloss.Height(header)-1, 3))
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", s.content.list.View())
 }
 
 // card renders a person wrapped to screen width.
