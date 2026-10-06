@@ -1,7 +1,7 @@
 package community
 
 import (
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -61,7 +61,7 @@ type Screen struct {
 
 	content struct {
 		status *ui.Label
-		field  *ui.Field
+		field  *ui.TextArea
 		list   *ui.List
 	}
 
@@ -75,12 +75,14 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	input := textinput.New()
+	input := textarea.New()
 	input.Prompt = ""
+	input.ShowLineNumbers = false
 	input.CharLimit = 4096
+	input.SetHeight(4)
 
 	result.content.status = ui.NewLabel("log in to see community")
-	result.content.field = ui.NewField(input)
+	result.content.field = ui.NewTextArea(input)
 	result.content.list = ui.NewList()
 	result.content.list.Reset(result.items()...)
 

@@ -173,7 +173,7 @@ func (s Screen) header() string {
 }
 
 func (s Screen) View() string {
-	s.content.field.Raw().Width = s.textWidth()
+	s.content.field.Raw().SetWidth(s.textWidth())
 
 	top := s.header()
 	if status := s.content.status.View(); status != "" {
