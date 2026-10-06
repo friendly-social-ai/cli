@@ -15,6 +15,7 @@ const (
 	TypeAuth      Type = "auth"
 	TypePeople    Type = "people"
 	TypeCommunity Type = "community"
+	TypeActivity  Type = "activity"
 )
 
 // Model represents Screen which is basically an extended tea.Model.

@@ -9,6 +9,7 @@ import (
 	"github.com/friendly-social/cli/internal/navigation"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
+	"github.com/friendly-social/cli/internal/screen/activity"
 	"github.com/friendly-social/cli/internal/screen/auth"
 	"github.com/friendly-social/cli/internal/screen/community"
 	"github.com/friendly-social/cli/internal/screen/home"
@@ -33,6 +34,7 @@ func main() {
 	screens := []screen.Model{
 		home.New(),
 		community.New(community.NewService(client), graphics),
+		activity.New(activity.NewService(client)),
 		people.New(people.NewService(client)),
 		profile.New(profile.NewService(client)),
 		register.New(register.NewService(client)),
