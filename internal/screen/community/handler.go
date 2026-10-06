@@ -84,6 +84,15 @@ type picture struct {
 	cols, rows int
 }
 
+// postView is an opened post with its replies and list position, kept while the user opens one of its replies or
+// its parent.
+type postView struct {
+	details        *sdk.CommunityPostDetails
+	replies        []sdk.CommunityPostReply
+	repliesNext    *sdk.CursorId
+	cursor, offset int
+}
+
 // Screen is a model of community screen. It shows the list of posts and the details of a single post.
 type Screen struct {
 	service  *Service
@@ -116,6 +125,8 @@ type Screen struct {
 	listCursor, listOffset int
 	// pending is the post to select once the next load arrives
 	pending *sdk.CommunityPostId
+	// stack keeps posts the user went through, so going back returns to each at its position
+	stack []postView
 
 	content struct {
 		status *ui.Label
@@ -462,6 +473,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.user = nil
 		s.mode = modeList
 		s.from = ""
+		s.stack = nil
 		s.picking = false
 		s.posts, s.next = nil, nil
 		s.details, s.replies, s.repliesNext = nil, nil, nil
@@ -493,8 +505,15 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			s.from = msg.From
 		}
 
-		if s.mode == modeList {
+		switch {
+		case s.mode == modeList:
 			s.listCursor, s.listOffset = s.content.list.Position()
+			s.stack = nil
+		case msg.From != "":
+			s.stack = nil
+		default:
+			cursor, offset := s.content.list.Position()
+			s.stack = append(s.stack, postView{s.details, s.replies, s.repliesNext, cursor, offset})
 		}
 
 		if post, ok := s.known(msg.Post.Id); ok {
@@ -539,6 +558,19 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case backMsg:
 		if s.mode == modeList {
 			return s, screen.Send(screen.ChangeMsg{NewType: screen.TypeHome})
+		}
+
+		// back from a post opened in another post returns to that one and refreshes it in the background
+		if n := len(s.stack); n > 0 {
+			view := s.stack[n-1]
+			s.stack = s.stack[:n-1]
+			freed := s.dropPictures(view.details.Post.Text)
+			s.picking, s.editing, s.confirmDelete = false, false, false
+			s.details, s.replies, s.repliesNext = view.details, view.replies, view.repliesNext
+			s.content.field.Raw().SetValue("")
+			s.content.list.Reset(s.items()...)
+			s.content.list.SetPosition(view.cursor, view.offset)
+			return s, tea.Batch(raw(freed), s.loadPictures(view.details.Post), s.loadDetails(view.details.Post.Descriptor()))
 		}
 
 		s.mode = modeList
