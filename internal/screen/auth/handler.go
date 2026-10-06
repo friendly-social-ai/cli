@@ -18,8 +18,10 @@ type LoginMsg struct {
 	User *sdk.Authorization
 }
 
-// LogoutMsg signals that user logged out and saved credentials are gone.
-type LogoutMsg struct{}
+// LogoutMsg signals that user logged out and saved credentials are gone. Expired means the server rejected them.
+type LogoutMsg struct {
+	Expired bool
+}
 
 // Messages produced by key actions of the screen.
 type (
@@ -172,7 +174,20 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.content.status.Set("")
+		if msg.Expired {
+			s.content.status.Set(ui.DangerStyle.Render("session expired, log in again"))
+		}
+
 		return s, nil
+	case ExpiredMsg:
+		if err := Clear(); err != nil {
+			log.Printf("error: %v", err)
+		}
+
+		return s, tea.Batch(
+			screen.Send(ui.NormalMsg{}),
+			screen.Send(router.BroadcastMsg{Inner: LogoutMsg{Expired: true}}),
+			screen.Send(screen.ChangeMsg{NewType: screen.TypeAuth}))
 	case LoginMsg:
 		return s, func() tea.Msg {
 			return screen.ChangeMsg{NewType: screen.TypeCommunity}

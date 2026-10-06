@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -38,7 +40,14 @@ func main() {
 	ui.SetTheme(lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
 	graphics := ui.NewGraphics()
 
-	client := sdk.NewClient()
+	// the transport reports a rejected session to the program, which is assigned below before any request runs
+	var p *tea.Program
+	client := sdk.NewClient().WithHTTPClient(&http.Client{
+		Timeout: 30 * time.Second,
+		Transport: auth.Transport{Expired: func() {
+			p.Send(router.TargetMsg{Type: screen.TypeAuth, Inner: auth.ExpiredMsg{}})
+		}},
+	})
 	screens := []screen.Model{
 		home.New(),
 		community.New(community.NewService(client), graphics),
@@ -49,10 +58,9 @@ func main() {
 		auth.New(auth.NewService(client)),
 	}
 
-	router := router.NewRouter(screens)
-	wrapper := navigation.NewVimWrapper(router)
+	wrapper := navigation.NewVimWrapper(router.NewRouter(screens))
 
-	p := tea.NewProgram(wrapper, options()...)
+	p = tea.NewProgram(wrapper, options()...)
 	_, err := p.Run()
 	if graphics != nil {
 		graphics.Close(os.Stdout)
