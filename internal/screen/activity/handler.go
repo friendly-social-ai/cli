@@ -1,6 +1,7 @@
 package activity
 
 import (
+	"log"
 	"strconv"
 
 	"charm.land/bubbles/v2/key"
@@ -25,6 +26,8 @@ type (
 		append bool
 		err    error
 	}
+	// polledMsg carries the first page of activity checked in the background
+	polledMsg struct{ page *sdk.Cursor[sdk.Activity] }
 )
 
 // Screen is a model of activity screen, which lists replies to user's posts.
@@ -103,6 +106,24 @@ func (s Screen) load(cursor *sdk.CursorId) tea.Cmd {
 	}
 }
 
+// poll fetches the first page of activity without showing a status. On failure it logs and tries again next minute.
+func (s Screen) poll() tea.Cmd {
+	if s.user == nil {
+		return nil
+	}
+
+	user := s.user
+	return func() tea.Msg {
+		page, err := s.service.list(user, nil)
+		if err != nil {
+			log.Printf("error: %v", err)
+			return nil
+		}
+
+		return router.TargetMsg{Type: screen.TypeActivity, Inner: polledMsg{page: page}}
+	}
+}
+
 // unreadCount returns number of unread activities.
 func (s Screen) unreadCount() int {
 	count := 0
@@ -145,6 +166,32 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case refreshMsg:
 		return s, s.load(nil)
+	case screen.MinuteMsg:
+		s.content.list.Set(s.items()...)
+		return s, s.poll()
+	case polledMsg:
+		// new activities go on top and the cursor stays on the same one
+		known := make(map[sdk.ActivityId]bool, len(s.activities))
+		for _, activity := range s.activities {
+			known[activity.Id] = true
+		}
+
+		var fresh []sdk.Activity
+		for _, activity := range msg.page.Data {
+			if !known[activity.Id] {
+				fresh = append(fresh, activity)
+			}
+		}
+
+		if len(fresh) == 0 {
+			return s, nil
+		}
+
+		cursor, offset := s.content.list.Position()
+		s.activities = append(fresh, s.activities...)
+		s.content.list.Set(s.items()...)
+		s.content.list.SetPosition(cursor+len(fresh), offset)
+		return s, nil
 	case moreMsg:
 		if s.loadingMore || s.next == nil {
 			return s, nil

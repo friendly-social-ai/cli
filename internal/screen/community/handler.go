@@ -569,6 +569,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.user = msg.User
 		s.mode = modeList
 		return s, s.loadList(nil)
+	case screen.MinuteMsg:
+		// rebuilt items show fresh relative times
+		s.content.list.Set(s.items()...)
+		return s, nil
 	case refreshMsg:
 		return s, s.reload()
 	case moreMsg:

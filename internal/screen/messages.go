@@ -21,3 +21,6 @@ type ErrorMsg struct {
 
 // TickMsg signals that screen must be redrawn.
 type TickMsg struct{}
+
+// MinuteMsg reaches every screen once a minute, to redraw relative times and check for new activity.
+type MinuteMsg struct{}

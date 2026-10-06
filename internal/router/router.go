@@ -2,6 +2,7 @@ package router
 
 import (
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -46,12 +47,19 @@ func NewRouter(models []screen.Model) Router {
 }
 
 func (r Router) Init() tea.Cmd {
-	cmds := make([]tea.Cmd, 0, len(r.screens))
+	cmds := []tea.Cmd{minute()}
 	for _, s := range r.screens {
 		cmds = append(cmds, s.Init())
 	}
 
 	return tea.Batch(cmds...)
+}
+
+// minute returns command delivering screen.MinuteMsg in a minute.
+func minute() tea.Cmd {
+	return tea.Tick(time.Minute, func(time.Time) tea.Msg {
+		return screen.MinuteMsg{}
+	})
 }
 
 func (r Router) target(target screen.Type, msg tea.Msg) (Router, tea.Cmd) {
@@ -87,6 +95,9 @@ func (r Router) Update(msg tea.Msg) (Router, tea.Cmd) {
 		return r.target(msg.Type, msg.Inner)
 	case BroadcastMsg:
 		return r.broadcast(msg.Inner)
+	case screen.MinuteMsg:
+		r, cmd := r.broadcast(msg)
+		return r, tea.Batch(cmd, minute())
 	case ui.ActionMsg:
 		if r.OnTab() {
 			for _, tab := range tabs {
