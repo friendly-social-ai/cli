@@ -129,7 +129,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case auth.LoginMsg:
 		return s, func() tea.Msg {
-			return screen.ChangeMsg{NewType: screen.TypeHome}
+			return screen.ChangeMsg{NewType: screen.TypeCommunity}
 		}
 	case screen.ErrorMsg:
 		s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.Value)))

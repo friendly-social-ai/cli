@@ -1,6 +1,8 @@
 package activity
 
 import (
+	"strconv"
+
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -108,8 +110,8 @@ func (s Screen) load(cursor *sdk.CursorId) tea.Cmd {
 	}
 }
 
-// unread broadcasts number of unread activities.
-func (s Screen) unread() tea.Cmd {
+// unreadCount returns number of unread activities.
+func (s Screen) unreadCount() int {
 	count := 0
 	for _, activity := range s.activities {
 		if !activity.IsRead {
@@ -117,7 +119,21 @@ func (s Screen) unread() tea.Cmd {
 		}
 	}
 
-	return screen.Send(router.BroadcastMsg{Inner: UnreadMsg{Count: count}})
+	return count
+}
+
+// unread broadcasts number of unread activities.
+func (s Screen) unread() tea.Cmd {
+	return screen.Send(router.BroadcastMsg{Inner: UnreadMsg{Count: s.unreadCount()}})
+}
+
+// Badge returns number of unread activities for the tab, empty when all are read.
+func (s Screen) Badge() string {
+	if count := s.unreadCount(); count > 0 {
+		return strconv.Itoa(count)
+	}
+
+	return ""
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {

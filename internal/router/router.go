@@ -11,6 +11,18 @@ import (
 	"github.com/friendly-social/cli/internal/ui"
 )
 
+// tabs are the screens of a logged in user, shown in the header and switched with their keys.
+var tabs = []struct {
+	key    string
+	screen screen.Type
+	title  string
+}{
+	{"1", screen.TypeCommunity, "Community"},
+	{"2", screen.TypeActivity, "Activity"},
+	{"3", screen.TypePeople, "People"},
+	{"4", screen.TypeProfile, "Profile"},
+}
+
 // Router orchestrates multiple screens.
 type Router struct {
 	current screen.Type
@@ -75,6 +87,15 @@ func (r Router) Update(msg tea.Msg) (Router, tea.Cmd) {
 		return r.target(msg.Type, msg.Inner)
 	case BroadcastMsg:
 		return r.broadcast(msg.Inner)
+	case ui.ActionMsg:
+		if r.onTab() {
+			for _, tab := range tabs {
+				if msg.Key.String() == tab.key {
+					r.current = tab.screen
+					return r, nil
+				}
+			}
+		}
 	}
 
 	return r.target(r.current, msg)
@@ -85,11 +106,46 @@ func (r Router) Keys() []key.Binding {
 	return r.screens[r.current].Keys()
 }
 
-func (r Router) header() string {
-	title := ui.AccentStyle.Render("friendly") + ui.MutedStyle.Render(" · "+string(r.current))
+// onTab reports whether the current screen is one of tabs.
+func (r Router) onTab() bool {
+	for _, tab := range tabs {
+		if tab.screen == r.current {
+			return true
+		}
+	}
 
-	// the status goes to the right end, cut to the room left after the title
+	return false
+}
+
+// title names the current screen, or lists tabs with the current one highlighted. A screen with a Badge method
+// shows its badge next to its tab.
+func (r Router) title() string {
+	brand := ui.AccentStyle.Render("friendly")
+	if !r.onTab() {
+		return brand + ui.MutedStyle.Render(" · "+string(r.current))
+	}
+
+	parts := []string{brand}
+	for _, tab := range tabs {
+		label := ui.MutedStyle.Render("[" + tab.key + "] " + tab.title)
+		if tab.screen == r.current {
+			label = ui.MutedStyle.Render("["+tab.key+"] ") + ui.AccentStyle.Render(tab.title)
+		}
+
+		if badged, ok := r.screens[tab.screen].(interface{ Badge() string }); ok && badged.Badge() != "" {
+			label += " " + ui.AccentStyle.Render(badged.Badge())
+		}
+
+		parts = append(parts, label)
+	}
+
+	return strings.Join(parts, "  ")
+}
+
+func (r Router) header() string {
+	// the title is cut to one line. The status goes to the right end, cut to the room the title leaves.
 	inner := r.width - 2
+	title := ansi.Truncate(r.title(), max(inner, 0), "…")
 	if status := r.screens[r.current].Status(); status != "" && inner-lipgloss.Width(title)-2 > 0 {
 		status = ansi.Truncate(status, inner-lipgloss.Width(title)-2, "…")
 		title += strings.Repeat(" ", inner-lipgloss.Width(title)-lipgloss.Width(status)) + status
