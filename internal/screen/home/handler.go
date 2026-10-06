@@ -14,11 +14,12 @@ type Screen struct {
 		list *ui.List
 
 		buttons struct {
-			people   *ui.Button
-			profile  *ui.Button
-			login    *ui.Button
-			register *ui.Button
-			exit     *ui.Button
+			community *ui.Button
+			people    *ui.Button
+			profile   *ui.Button
+			login     *ui.Button
+			register  *ui.Button
+			exit      *ui.Button
 		}
 	}
 }
@@ -29,6 +30,9 @@ func New() Screen {
 
 	result.content.buttons.register = ui.NewButton("Register", func() tea.Msg {
 		return screen.ChangeMsg{NewType: screen.TypeRegister}
+	})
+	result.content.buttons.community = ui.NewButton("Community", func() tea.Msg {
+		return screen.ChangeMsg{NewType: screen.TypeCommunity}
 	})
 	result.content.buttons.people = ui.NewButton("People", func() tea.Msg {
 		return screen.ChangeMsg{NewType: screen.TypePeople}
@@ -42,6 +46,7 @@ func New() Screen {
 	result.content.buttons.exit = ui.NewButton("Exit", tea.Quit)
 
 	result.content.list = ui.NewList(
+		result.content.buttons.community,
 		result.content.buttons.people,
 		result.content.buttons.profile,
 		result.content.buttons.login,

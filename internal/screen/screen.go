@@ -6,11 +6,12 @@ import tea "github.com/charmbracelet/bubbletea"
 type Type string
 
 const (
-	TypeRegister Type = "register"
-	TypeHome     Type = "home"
-	TypeProfile  Type = "profile"
-	TypeAuth     Type = "auth"
-	TypePeople   Type = "people"
+	TypeRegister  Type = "register"
+	TypeHome      Type = "home"
+	TypeProfile   Type = "profile"
+	TypeAuth      Type = "auth"
+	TypePeople    Type = "people"
+	TypeCommunity Type = "community"
 )
 
 // Model represents Screen which is basically an extended tea.Model.
