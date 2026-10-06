@@ -21,11 +21,14 @@ import (
 )
 
 func main() {
-	f, err := tea.LogToFile("debug.log", "debug")
-	if err != nil {
-		log.Fatal(err)
+	// standard log goes to debug.log only when debugging, the program draws over stdout
+	if os.Getenv("DEBUG") != "" {
+		f, err := tea.LogToFile("debug.log", "debug")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close() //nolint:errcheck
 	}
-	defer f.Close() //nolint:errcheck
 
 	out := ui.NewOutput(os.Stdout)
 	graphics := ui.NewGraphics(out)
@@ -45,7 +48,7 @@ func main() {
 	wrapper := navigation.NewVimWrapper(router)
 
 	p := tea.NewProgram(wrapper, tea.WithAltScreen(), tea.WithOutput(out))
-	_, err = p.Run()
+	_, err := p.Run()
 	if graphics != nil {
 		graphics.Close()
 	}
