@@ -18,6 +18,9 @@ type LoginMsg struct {
 	User *sdk.Authorization
 }
 
+// LogoutMsg signalizes that user logged out and saved credentials are gone.
+type LogoutMsg struct{}
+
 // Messages produced by key actions of the screen.
 type (
 	sendMsg    struct{}
@@ -148,6 +151,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
+	case LogoutMsg:
+		for _, field := range s.content.fields {
+			field.Raw().SetValue("")
+		}
+
+		s.content.status.Set("")
+		return s, nil
 	case LoginMsg:
 		return s, func() tea.Msg {
 			return screen.ChangeMsg{NewType: screen.TypeHome}

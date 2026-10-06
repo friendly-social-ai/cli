@@ -324,6 +324,17 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		return s, nil
+	case auth.LogoutMsg:
+		s.dropPictures(nil)
+		s.user = nil
+		s.mode = modeList
+		s.posts, s.next = nil, nil
+		s.details, s.replies, s.repliesNext = nil, nil, nil
+		s.editing, s.confirmDelete, s.loadingMore, s.attaching = false, false, false, false
+		s.content.field.Raw().SetValue("")
+		s.content.status.Set(ui.MutedStyle.Render("log in to see community"))
+		s.content.list.Reset(s.items()...)
+		return s, nil
 	case auth.LoginMsg:
 		s.user = msg.User
 		s.mode = modeList

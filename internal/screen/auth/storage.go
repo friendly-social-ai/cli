@@ -67,3 +67,18 @@ func Save(user *sdk.Authorization) error {
 
 	return nil
 }
+
+// Clear removes saved authorization from user cache directory.
+func Clear() error {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return fmt.Errorf("auth: failed to get user cache dir: %w", err)
+	}
+
+	err = os.Remove(filepath.Join(cacheDir, saveFolder, saveFile))
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("auth: failed to remove save file: %w", err)
+	}
+
+	return nil
+}

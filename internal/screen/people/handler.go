@@ -122,6 +122,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.entries = msg.entries
 		s.content.list.Reset(s.items()...)
 		return s, nil
+	case auth.LogoutMsg:
+		s.user, s.entries = nil, nil
+		s.content.label.Set(ui.MutedStyle.Render("log in to see people"))
+		s.content.list.Reset(s.items()...)
+		return s, nil
 	case auth.LoginMsg:
 		s.user = msg.User
 		return s, s.load()

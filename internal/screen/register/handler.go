@@ -121,6 +121,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
+	case auth.LogoutMsg:
+		for _, field := range s.content.fields {
+			field.Raw().SetValue("")
+		}
+
+		s.content.status.Set("")
+		return s, nil
 	case auth.LoginMsg:
 		return s, func() tea.Msg {
 			return screen.ChangeMsg{NewType: screen.TypeHome}
