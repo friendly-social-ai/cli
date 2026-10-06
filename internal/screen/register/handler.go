@@ -4,7 +4,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/screen/auth"
@@ -133,7 +132,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return screen.ChangeMsg{NewType: screen.TypeHome}
 		}
 	case screen.ErrorMsg:
-		s.content.status.Set(ui.DangerStyle.Render(msg.Value.Error()))
+		s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.Value)))
 		return s, nil
 	}
 
@@ -141,15 +140,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	return s, cmd
 }
 
+func (s Screen) Status() string {
+	return s.content.status.View()
+}
+
 func (s Screen) View() string {
 	for _, field := range s.content.fields {
 		field.Raw().SetWidth(s.width - 10)
 	}
 
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		s.content.list.View(),
-		"",
-		s.content.status.View(),
-	)
+	return s.content.list.View()
 }

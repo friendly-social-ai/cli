@@ -1,7 +1,6 @@
 package profile
 
 import (
-	"fmt"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -37,7 +36,6 @@ type Screen struct {
 	showEmail bool
 
 	content struct {
-		// status shows loading, errors and logged out state when there is no profile to show
 		status *ui.Label
 	}
 }
@@ -48,7 +46,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.status = ui.NewLabel(ui.MutedStyle.Render("log in to see your profile"))
+	result.content.status = ui.NewLabel("")
 	return result
 }
 
@@ -128,7 +126,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		s.confirmLogout = false
 		if err := auth.Clear(); err != nil {
-			s.content.status.Set(ui.DangerStyle.Render(err.Error()))
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(err)))
 			return s, nil
 		}
 
@@ -143,7 +141,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case auth.LogoutMsg:
 		s.loggedIn, s.self, s.showEmail = false, nil, false
-		s.content.status.Set(ui.MutedStyle.Render("log in to see your profile"))
+		s.content.status.Set("")
 		return s, nil
 	case auth.LoginMsg:
 		s.loggedIn, s.self, s.showEmail = true, nil, false
@@ -154,7 +152,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 	case loadedMsg:
 		if msg.err != nil {
-			s.content.status.Set(ui.DangerStyle.Render(fmt.Sprintf("error loading profile: %s", msg.err.Error())))
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
 			return s, nil
 		}
 
@@ -189,12 +187,18 @@ func (s Screen) profile() string {
 		"social link", s.self.SocialLink.Value())
 }
 
+func (s Screen) Status() string {
+	return s.content.status.View()
+}
+
 func (s Screen) View() string {
+	if !s.loggedIn {
+		return ui.MutedStyle.Render("log in to see your profile")
+	}
+
 	var parts []string
-	for _, part := range []string{s.content.status.View(), s.profile()} {
-		if part != "" {
-			parts = append(parts, part)
-		}
+	if profile := s.profile(); profile != "" {
+		parts = append(parts, profile)
 	}
 
 	if s.confirmLogout {

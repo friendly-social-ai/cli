@@ -107,6 +107,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	return s, cmd
 }
 
+func (Screen) Status() string {
+	return ""
+}
+
 func (s Screen) View() string {
 	return s.content.list.View()
 }

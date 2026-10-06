@@ -133,7 +133,7 @@ func (s *Service) upload(user *sdk.Authorization, path string) (string, error) {
 	}
 
 	if _, _, err := image.DecodeConfig(f); err != nil {
-		return "", fmt.Errorf("not a png, jpeg or gif image: %w", err)
+		return "", fmt.Errorf("not a png, jpeg or gif image")
 	}
 
 	if _, err := f.Seek(0, io.SeekStart); err != nil {

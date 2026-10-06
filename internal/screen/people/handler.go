@@ -30,8 +30,8 @@ type Screen struct {
 	entries []sdk.FeedEntry
 
 	content struct {
-		label *ui.Label
-		list  *ui.List
+		status *ui.Label
+		list   *ui.List
 	}
 
 	width  int
@@ -44,7 +44,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.label = ui.NewLabel(ui.MutedStyle.Render("log in to see people"))
+	result.content.status = ui.NewLabel("")
 
 	result.content.list = ui.NewList()
 	result.content.list.SetGap(1)
@@ -65,11 +65,10 @@ func (s Screen) Init() tea.Cmd {
 
 func (s Screen) load() tea.Cmd {
 	if s.user == nil {
-		s.content.label.Set(ui.MutedStyle.Render("log in to see people"))
 		return nil
 	}
 
-	s.content.label.Set(ui.MutedStyle.Render("loading..."))
+	s.content.status.Set(ui.MutedStyle.Render("loading..."))
 	return func() tea.Msg {
 		entries, err := s.service.get(s.user)
 		return router.TargetMsg{Type: screen.TypePeople, Inner: loadedMsg{entries: entries, err: err}}
@@ -101,6 +100,10 @@ func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
 }
 
+func (s Screen) Status() string {
+	return s.content.status.View()
+}
+
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ui.ActionMsg:
@@ -113,22 +116,18 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.list.Set(s.items()...)
 		return s, nil
 	case loadedMsg:
-		switch {
-		case msg.err != nil:
-			s.content.label.Set(ui.DangerStyle.Render(fmt.Sprintf("error loading people: %s", msg.err.Error())))
+		if msg.err != nil {
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
 			return s, nil
-		case len(msg.entries) == 0:
-			s.content.label.Set(ui.MutedStyle.Render("you are all caught up"))
-		default:
-			s.content.label.Set("")
 		}
 
+		s.content.status.Set("")
 		s.entries = msg.entries
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case auth.LogoutMsg:
 		s.user, s.entries = nil, nil
-		s.content.label.Set(ui.MutedStyle.Render("log in to see people"))
+		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case auth.LoginMsg:
@@ -143,14 +142,15 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 }
 
 func (s Screen) View() string {
-	status := s.content.label.View()
-	if status == "" {
-		s.content.list.SetHeight(s.height)
-		return s.content.list.View()
+	switch {
+	case s.user == nil:
+		return ui.MutedStyle.Render("log in to see people")
+	case len(s.entries) == 0 && s.Status() == "":
+		return ui.MutedStyle.Render("you are all caught up")
 	}
 
-	s.content.list.SetHeight(max(s.height-lipgloss.Height(status)-1, 3))
-	return lipgloss.JoinVertical(lipgloss.Left, status, "", s.content.list.View())
+	s.content.list.SetHeight(s.height)
+	return s.content.list.View()
 }
 
 // card renders a person wrapped to screen width.

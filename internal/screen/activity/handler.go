@@ -3,7 +3,6 @@ package activity
 import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -55,7 +54,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.status = ui.NewLabel(ui.MutedStyle.Render("log in to see activity"))
+	result.content.status = ui.NewLabel("")
 	result.content.list = ui.NewList()
 	result.content.list.SetGap(1)
 
@@ -87,6 +86,10 @@ func (s Screen) actions() []ui.Action {
 
 func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
+}
+
+func (s Screen) Status() string {
+	return s.content.status.View()
 }
 
 func (s Screen) load(cursor *sdk.CursorId) tea.Cmd {
@@ -133,7 +136,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.load(nil)
 	case auth.LogoutMsg:
 		s.user, s.activities, s.next = nil, nil, nil
-		s.content.status.Set(ui.MutedStyle.Render("log in to see activity"))
+		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case refreshMsg:
@@ -148,7 +151,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case loadedMsg:
 		s.loadingMore = false
 		if msg.err != nil {
-			s.content.status.Set(ui.DangerStyle.Render("error: " + msg.err.Error()))
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
 			return s, nil
 		}
 
@@ -162,9 +165,6 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.content.status.Set("")
-		if len(s.activities) == 0 {
-			s.content.status.Set(ui.MutedStyle.Render("nothing here yet"))
-		}
 
 		return s, s.unread()
 	case openMsg:
@@ -232,12 +232,13 @@ func (s Screen) items() []ui.Component {
 }
 
 func (s Screen) View() string {
-	status := s.content.status.View()
-	if status == "" {
-		s.content.list.SetHeight(s.height)
-		return s.content.list.View()
+	switch {
+	case s.user == nil:
+		return ui.MutedStyle.Render("log in to see activity")
+	case len(s.activities) == 0 && s.Status() == "":
+		return ui.MutedStyle.Render("nothing here yet")
 	}
 
-	s.content.list.SetHeight(max(s.height-lipgloss.Height(status)-1, 3))
-	return lipgloss.JoinVertical(lipgloss.Left, status, "", s.content.list.View())
+	s.content.list.SetHeight(s.height)
+	return s.content.list.View()
 }

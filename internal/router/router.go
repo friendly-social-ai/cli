@@ -1,9 +1,12 @@
 package router
 
 import (
+	"strings"
+
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/ui"
 )
@@ -83,12 +86,21 @@ func (r Router) Keys() []key.Binding {
 }
 
 func (r Router) header() string {
+	title := ui.AccentStyle.Render("friendly") + ui.MutedStyle.Render(" · "+string(r.current))
+
+	// the status goes to the right end, cut to the room left after the title
+	inner := r.width - 2
+	if status := r.screens[r.current].Status(); status != "" && inner-lipgloss.Width(title)-2 > 0 {
+		status = ansi.Truncate(status, inner-lipgloss.Width(title)-2, "…")
+		title += strings.Repeat(" ", inner-lipgloss.Width(title)-lipgloss.Width(status)) + status
+	}
+
 	return lipgloss.NewStyle().
 		Width(r.width).
 		Padding(0, 1).
 		Border(lipgloss.NormalBorder(), false, false, true, false).
 		BorderForeground(ui.ColorBorder).
-		Render(ui.AccentStyle.Render("friendly") + ui.MutedStyle.Render(" · "+string(r.current)))
+		Render(title)
 }
 
 func (r Router) View() string {

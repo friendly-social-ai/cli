@@ -176,6 +176,10 @@ func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
 }
 
+func (s Screen) Status() string {
+	return s.content.status.View()
+}
+
 func (s Screen) textWidth() int {
 	if s.width == 0 {
 		return 74
@@ -342,19 +346,16 @@ func (s Screen) View() string {
 	// one cell narrower than the text field, since a single line input draws an extra cell for the cursor
 	s.content.prompt.Raw().SetWidth(s.textWidth() - 5)
 
-	var top []string
-	for _, part := range []string{s.header(), s.content.status.View()} {
-		if part != "" {
-			top = append(top, part)
-		}
+	if s.user == nil {
+		return ui.MutedStyle.Render("log in to see community")
 	}
 
-	if len(top) == 0 {
+	header := s.header()
+	if header == "" {
 		s.content.list.SetHeight(s.height)
 		return s.content.list.View()
 	}
 
-	header := strings.Join(top, "\n")
 	if s.height > 0 {
 		s.content.list.SetHeight(max(s.height-lipgloss.Height(header)-1, 3))
 	}

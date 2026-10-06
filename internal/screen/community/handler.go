@@ -155,7 +155,7 @@ func New(service *Service, graphics *ui.Graphics) Screen {
 	input.CharLimit = 4096
 	input.SetHeight(3)
 
-	result.content.status = ui.NewLabel(ui.MutedStyle.Render("log in to see community"))
+	result.content.status = ui.NewLabel("")
 	result.content.field = ui.NewTextArea(input)
 
 	prompt := textinput.New()
@@ -179,7 +179,6 @@ func (s Screen) Init() tea.Cmd {
 
 func (s Screen) request(status string, fn func() (tea.Msg, error)) tea.Cmd {
 	if s.user == nil {
-		s.content.status.Set(ui.MutedStyle.Render("log in to see community"))
 		return nil
 	}
 
@@ -479,7 +478,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.details, s.replies, s.repliesNext = nil, nil, nil
 		s.editing, s.confirmDelete, s.loadingMore, s.attaching = false, false, false, false
 		s.content.field.Raw().SetValue("")
-		s.content.status.Set(ui.MutedStyle.Render("log in to see community"))
+		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
 		return s, raw(freed)
 	case auth.LoginMsg:
@@ -729,7 +728,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case failedMsg:
 		s.loadingMore = false
 		s.confirmDelete = false
-		s.content.status.Set(ui.DangerStyle.Render("error: " + msg.err.Error()))
+		s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
 		return s, nil
 	}
 

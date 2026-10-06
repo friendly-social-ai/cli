@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -30,6 +31,8 @@ func main() {
 			log.Fatal(err)
 		}
 		defer f.Close() //nolint:errcheck
+	} else {
+		log.SetOutput(io.Discard)
 	}
 
 	ui.SetTheme(lipgloss.HasDarkBackground(os.Stdin, os.Stdout))

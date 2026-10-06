@@ -25,6 +25,9 @@ type Model interface {
 	// Keys returns key bindings currently available on the screen, shown in the footer.
 	Keys() []key.Binding
 
+	// Status returns a short line about loading or a failure, shown in the header. Empty means nothing to report.
+	Status() string
+
 	Init() tea.Cmd
 	Update(tea.Msg) (Model, tea.Cmd)
 	View() string
