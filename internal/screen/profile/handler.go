@@ -17,6 +17,7 @@ import (
 type (
 	logoutMsg       struct{}
 	cancelLogoutMsg struct{}
+	toggleEmailMsg  struct{}
 	// loadedMsg carries profile of the logged in user, wrapped into router.TargetMsg so it reaches this screen.
 	loadedMsg struct {
 		self *sdk.UserDetails
@@ -30,11 +31,14 @@ type Screen struct {
 	loggedIn      bool
 	confirmLogout bool
 
-	// email bound to the account, empty when there is none or the profile didn't load
-	email string
+	// self is the loaded profile, nil until it loads
+	self *sdk.UserDetails
+	// showEmail reveals bound email, which is masked by default
+	showEmail bool
 
 	content struct {
-		label *ui.Label
+		// status shows loading, errors and logged out state when there is no profile to show
+		status *ui.Label
 	}
 }
 
@@ -44,7 +48,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.label = ui.NewLabel(ui.MutedStyle.Render("log in to see your profile"))
+	result.content.status = ui.NewLabel(ui.MutedStyle.Render("log in to see your profile"))
 	return result
 }
 
@@ -64,10 +68,19 @@ func (s Screen) actions() []ui.Action {
 			{Key: ui.Key("esc", "cancel"), Msg: cancelLogoutMsg{}},
 		}
 	case s.loggedIn:
-		return []ui.Action{
-			{Key: ui.Key("x", "logout"), Msg: logoutMsg{}},
-			{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
+		var actions []ui.Action
+		if s.email() != "" {
+			desc := "show email"
+			if s.showEmail {
+				desc = "hide email"
+			}
+
+			actions = append(actions, ui.Action{Key: ui.Key("e", desc), Msg: toggleEmailMsg{}})
 		}
+
+		return append(actions,
+			ui.Action{Key: ui.Key("x", "logout"), Msg: logoutMsg{}},
+			ui.Action{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}})
 	}
 
 	return []ui.Action{{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}}}
@@ -75,6 +88,24 @@ func (s Screen) actions() []ui.Action {
 
 func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
+}
+
+// email returns email bound to the account, empty when there is none or the profile didn't load.
+func (s Screen) email() string {
+	if s.self == nil || s.self.Email == nil {
+		return ""
+	}
+
+	return s.self.Email.Value()
+}
+
+// shownEmail returns email as displayed, masked unless revealed.
+func (s Screen) shownEmail() string {
+	if s.showEmail {
+		return s.email()
+	}
+
+	return "***"
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
@@ -97,7 +128,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		s.confirmLogout = false
 		if err := auth.Clear(); err != nil {
-			s.content.label.Set(ui.DangerStyle.Render(err.Error()))
+			s.content.status.Set(ui.DangerStyle.Render(err.Error()))
 			return s, nil
 		}
 
@@ -107,56 +138,77 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case cancelLogoutMsg:
 		s.confirmLogout = false
 		return s, nil
+	case toggleEmailMsg:
+		s.showEmail = !s.showEmail
+		return s, nil
 	case auth.LogoutMsg:
-		s.loggedIn = false
-		s.email = ""
-		s.content.label.Set(ui.MutedStyle.Render("log in to see your profile"))
+		s.loggedIn, s.self, s.showEmail = false, nil, false
+		s.content.status.Set(ui.MutedStyle.Render("log in to see your profile"))
 		return s, nil
 	case auth.LoginMsg:
-		s.loggedIn = true
-		s.email = ""
-		s.content.label.Set(ui.MutedStyle.Render("loading..."))
+		s.loggedIn, s.self, s.showEmail = true, nil, false
+		s.content.status.Set(ui.MutedStyle.Render("loading..."))
 		return s, func() tea.Msg {
 			self, err := s.service.get(msg.User)
 			return router.TargetMsg{Type: screen.TypeProfile, Inner: loadedMsg{self: self, err: err}}
 		}
 	case loadedMsg:
 		if msg.err != nil {
-			s.content.label.Set(ui.DangerStyle.Render(fmt.Sprintf("error loading profile: %s", msg.err.Error())))
+			s.content.status.Set(ui.DangerStyle.Render(fmt.Sprintf("error loading profile: %s", msg.err.Error())))
 			return s, nil
 		}
 
-		self := msg.self
-		if self.Email != nil {
-			s.email = self.Email.Value()
-		}
-
-		interests := make([]string, len(self.Interests.Value()))
-		for i, interest := range self.Interests.Value() {
-			interests[i] = interest.Value()
-		}
-
-		s.content.label.Set(ui.BoldStyle.Render(self.Nickname.Value()) + "\n" + ui.Fields(
-			"email", s.email,
-			"description", self.Description.Value(),
-			"interests", strings.Join(interests, ", "),
-			"social link", self.SocialLink.Value()))
+		s.self = msg.self
+		s.content.status.Set("")
 		return s, nil
 	}
 
 	return s, nil
 }
 
+// profile renders the loaded profile, empty until it loads.
+func (s Screen) profile() string {
+	if s.self == nil {
+		return ""
+	}
+
+	interests := make([]string, len(s.self.Interests.Value()))
+	for i, interest := range s.self.Interests.Value() {
+		interests[i] = interest.Value()
+	}
+
+	email := ""
+	if s.email() != "" {
+		email = s.shownEmail()
+	}
+
+	return ui.BoldStyle.Render(s.self.Nickname.Value()) + "\n" + ui.Fields(
+		"email", email,
+		"description", s.self.Description.Value(),
+		"interests", strings.Join(interests, ", "),
+		"social link", s.self.SocialLink.Value())
+}
+
 func (s Screen) View() string {
+	var parts []string
+	for _, part := range []string{s.content.status.View(), s.profile()} {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+
 	if s.confirmLogout {
 		// same as web: warn harder when there is no email to log back in with
 		warning := "You have no email bound. Logging out loses this account for good. Log out anyway?"
-		if s.email != "" {
-			warning = "Log out? You can log back in with " + s.email + "."
+		switch {
+		case s.email() != "" && s.showEmail:
+			warning = "Log out? You can log back in with " + s.email() + "."
+		case s.email() != "":
+			warning = "Log out? You can log back in with your email."
 		}
 
-		return s.content.label.View() + "\n\n" + ui.DangerStyle.Render(warning)
+		parts = append(parts, ui.DangerStyle.Render(warning))
 	}
 
-	return s.content.label.View()
+	return strings.Join(parts, "\n\n")
 }
