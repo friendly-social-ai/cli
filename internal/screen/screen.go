@@ -12,7 +12,7 @@ const (
 	TypeRegister  Type = "register"
 	TypeHome      Type = "home"
 	TypeProfile   Type = "profile"
-	TypeAuth      Type = "auth"
+	TypeAuth      Type = "login"
 	TypePeople    Type = "people"
 	TypeCommunity Type = "community"
 	TypeActivity  Type = "activity"
