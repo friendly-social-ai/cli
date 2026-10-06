@@ -56,23 +56,17 @@ func (s Screen) actions() []ui.Action {
 	if s.content.list.Cursor() == 0 {
 		actions = append(actions, ui.Action{Key: ui.Key("i", "write")})
 		if s.content.field.Value() != "" {
-			actions = append(actions, ui.Action{Key: ui.Key("p", s.submitLabel()), Msg: submitMsg{}})
+			actions = append(actions, ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}})
 		}
 	} else {
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	}
 
 	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
-	more := ui.Action{Key: ui.Key("m", "more"), Msg: moreMsg{}}
 	back := ui.Action{Key: ui.Key("esc", "back"), Msg: backMsg{}}
 
 	if s.mode == modeList {
-		actions = append(actions, refresh)
-		if s.next != nil {
-			actions = append(actions, more)
-		}
-
-		return append(actions, back)
+		return append(actions, refresh, back)
 	}
 
 	switch {
@@ -94,12 +88,7 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("u", "parent"), Msg: openMsg{post: s.details.Upstream[n-1].Descriptor()}})
 	}
 
-	actions = append(actions, refresh)
-	if s.repliesNext != nil {
-		actions = append(actions, more)
-	}
-
-	return append(actions, back)
+	return append(actions, refresh, back)
 }
 
 func (s Screen) submitLabel() string {

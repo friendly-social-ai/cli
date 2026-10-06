@@ -52,6 +52,11 @@ func (l *List) Cursor() int {
 	return l.cursor
 }
 
+// Len returns number of items.
+func (l *List) Len() int {
+	return len(l.items)
+}
+
 // SetGap sets number of blank lines between items.
 func (l *List) SetGap(gap int) {
 	l.gap = gap

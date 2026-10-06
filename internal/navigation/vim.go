@@ -106,6 +106,13 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return ui.UnfocusMsg{}
 				}
 			}
+
+			// shortcuts work while typing, printable keys always go to the text
+			if isShortcut(msg, w.keys()) {
+				var cmd tea.Cmd
+				w.model, cmd = w.model.Update(ui.ActionMsg{Key: msg})
+				return w, cmd
+			}
 		}
 	}
 
@@ -121,6 +128,28 @@ func (w VimWrapper) keys() []key.Binding {
 	}
 
 	return nil
+}
+
+// shortcut returns ctrl or alt key of binding, usable while typing since it can't be text.
+func shortcut(binding key.Binding) (string, bool) {
+	for _, k := range binding.Keys() {
+		if strings.HasPrefix(k, "ctrl+") || strings.HasPrefix(k, "alt+") {
+			return k, binding.Enabled()
+		}
+	}
+
+	return "", false
+}
+
+// isShortcut reports whether msg is a shortcut of one of bindings.
+func isShortcut(msg tea.KeyMsg, bindings []key.Binding) bool {
+	for _, binding := range bindings {
+		if k, ok := shortcut(binding); ok && msg.String() == k {
+			return true
+		}
+	}
+
+	return false
 }
 
 func renderKeys(bindings []key.Binding) string {
@@ -146,12 +175,22 @@ func (w VimWrapper) footer() string {
 		Foreground(ui.ColorOnAccent).
 		Background(color).
 		Render(string(w.mode))
-	bindings := []key.Binding{keyDone}
-	if w.mode == VimModeNormal {
-		bindings = append(append([]key.Binding{keyMove}, w.keys()...), keyQuit)
+	var hints string
+	switch w.mode {
+	case VimModeNormal:
+		hints = renderKeys(append(append([]key.Binding{keyMove}, w.keys()...), keyQuit))
+	case VimModeInsert:
+		bindings := []key.Binding{keyDone}
+		for _, binding := range w.keys() {
+			if k, ok := shortcut(binding); ok {
+				bindings = append(bindings, ui.Key(k, binding.Help().Desc))
+			}
+		}
+
+		hints = renderKeys(bindings)
 	}
 
-	hints := ansi.Truncate(renderKeys(bindings), max(w.width-lipgloss.Width(badge)-4, 0), "…")
+	hints = ansi.Truncate(hints, max(w.width-lipgloss.Width(badge)-4, 0), "…")
 
 	return lipgloss.NewStyle().
 		Width(w.width).

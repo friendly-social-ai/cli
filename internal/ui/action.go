@@ -22,9 +22,9 @@ type Action struct {
 	Msg tea.Msg
 }
 
-// Key creates binding of a single key with help description.
-func Key(k, desc string) key.Binding {
-	return key.NewBinding(key.WithKeys(k), key.WithHelp(k, desc))
+// Key creates binding of key k with help description. Alternative keys trigger it too without being shown.
+func Key(k, desc string, alts ...string) key.Binding {
+	return key.NewBinding(key.WithKeys(append([]string{k}, alts...)...), key.WithHelp(k, desc))
 }
 
 // Keys returns bindings of actions.

@@ -81,6 +81,7 @@ type Screen struct {
 
 	editing       bool
 	confirmDelete bool
+	loadingMore   bool
 
 	content struct {
 		status *ui.Label
@@ -308,6 +309,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case refreshMsg:
 		return s, s.reload()
 	case moreMsg:
+		if s.loadingMore || !s.hasMore() {
+			return s, nil
+		}
+
+		s.loadingMore = true
 		if s.mode == modePost {
 			return s, s.loadReplies()
 		}
@@ -351,6 +357,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case submitMsg:
 		return s, s.submit()
 	case listMsg:
+		s.loadingMore = false
 		s.next = msg.page.NextId
 		s.content.status.Set("")
 		if msg.append {
@@ -389,6 +396,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.place(p)
 		return s, nil
 	case repliesMsg:
+		s.loadingMore = false
 		s.replies = append(s.replies, msg.page.Data...)
 		s.repliesNext = msg.page.NextId
 		s.content.status.Set("")
@@ -398,10 +406,26 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.field.Raw().SetValue("")
 		return s, s.reload()
 	case failedMsg:
+		s.loadingMore = false
 		s.content.status.Set(ui.DangerStyle.Render("error: " + msg.err.Error()))
 		return s, nil
 	}
 
 	_, cmd := s.content.list.Update(msg)
+
+	// load the next page when the cursor gets close to the end
+	if _, ok := msg.(ui.MoveMsg); ok && s.content.list.Cursor() >= s.content.list.Len()-3 {
+		model, more := s.Update(moreMsg{})
+		return model, tea.Batch(cmd, more)
+	}
+
 	return s, cmd
+}
+
+func (s Screen) hasMore() bool {
+	if s.mode == modePost {
+		return s.repliesNext != nil
+	}
+
+	return s.next != nil
 }
