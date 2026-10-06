@@ -309,11 +309,12 @@ func (s Screen) profile() string {
 		email = s.shownEmail()
 	}
 
-	return ui.BoldStyle.Render(s.self.Nickname.Value()) + "\n" + ui.Fields(
+	// long descriptions wrap to the window instead of running off its edge
+	return lipgloss.NewStyle().Width(max(s.width, 20)).Render(ui.BoldStyle.Render(s.self.Nickname.Value()) + "\n" + ui.Fields(
 		"email", email,
 		"description", s.self.Description.Value(),
 		"interests", strings.Join(interests, ", "),
-		"social link", s.self.SocialLink.Value())
+		"social link", s.self.SocialLink.Value()))
 }
 
 func (s Screen) Status() string {
