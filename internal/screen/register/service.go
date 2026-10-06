@@ -32,14 +32,17 @@ func (s *Service) register(nicknameString, descriptionString, interestsString, s
 		return nil, fmt.Errorf("register: failed to create description: %w", err)
 	}
 
-	interestsSlice := make([]sdk.Interest, 0)
-	for interestStr := range strings.SplitSeq(interestsString, ",") {
-		interest, err := sdk.NewInterest(strings.TrimSpace(interestStr))
-		if err != nil {
-			return nil, fmt.Errorf("register: failed to create interest: %w", err)
-		}
+	// interests are optional, as on the web
+	var interestsSlice []sdk.Interest
+	if strings.TrimSpace(interestsString) != "" {
+		for interestStr := range strings.SplitSeq(interestsString, ",") {
+			interest, err := sdk.NewInterest(strings.TrimSpace(interestStr))
+			if err != nil {
+				return nil, fmt.Errorf("register: failed to create interest: %w", err)
+			}
 
-		interestsSlice = append(interestsSlice, interest)
+			interestsSlice = append(interestsSlice, interest)
+		}
 	}
 
 	interests, err := sdk.NewInterests(interestsSlice...)

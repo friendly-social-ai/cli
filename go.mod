@@ -39,4 +39,4 @@ require (
 	golang.org/x/text v0.24.0 // indirect
 )
 
-replace github.com/friendly-social/golang-sdk => github.com/y3owk1n/golang-sdk v0.1.1-0.20261006152145-b1afb3f7d3ab
+replace github.com/friendly-social/golang-sdk => github.com/y3owk1n/golang-sdk v0.1.1-0.20261006170733-b01c297a2cde

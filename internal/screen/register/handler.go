@@ -55,7 +55,7 @@ func New(service *Service) Screen {
 
 	result.content.field.nickname = field("Nickname", 256)
 	result.content.field.description = field("Description", 1024)
-	result.content.field.interests = field("Interests", 0)
+	result.content.field.interests = field("Interests (optional)", 0)
 	result.content.field.social = field("Social Link (optional)", 1024)
 
 	result.content.fields = []*ui.Field{

@@ -30,8 +30,8 @@ func (s *Service) get(user *sdk.Authorization) (*sdk.UserDetails, error) {
 	return details, nil
 }
 
-// edit saves the fields that differ from self. Interests are separated by commas. Empty interests and social link stay
-// as they are, since the SDK has no way to clear them.
+// edit saves the fields that differ from self. Interests are separated by commas. An empty interests or social link
+// field clears that field.
 func (s *Service) edit(user *sdk.Authorization, self *sdk.UserDetails, nickname, description, interests, social string) error {
 	newNickname, err := sdk.NewNickname(nickname)
 	if err != nil {
@@ -46,8 +46,8 @@ func (s *Service) edit(user *sdk.Authorization, self *sdk.UserDetails, nickname,
 	opts := appendIf(nil, newNickname.Value() != self.Nickname.Value(), sdk.EditNicknameOption(newNickname))
 	opts = appendIf(opts, newDescription.Value() != self.Description.Value(), sdk.EditDescriptionOption(newDescription))
 
+	var interestsSlice []sdk.Interest
 	if strings.TrimSpace(interests) != "" {
-		var interestsSlice []sdk.Interest
 		for interestStr := range strings.SplitSeq(interests, ",") {
 			interest, err := sdk.NewInterest(strings.TrimSpace(interestStr))
 			if err != nil {
@@ -56,26 +56,28 @@ func (s *Service) edit(user *sdk.Authorization, self *sdk.UserDetails, nickname,
 
 			interestsSlice = append(interestsSlice, interest)
 		}
-
-		newInterests, err := sdk.NewInterests(interestsSlice...)
-		if err != nil {
-			return fmt.Errorf("profile: failed to create interests: %w", err)
-		}
-
-		same := slices.EqualFunc(interestsSlice, self.Interests.Value(), func(a, b sdk.Interest) bool {
-			return a.Value() == b.Value()
-		})
-		opts = appendIf(opts, !same, sdk.EditInterestsOption(newInterests))
 	}
 
+	newInterests, err := sdk.NewInterests(interestsSlice...)
+	if err != nil {
+		return fmt.Errorf("profile: failed to create interests: %w", err)
+	}
+
+	sameInterests := slices.EqualFunc(interestsSlice, self.Interests.Value(), func(a, b sdk.Interest) bool {
+		return a.Value() == b.Value()
+	})
+	opts = appendIf(opts, !sameInterests, sdk.EditInterestsOption(newInterests))
+
+	// the SDK sends a zero social link as null, which removes it
+	var link sdk.SocialLink
 	if strings.TrimSpace(social) != "" {
-		link, err := sdk.NewSocialLink(social)
+		link, err = sdk.NewSocialLink(social)
 		if err != nil {
 			return fmt.Errorf("profile: failed to create social link: %w", err)
 		}
-
-		opts = appendIf(opts, link.Value() != self.SocialLink.Value(), sdk.EditSocialLinkOption(link))
 	}
+
+	opts = appendIf(opts, link.Value() != self.SocialLink.Value(), sdk.EditSocialLinkOption(link))
 
 	return s.client.EditAccount(context.Background(), user, opts...)
 }
