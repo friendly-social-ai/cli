@@ -86,6 +86,13 @@ func (s Screen) actions() []ui.Action {
 		}
 	}
 
+	if s.composing && s.confirmDiscard {
+		return []ui.Action{
+			{Key: ui.Key("x", "confirm discard"), Msg: discardMsg{}},
+			{Key: ui.Key("esc", "cancel"), Msg: cancelDiscardMsg{}},
+		}
+	}
+
 	if s.composing {
 		post := ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}}
 		closing := ui.Action{Key: ui.Key("esc", "close"), Msg: closeMsg{}}
@@ -95,7 +102,9 @@ func (s Screen) actions() []ui.Action {
 
 		actions := []ui.Action{{Key: ui.Key("i", "write")}}
 		if s.content.field.Value() != "" {
-			actions = append(actions, post, ui.Action{Key: ui.Key("v", "preview"), Msg: previewMsg{}})
+			actions = append(actions, post,
+				ui.Action{Key: ui.Key("v", "preview"), Msg: previewMsg{}},
+				ui.Action{Key: ui.Key("x", "discard"), Msg: discardMsg{}})
 		}
 
 		return append(actions, ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}}, closing)

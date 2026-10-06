@@ -33,23 +33,25 @@ type OpenMsg struct {
 
 // Messages produced by key actions of the screen.
 type (
-	attachMsg       struct{}
-	pickMsg         struct{}
-	cancelPickMsg   struct{}
-	openLinkMsg     struct{ url string }
-	openImageMsg    struct{ url string }
-	attachDoneMsg   struct{}
-	cancelDeleteMsg struct{}
-	submitMsg       struct{}
-	refreshMsg      struct{}
-	moreMsg         struct{}
-	backMsg         struct{}
-	editMsg         struct{}
-	deleteMsg       struct{}
-	composeMsg      struct{}
-	closeMsg        struct{}
-	previewMsg      struct{}
-	authorMsg       struct{ owner sdk.UserDetails }
+	attachMsg        struct{}
+	pickMsg          struct{}
+	cancelPickMsg    struct{}
+	openLinkMsg      struct{ url string }
+	openImageMsg     struct{ url string }
+	attachDoneMsg    struct{}
+	cancelDeleteMsg  struct{}
+	submitMsg        struct{}
+	refreshMsg       struct{}
+	moreMsg          struct{}
+	backMsg          struct{}
+	editMsg          struct{}
+	deleteMsg        struct{}
+	composeMsg       struct{}
+	closeMsg         struct{}
+	previewMsg       struct{}
+	discardMsg       struct{}
+	cancelDiscardMsg struct{}
+	authorMsg        struct{ owner sdk.UserDetails }
 	// upMsg opens parent index of the opened post, counted from the top of the thread
 	upMsg struct{ index int }
 )
@@ -126,6 +128,8 @@ type Screen struct {
 	editing   bool
 	// previewing shows the draft rendered as markdown in place of the text field
 	previewing bool
+	// confirmDiscard asks to press the key again before the draft is gone
+	confirmDiscard bool
 	// composeOffset is the list scroll before the composer took room from it, restored when it closes
 	composeOffset int
 
@@ -549,7 +553,7 @@ func (s *Screen) closeComposer() {
 		s.content.list.SetPosition(cursor, s.composeOffset)
 	}
 
-	s.composing, s.previewing = false, false
+	s.composing, s.previewing, s.confirmDiscard = false, false, false
 	s.content.field.Update(ui.UnfocusMsg{})
 	if s.editing {
 		s.editing = false
@@ -565,9 +569,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ui.ActionMsg:
 		action := ui.Dispatch(s.actions(), msg)
-		// any other key drops pending delete confirmation
+		// any other key drops pending confirmations
 		if _, ok := action.(deleteMsg); !ok {
 			s.confirmDelete = false
+		}
+
+		if _, ok := action.(discardMsg); !ok {
+			s.confirmDiscard = false
 		}
 
 		if action == nil {
@@ -723,6 +731,18 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.openComposer()
 	case closeMsg:
 		s.closeComposer()
+		return s, nil
+	case discardMsg:
+		if s.confirmDiscard {
+			s.confirmDiscard = false
+			s.content.field.Raw().SetValue("")
+			return s, nil
+		}
+
+		s.confirmDiscard = true
+		return s, nil
+	case cancelDiscardMsg:
+		s.confirmDiscard = false
 		return s, nil
 	case previewMsg:
 		s.previewing = !s.previewing
