@@ -96,10 +96,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 }
 
 func (s Screen) View() string {
+	// controls go first so they stay visible when people don't fit the screen
 	return lipgloss.JoinVertical(lipgloss.Left,
-		s.content.label.View(),
+		s.content.list.View(),
 		"",
-		s.content.list.View())
+		s.content.label.View())
 }
 
 func render(entries []sdk.FeedEntry) string {
