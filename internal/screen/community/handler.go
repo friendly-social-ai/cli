@@ -46,6 +46,8 @@ type (
 	deleteMsg       struct{}
 	composeMsg      struct{}
 	closeMsg        struct{}
+	// upMsg opens parent index of the opened post, counted from the top of the thread
+	upMsg struct{ index int }
 )
 
 // Messages produced by requests. Requests wrap them into router.TargetMsg so they reach this screen even after the user leaves.
@@ -131,7 +133,7 @@ type Screen struct {
 	listCursor, listOffset int
 	// pending is the post to select once the next load arrives
 	pending *sdk.CommunityPostId
-	// stack keeps posts the user went through, so going back returns to each at its position
+	// stack keeps posts the user opened replies from, so going up to one returns to its position
 	stack []postView
 
 	content struct {
@@ -264,8 +266,8 @@ func (s *Screen) reload() tea.Cmd {
 	return s.loadList(nil)
 }
 
-// shown returns posts shown as list items in order, and the list index of the first one, which follows the opened
-// post in post mode.
+// shown returns posts shown as list items in order, and the list index of the first one, which follows the parents
+// and the opened post in post mode.
 func (s Screen) shown() ([]sdk.CommunityPost, int) {
 	if s.mode == modeList {
 		return s.posts, 0
@@ -276,7 +278,7 @@ func (s Screen) shown() ([]sdk.CommunityPost, int) {
 		posts = append(posts, reply.Posts()...)
 	}
 
-	return posts, 1
+	return posts, s.openedIndex() + 1
 }
 
 // indexOfPost returns the list index of post with id, or -1 when it isn't shown.
@@ -433,10 +435,68 @@ func raw(seq string) tea.Cmd {
 	return tea.Raw(seq)
 }
 
+// stopPicking hides the links of the opened post and selects it again.
+func (s *Screen) stopPicking() {
+	s.picking = false
+	s.content.list.Reset(s.items()...)
+	s.content.list.Select(s.openedIndex())
+}
+
 // stopAttaching hides path prompt.
 func (s *Screen) stopAttaching() {
 	s.attaching = false
 	s.content.prompt.Update(ui.UnfocusMsg{})
+}
+
+// up opens parent i of the opened post. If the user came from that parent, it returns from the stack at its saved
+// position. Otherwise it opens with the next post down the thread selected.
+func (s *Screen) up(i int) tea.Cmd {
+	upstream := s.details.Upstream
+	depth := func(view postView) int {
+		for j, post := range upstream {
+			if post.Id == view.details.Post.Id {
+				return j
+			}
+		}
+
+		return -1
+	}
+
+	// drop stack entries below the parent, since the stack holds posts on the way down
+	for m := len(s.stack); m > 0; m = len(s.stack) {
+		if d := depth(s.stack[m-1]); d >= 0 && d <= i {
+			break
+		}
+
+		s.stack = s.stack[:m-1]
+	}
+
+	if m := len(s.stack); m > 0 && depth(s.stack[m-1]) == i {
+		return s.restore()
+	}
+
+	parent, child := upstream[i], s.details.Post.Id
+	if i+1 < len(upstream) {
+		child = upstream[i+1].Id
+	}
+
+	freed := s.open(parent)
+	s.pending = &child
+	return tea.Batch(raw(freed), s.loadPictures(parent), s.loadDetails(parent.Descriptor()))
+}
+
+// restore brings back the post on top of the stack at its position, and refreshes it in the background.
+func (s *Screen) restore() tea.Cmd {
+	view := s.stack[len(s.stack)-1]
+	s.stack = s.stack[:len(s.stack)-1]
+	freed := s.dropPictures(view.details.Post.Text)
+	s.closeComposer()
+	s.picking, s.confirmDelete = false, false
+	s.details, s.replies, s.repliesNext = view.details, view.replies, view.repliesNext
+	s.content.field.Raw().SetValue("")
+	s.content.list.Reset(s.items()...)
+	s.content.list.SetPosition(view.cursor, view.offset)
+	return tea.Batch(raw(freed), s.loadPictures(view.details.Post), s.loadDetails(view.details.Post.Descriptor()))
 }
 
 // openComposer shows the composer and starts typing in it.
@@ -550,12 +610,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case cancelPickMsg:
-		s.picking = false
-		s.content.list.Reset(s.items()...)
+		s.stopPicking()
 		return s, nil
 	case openLinkMsg:
-		s.picking = false
-		s.content.list.Reset(s.items()...)
+		s.stopPicking()
 		s.content.status.Set(ui.MutedStyle.Render("opened " + msg.url))
 		return s, func() tea.Msg {
 			if err := browser.Open(msg.url); err != nil {
@@ -565,8 +623,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return nil
 		}
 	case openImageMsg:
-		s.picking = false
-		s.content.list.Reset(s.items()...)
+		s.stopPicking()
 		return s, s.request("opening image...", func() (tea.Msg, error) {
 			path, err := s.service.saveImage(msg.url)
 			if err == nil {
@@ -583,20 +640,16 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
-		// back from a post opened in another post returns to that one and refreshes it in the background
-		if n := len(s.stack); n > 0 {
-			view := s.stack[n-1]
-			s.stack = s.stack[:n-1]
-			freed := s.dropPictures(view.details.Post.Text)
-			s.closeComposer()
-			s.picking, s.confirmDelete = false, false
-			s.details, s.replies, s.repliesNext = view.details, view.replies, view.repliesNext
-			s.content.field.Raw().SetValue("")
-			s.content.list.Reset(s.items()...)
-			s.content.list.SetPosition(view.cursor, view.offset)
-			return s, tea.Batch(raw(freed), s.loadPictures(view.details.Post), s.loadDetails(view.details.Post.Descriptor()))
+		// esc goes up the thread. Until details arrive the parent is unknown, so the post the user came from is used.
+		if n := len(s.details.Upstream); n > 0 {
+			return s, s.up(n - 1)
 		}
 
+		if len(s.stack) > 0 {
+			return s, s.restore()
+		}
+
+		// a top-level post goes back to where it was opened from
 		s.mode = modeList
 		s.picking = false
 		s.details = nil
@@ -615,6 +668,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, raw(freed)
 	case composeMsg:
 		return s, s.openComposer()
+	case upMsg:
+		return s, s.up(msg.index)
 	case editMsg:
 		s.editing = true
 		s.content.field.Raw().SetValue(s.details.Post.Text.Value())
@@ -682,6 +737,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case detailsMsg:
 		// details of the post already open update it in place. The cursor and any draft stay.
 		same := s.mode == modePost && s.details != nil && s.details.Post.Id == msg.details.Post.Id
+		// parents come first in the list, so a change in their number moves the other items
+		shift := len(msg.details.Upstream)
+		if same {
+			shift -= len(s.details.Upstream)
+		}
+
 		var freed string
 		if !same {
 			freed = s.dropPictures(msg.details.Post.Text)
@@ -700,6 +761,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			s.content.list.Set(s.items()...)
 		} else {
 			s.content.list.Reset(s.items()...)
+		}
+
+		if shift != 0 {
+			cursor, offset := s.content.list.Position()
+			s.content.list.SetPosition(cursor+shift, offset)
 		}
 
 		s.selectPending()

@@ -26,7 +26,8 @@ var (
 	inlineMarks = strings.NewReplacer("**", "", "__", "", "`", "")
 )
 
-// items builds elements of the current mode: posts in list mode, the opened post followed by replies in post mode.
+// items builds elements of the current mode. List mode shows posts. Post mode shows the parents from the top of the
+// thread, then the opened post and its replies.
 func (s Screen) items() []ui.Component {
 	var items []ui.Component
 	if s.picking {
@@ -48,6 +49,12 @@ func (s Screen) items() []ui.Component {
 		}
 
 		return items
+	}
+
+	for i, post := range s.details.Upstream {
+		author, _ := metaParts(post)
+		line := ansi.Truncate("↑ "+author+": "+FirstLine(post), s.textWidth(), "…")
+		items = append(items, ui.NewButton(ui.MutedStyle.Render(line), screen.Send(upMsg{index: i})))
 	}
 
 	items = append(items, ui.NewLabel(s.opened()))
@@ -95,7 +102,9 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	switch cursor := s.content.list.Cursor(); {
-	case s.mode == modePost && cursor == 0:
+	case s.mode == modePost && cursor < s.openedIndex():
+		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
+	case s.mode == modePost && cursor == s.openedIndex():
 		if s.details.Post.Deleted() {
 			break
 		}
@@ -135,11 +144,16 @@ func (s Screen) actions() []ui.Action {
 			ui.Action{Key: ui.Key("d", "delete"), Msg: deleteMsg{}})
 	}
 
-	if n := len(s.details.Upstream); n > 0 {
-		actions = append(actions, ui.Action{Key: ui.Key("u", "parent"), Msg: OpenMsg{Post: s.details.Upstream[n-1].Descriptor()}})
+	// the esc label names where going up leads
+	up := "to list"
+	switch {
+	case len(s.details.Upstream) > 0 || len(s.stack) > 0:
+		up = "to parent"
+	case s.from != "":
+		up = "to " + string(s.from)
 	}
 
-	return append(actions, refresh, ui.Action{Key: ui.Key("esc", "back"), Msg: backMsg{}})
+	return append(actions, refresh, ui.Action{Key: ui.Key("esc", up), Msg: backMsg{}})
 }
 
 // openLinkAction returns the message that opens l. Images open in the image viewer, other links in the browser.
@@ -191,12 +205,7 @@ func (s Screen) postButton(post sdk.CommunityPost, indent string) *ui.Button {
 	return ui.NewButton(title, screen.Send(OpenMsg{Post: post.Descriptor()}))
 }
 
-func meta(post sdk.CommunityPost) string {
-	author, details := metaParts(post)
-	return author + " · " + details
-}
-
-// styledMeta is meta with emphasized author.
+// styledMeta returns author and details of post, with the author in bold.
 func styledMeta(post sdk.CommunityPost) string {
 	author, details := metaParts(post)
 	return ui.BoldStyle.Render(author) + ui.MutedStyle.Render(" · "+details)
@@ -252,23 +261,19 @@ func Ago(t time.Time) string {
 }
 
 func (s Screen) header() string {
-	if s.mode == modeList {
-		return ""
-	}
-
 	if s.picking {
 		return ui.MutedStyle.Render("links in this post")
 	}
 
-	var lines []string
-	for _, post := range s.details.Upstream {
-		lines = append(lines, ui.MutedStyle.Render(ansi.Truncate("↑ "+meta(post)+": "+FirstLine(post), s.textWidth(), "…")))
-	}
-
-	return strings.Join(lines, "\n")
+	return ""
 }
 
-// opened renders the opened post in full, as the first item of post mode.
+// openedIndex returns list index of the opened post, which follows its parents.
+func (s Screen) openedIndex() int {
+	return len(s.details.Upstream)
+}
+
+// opened renders the opened post in full, as the item after its parents in post mode.
 func (s Screen) opened() string {
 	post := s.details.Post
 	body := ui.MutedStyle.Render("this post was deleted")
