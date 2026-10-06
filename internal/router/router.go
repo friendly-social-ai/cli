@@ -88,9 +88,12 @@ func (r Router) header() string {
 func (r Router) View() string {
 	header := r.header()
 
+	// MaxHeight clips screens taller than the window instead of pushing the header out
+	height := r.height - lipgloss.Height(header)
 	content := lipgloss.NewStyle().
 		Width(r.width).
-		Height(r.height - lipgloss.Height(header)).
+		Height(height).
+		MaxHeight(height).
 		Render(r.screens[r.current].View())
 
 	return lipgloss.JoinVertical(lipgloss.Top, header, content)
