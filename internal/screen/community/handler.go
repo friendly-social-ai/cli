@@ -52,6 +52,8 @@ type (
 	discardMsg       struct{}
 	cancelDiscardMsg struct{}
 	authorMsg        struct{ owner sdk.UserDetails }
+	// copyMsg puts text in the clipboard. what names the copied thing in the notice.
+	copyMsg struct{ text, what string }
 	// upMsg opens parent index of the opened post, counted from the top of the thread
 	upMsg struct{ index int }
 )
@@ -721,6 +723,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.openComposer()
 	case upMsg:
 		return s, s.up(msg.index)
+	case copyMsg:
+		return s, tea.Batch(tea.SetClipboard(msg.text), s.notice("copied "+msg.what))
 	case authorMsg:
 		return s, tea.Batch(
 			screen.Send(router.TargetMsg{Type: screen.TypeUser, Inner: user.OpenMsg{Person: msg.owner, From: screen.TypeCommunity}}),

@@ -80,8 +80,10 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if s.picking {
+		l := links(s.details.Post.Text.Value())[s.content.list.Cursor()]
 		return []ui.Action{
 			{Key: ui.Key("enter", "open")},
+			{Key: ui.Key("y", "copy link"), Msg: copyMsg{text: l.url, what: "link"}},
 			{Key: ui.Key("esc", "cancel"), Msg: cancelPickMsg{}},
 		}
 	}
@@ -140,8 +142,11 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	}
 
-	if post, ok := s.cursorPost(); ok && post.Owner != nil && !s.owns(post) {
-		actions = append(actions, ui.Action{Key: ui.Key("@", "author"), Msg: authorMsg{owner: *post.Owner}})
+	if post, ok := s.cursorPost(); ok && !post.Deleted() {
+		actions = append(actions, ui.Action{Key: ui.Key("y", "copy"), Msg: copyMsg{text: post.Text.Value(), what: "post"}})
+		if post.Owner != nil && !s.owns(post) {
+			actions = append(actions, ui.Action{Key: ui.Key("@", "author"), Msg: authorMsg{owner: *post.Owner}})
+		}
 	}
 
 	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
