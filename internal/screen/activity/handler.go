@@ -20,6 +20,7 @@ type (
 	refreshMsg struct{}
 	moreMsg    struct{}
 	openMsg    struct{ index int }
+	readAllMsg struct{}
 	// loadedMsg carries a page of activity. Requests wrap it into router.TargetMsg so it reaches this screen anywhere.
 	loadedMsg struct {
 		page   *sdk.Cursor[sdk.Activity]
@@ -77,6 +78,10 @@ func (s Screen) actions() []ui.Action {
 
 	if len(s.activities) > 0 {
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
+	}
+
+	if s.unreadCount() > 0 {
+		actions = append(actions, ui.Action{Key: ui.Key("m", "mark all read"), Msg: readAllMsg{}})
 	}
 
 	return append(actions, ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}})
@@ -217,6 +222,25 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		s.content.status.Set("")
 		return s, nil
+	case readAllMsg:
+		var ids []sdk.ActivityId
+		for i := range s.activities {
+			if !s.activities[i].IsRead {
+				s.activities[i].IsRead = true
+				ids = append(ids, s.activities[i].Id)
+			}
+		}
+
+		s.content.list.Set(s.items()...)
+		user := s.user
+		// failed reads are ignored, as when opening one
+		return s, func() tea.Msg {
+			for _, id := range ids {
+				_ = s.service.read(user, id)
+			}
+
+			return nil
+		}
 	case openMsg:
 		activity := &s.activities[msg.index]
 		cmds := []tea.Cmd{
