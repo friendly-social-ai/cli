@@ -247,8 +247,8 @@ func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
 }
 
 func (s Screen) imageRows() int {
-	// most of the header height, which is capped at s.height-10 to keep the reply field visible
-	return max(s.height-16, 4)
+	// fits the opened post with its author line into the list clipping height, half of the screen
+	return max(s.height/2-3, 4)
 }
 
 // place resizes uploaded picture to fit the current screen size.
@@ -295,6 +295,7 @@ func (s *Screen) stopAttaching() {
 	s.attaching = false
 	s.content.prompt.Update(ui.UnfocusMsg{})
 	s.content.list.Reset(s.items()...)
+	s.content.list.Select(s.fieldIndex())
 }
 
 func (s Screen) owns(post sdk.CommunityPost) bool {
@@ -371,6 +372,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.editing = true
 		s.content.field.Raw().SetValue(s.details.Post.Text.Value())
 		s.content.list.Reset(s.items()...)
+		s.content.list.Select(s.fieldIndex())
 		return s, nil
 	case cancelEditMsg:
 		s.editing = false
@@ -388,7 +390,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.attaching = true
 		s.content.prompt.Raw().SetValue("")
 		s.content.list.Set(s.items()...)
-		s.content.list.Select(1)
+		s.content.list.Select(s.fieldIndex() + 1)
 		return s, screen.Send(ui.InsertMsg{})
 	case attachDoneMsg:
 		path := s.content.prompt.Value()
@@ -455,6 +457,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		p := &picture{img: msg.img, done: true, id: msg.id, cols: msg.cols, rows: msg.rows}
 		s.pictures[msg.url] = p
 		s.place(p)
+		// the opened post shows the picture now
+		s.content.list.Set(s.items()...)
 		return s, nil
 	case repliesMsg:
 		s.loadingMore = false

@@ -18,9 +18,14 @@ import (
 // imagePattern matches markdown image and captures its URL.
 var imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
 
-// items builds elements of the current mode: the text field followed by posts.
+// items builds elements of the current mode: the opened post in post mode, then the text field followed by posts.
 func (s Screen) items() []tea.Model {
-	items := []tea.Model{s.content.field}
+	var items []tea.Model
+	if s.mode == modePost {
+		items = append(items, ui.NewLabel(s.opened()))
+	}
+
+	items = append(items, s.content.field)
 	if s.attaching {
 		items = append(items, s.content.prompt)
 	}
@@ -60,14 +65,19 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	var actions []ui.Action
-	if s.content.list.Cursor() == 0 {
+	if s.content.list.Scrollable() {
+		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
+	}
+
+	switch cursor := s.content.list.Cursor(); {
+	case cursor == s.fieldIndex():
 		actions = append(actions, ui.Action{Key: ui.Key("i", "write")})
 		if s.content.field.Value() != "" {
 			actions = append(actions, ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}})
 		}
 
 		actions = append(actions, ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}})
-	} else {
+	case cursor > s.fieldIndex():
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	}
 
@@ -203,20 +213,27 @@ func (s Screen) header() string {
 		lines = append(lines, ui.MutedStyle.Render(ansi.Truncate("↑ "+meta(post)+": "+firstLine(post), s.textWidth(), "…")))
 	}
 
+	return strings.Join(lines, "\n")
+}
+
+// opened renders the opened post in full, as the first item of post mode.
+func (s Screen) opened() string {
 	post := s.details.Post
 	body := ui.MutedStyle.Render("this post was deleted")
 	if !post.Deleted() {
 		body = s.body(post.Text.Value())
 	}
 
-	lines = append(lines,
-		ansi.Truncate(styledMeta(post), s.textWidth(), "…"),
-		body)
+	return ansi.Truncate(styledMeta(post), s.textWidth(), "…") + "\n" + body
+}
 
-	// leave room for the reply field and a few list items below
-	return lipgloss.NewStyle().
-		MaxHeight(max(s.height-10, 3)).
-		Render(strings.Join(lines, "\n"))
+// fieldIndex returns list index of the text field, which follows the opened post in post mode.
+func (s Screen) fieldIndex() int {
+	if s.mode == modePost {
+		return 1
+	}
+
+	return 0
 }
 
 // body renders post text wrapped to screen width with markdown images drawn in place.
