@@ -10,6 +10,7 @@ const (
 	TypeHome     Type = "home"
 	TypeProfile  Type = "profile"
 	TypeAuth     Type = "auth"
+	TypePeople   Type = "people"
 )
 
 // Model represents Screen which is basically an extended tea.Model.
