@@ -51,6 +51,8 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch w.mode {
 		case VimModeNormal:
 			switch msg.String() {
+			case "q", "ctrl+c":
+				return w, tea.Quit
 			case "i":
 				w.mode = VimModeInsert
 				return w, func() tea.Msg {
