@@ -152,8 +152,6 @@ func (s Screen) View() string {
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		"login screen",
-		"",
 		s.content.list.View(),
 		"",
 		s.content.status.View(),

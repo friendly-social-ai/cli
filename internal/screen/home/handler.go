@@ -2,7 +2,6 @@ package home
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/ui"
@@ -72,10 +71,5 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 }
 
 func (s Screen) View() string {
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		"home screen",
-		"",
-		s.content.list.View(),
-	)
+	return s.content.list.View()
 }
