@@ -21,7 +21,7 @@ import (
 )
 
 func main() {
-	// standard log goes to debug.log only when debugging, the program draws over stdout
+	// standard log goes to debug.log only when DEBUG is set, since the program draws over stdout
 	if os.Getenv("DEBUG") != "" {
 		f, err := tea.LogToFile("debug.log", "debug")
 		if err != nil {

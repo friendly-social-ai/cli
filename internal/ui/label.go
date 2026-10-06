@@ -2,7 +2,7 @@ package ui
 
 import tea "github.com/charmbracelet/bubbletea"
 
-// Label represents simple string that is need to be a part of UI. It can be a non-interactive List item.
+// Label is a plain string shown in the UI. It can be a non-interactive List item.
 type Label struct {
 	title string
 }

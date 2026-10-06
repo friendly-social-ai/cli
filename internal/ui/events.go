@@ -23,10 +23,10 @@ type ScrollMsg struct {
 // InteractMsg shows that user wants to interact with some component.
 type InteractMsg struct{}
 
-// FocusMsg shows that user wants to focus on some component for interacting with it further.
+// FocusMsg shows that user wants to focus on some component to interact with it.
 type FocusMsg struct{}
 
-// UnfocucMsg shows that user no longer wants to focus on current component.
+// UnfocusMsg shows that user no longer wants to focus on current component.
 type UnfocusMsg struct{}
 
 // InsertMsg asks navigation to start typing into the selected component.
@@ -35,7 +35,7 @@ type InsertMsg struct{}
 // NormalMsg asks navigation to stop typing.
 type NormalMsg struct{}
 
-// SelectMsg shows that user wants to select some component for focusing on it further.
+// SelectMsg shows that user wants to select some component to focus on it later.
 type SelectMsg struct{}
 
 // UnselectMsg shows that user no longer wants current component to be selected.

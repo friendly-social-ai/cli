@@ -9,15 +9,15 @@ func Send(msg tea.Msg) tea.Cmd {
 	}
 }
 
-// ChangeMsg singals that router must change the current screen.
+// ChangeMsg signals that router must change the current screen.
 type ChangeMsg struct {
 	NewType Type
 }
 
-// ErrorMsg is a message that represents an error occured in program.
+// ErrorMsg carries an error that occurred in the program.
 type ErrorMsg struct {
 	Value error
 }
 
-// TickMsg signalizes that screen must be updated.
+// TickMsg signals that screen must be redrawn.
 type TickMsg struct{}

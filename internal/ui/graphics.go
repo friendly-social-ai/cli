@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	// maxGraphicsSide limits transmitted image side in pixels, larger images are downscaled before upload.
+	// maxGraphicsSide limits the side of a transmitted image in pixels. Upload downscales larger images first.
 	maxGraphicsSide = 1280
 
 	// maxPlaceholderCells is the number of row and column diacritics in kitty.Diacritic table.
@@ -47,8 +47,8 @@ func (o *Output) WriteString(s string) (int, error) {
 	return o.File.WriteString(s)
 }
 
-// Graphics displays images with Kitty graphics protocol Unicode placeholders. Image is transmitted once and drawn
-// as placeholder text, so redraws of the program and tmux keep it in place.
+// Graphics displays images with Kitty graphics protocol Unicode placeholders. It transmits an image once and draws
+// it as placeholder text, so redraws of the program and tmux keep it in place.
 type Graphics struct {
 	out  io.Writer
 	tmux bool
@@ -101,7 +101,7 @@ func (g *Graphics) write(seq string) error {
 	return err
 }
 
-// Upload transmits img to terminal and creates its placement of cols x rows cells. Returns image ID for Placeholder.
+// Upload transmits img to the terminal and places it in cols x rows cells. It returns the image ID for Placeholder.
 func (g *Graphics) Upload(img image.Image, cols, rows int) (uint32, error) {
 	id := rand.Uint32N(1<<24-1) + 1
 

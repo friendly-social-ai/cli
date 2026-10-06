@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// listMarker is drawn beside every line of the selected item, unselected items are indented by its width.
+// listMarker marks every line of the selected item. Unselected items get an indent of the same width.
 var listMarker = lipgloss.NewStyle().Foreground(ColorPrimary).Render("▎ ")
 
 // List represents collection of elements that you can select and interact with.
@@ -16,7 +16,7 @@ type List struct {
 	cursor int
 	items  []tea.Model
 
-	// height limits rendered lines, scrolling to keep cursor visible. Zero means unlimited.
+	// height limits rendered lines, and the list scrolls to keep the cursor visible. Zero means unlimited.
 	height int
 	offset int
 
@@ -76,7 +76,7 @@ func (l *List) move(i int) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// clip returns height at which items get clipped, half of the visible list. Zero means no clipping.
+// clip returns the clipping height for items, half of the visible list. Zero means no clipping.
 func (l *List) clip() int {
 	if l.height <= 0 {
 		return 0
@@ -85,12 +85,12 @@ func (l *List) clip() int {
 	return max(l.height/2, 5)
 }
 
-// Scrollable reports whether the selected item is clipped and can be scrolled with ScrollMsg.
+// Scrollable reports whether the selected item is clipped, so ScrollMsg can scroll it.
 func (l *List) Scrollable() bool {
 	return len(l.items) > 0 && l.clip() > 0 && lipgloss.Height(l.items[l.cursor].View()) > l.clip()
 }
 
-// itemView renders item i, clipping it to clip lines with a position indicator when it is taller.
+// itemView renders item i. A taller item is cut to clip lines and gets a position indicator.
 func (l *List) itemView(i int) string {
 	view := l.items[i].View()
 	c := l.clip()
@@ -143,7 +143,6 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return l, nil
 	case ScrollMsg:
-		// half of the clipped window per step, like ctrl+d and ctrl+u in vim
 		if l.Scrollable() {
 			step := max(l.clip()/2, 1)
 			if msg.Direction == DirectionUp {

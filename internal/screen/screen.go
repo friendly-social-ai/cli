@@ -5,7 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Type represents type of the current screen and serves as an identificator.
+// Type identifies a screen.
 type Type string
 
 const (
@@ -18,7 +18,7 @@ const (
 	TypeActivity  Type = "activity"
 )
 
-// Model represents Screen which is basically an extended tea.Model.
+// Model is a screen, an extended tea.Model with an ID and key bindings.
 type Model interface {
 	ID() Type
 

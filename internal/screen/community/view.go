@@ -71,7 +71,7 @@ func (s Screen) items() []tea.Model {
 	return items
 }
 
-// actions builds keys available in the current state. Cursor on the text field offers writing, on a post opening.
+// actions builds keys available in the current state. The cursor on the text field offers writing, on a post opening.
 func (s Screen) actions() []ui.Action {
 	if s.attaching {
 		return []ui.Action{{Key: ui.Key("enter", "attach"), Msg: attachDoneMsg{}}}
@@ -100,7 +100,7 @@ func (s Screen) actions() []ui.Action {
 	case cursor > s.fieldIndex():
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	case cursor < s.fieldIndex() && !s.details.Post.Deleted():
-		// cursor on the opened post: one link opens right away, more open a picker
+		// with the cursor on the opened post, a single link opens right away and several open a picker
 		switch found := links(s.details.Post.Text.Value()); len(found) {
 		case 0:
 		case 1:
@@ -144,7 +144,7 @@ func (s Screen) actions() []ui.Action {
 	return append(actions, refresh, back)
 }
 
-// openLinkAction returns message opening l: images in the image viewer, other links in the browser.
+// openLinkAction returns the message that opens l. Images open in the image viewer, other links in the browser.
 func openLinkAction(l link) tea.Msg {
 	if l.image {
 		return openImageMsg{url: l.url}
@@ -332,7 +332,7 @@ func (s Screen) picture(url string) string {
 func (s Screen) View() string {
 	// leave room for input border and padding
 	s.content.field.Raw().SetWidth(s.textWidth() - 4)
-	// one less than the text field since single line input draws an extra cell for the cursor
+	// one cell narrower than the text field, since a single line input draws an extra cell for the cursor
 	s.content.prompt.Raw().Width = s.textWidth() - 5
 
 	var top []string

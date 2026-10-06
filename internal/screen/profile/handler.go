@@ -18,7 +18,7 @@ type (
 	logoutMsg       struct{}
 	cancelLogoutMsg struct{}
 	toggleEmailMsg  struct{}
-	// loadedMsg carries profile of the logged in user, wrapped into router.TargetMsg so it reaches this screen.
+	// loadedMsg carries profile of the logged in user. The request wraps it into router.TargetMsg so it reaches this screen.
 	loadedMsg struct {
 		self *sdk.UserDetails
 		err  error
@@ -198,7 +198,7 @@ func (s Screen) View() string {
 	}
 
 	if s.confirmLogout {
-		// same as web: warn harder when there is no email to log back in with
+		// like the web, warn harder when there is no email to log back in with
 		warning := "You have no email bound. Logging out loses this account for good. Log out anyway?"
 		switch {
 		case s.email() != "" && s.showEmail:

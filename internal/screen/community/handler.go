@@ -47,7 +47,7 @@ type (
 	deleteMsg       struct{}
 )
 
-// Messages produced by requests, always wrapped into router.TargetMsg so they reach this screen even after leaving it.
+// Messages produced by requests. Requests wrap them into router.TargetMsg so they reach this screen even after the user leaves.
 type (
 	listMsg struct {
 		page   *sdk.Cursor[sdk.CommunityPost]
@@ -73,8 +73,8 @@ type (
 	failedMsg struct{ err error }
 )
 
-// picture is an image of post, img is nil when download failed. Non-zero id means it is uploaded to terminal
-// graphics and displayed as cols x rows placeholder.
+// picture is an image of a post. img is nil when the download failed. A non-zero id means terminal graphics holds
+// the upload and shows it as a cols x rows placeholder.
 type picture struct {
 	img        image.Image
 	done       bool
@@ -82,7 +82,7 @@ type picture struct {
 	cols, rows int
 }
 
-// Screen is a model of community screen: list of posts and details of a single post.
+// Screen is a model of community screen. It shows the list of posts and the details of a single post.
 type Screen struct {
 	service  *Service
 	graphics *ui.Graphics
@@ -120,8 +120,7 @@ type Screen struct {
 	height int
 }
 
-// New creates new Screen from Service.
-// New creates new Screen from Service. Images are drawn with graphics when it is not nil, and with half-blocks otherwise.
+// New creates new Screen from Service. It draws images with graphics when it is not nil, and with half-blocks otherwise.
 func New(service *Service, graphics *ui.Graphics) Screen {
 	result := Screen{
 		service:  service,
@@ -264,7 +263,7 @@ func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
 }
 
 func (s Screen) imageRows() int {
-	// fits the opened post with its author line into the list clipping height, half of the screen
+	// the opened post and its author line fit into the list clipping height, which is half of the screen
 	return max(s.height/2-3, 4)
 }
 
@@ -373,7 +372,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		return s, s.loadList(s.next)
 	case OpenMsg:
-		// posts opened from inside a post keep where the first one came from
+		// a post opened from inside another post keeps the origin of the first one
 		if s.mode == modeList || msg.From != "" {
 			s.from = msg.From
 		}
@@ -522,7 +521,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		p := &picture{img: msg.img, done: true, id: msg.id, cols: msg.cols, rows: msg.rows}
 		s.pictures[msg.url] = p
 		s.place(p)
-		// the opened post shows the picture now
+		// rebuild items so the opened post shows the picture
 		s.content.list.Set(s.items()...)
 		return s, nil
 	case repliesMsg:

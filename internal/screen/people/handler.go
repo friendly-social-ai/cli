@@ -17,7 +17,7 @@ import (
 // refreshMsg asks people screen to reload people for the current user.
 type refreshMsg struct{}
 
-// loadedMsg carries loaded people, always wrapped into router.TargetMsg so it reaches this screen even after leaving it.
+// loadedMsg carries loaded people. The request wraps it into router.TargetMsg so it reaches this screen even after the user leaves.
 type loadedMsg struct {
 	entries []sdk.FeedEntry
 	err     error
@@ -183,8 +183,7 @@ func (s Screen) card(entry sdk.FeedEntry) string {
 		lines = append(lines, ui.AccentStyle.Render(strings.Join(tags, " · ")))
 	}
 
-	// leave room for list marker plus slack for emoji that terminals draw wider than measured,
-	// zero width means no wrapping before the first WindowSizeMsg
+	// leave room for list marker plus slack for emoji that terminals draw wider than measured
 	width := 0
 	if s.width > 0 {
 		width = max(s.width-6, 20)

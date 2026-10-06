@@ -23,7 +23,7 @@ type (
 	refreshMsg struct{}
 	moreMsg    struct{}
 	openMsg    struct{ index int }
-	// loadedMsg carries a page of activity, wrapped into router.TargetMsg so it reaches this screen anywhere.
+	// loadedMsg carries a page of activity. Requests wrap it into router.TargetMsg so it reaches this screen anywhere.
 	loadedMsg struct {
 		page   *sdk.Cursor[sdk.Activity]
 		append bool
@@ -31,7 +31,7 @@ type (
 	}
 )
 
-// Screen is a model of activity screen: replies to user's posts.
+// Screen is a model of activity screen, which lists replies to user's posts.
 type Screen struct {
 	service *Service
 	user    *sdk.Authorization
@@ -177,7 +177,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeCommunity}),
 		}
 
-		// same as web: opening marks it read right away, failing quietly like a missed notification
+		// like the web, opening marks it read right away, and a failed read is ignored like a missed notification
 		if !activity.IsRead {
 			activity.IsRead = true
 			s.content.list.Set(s.items()...)

@@ -4,7 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Button is an implementation of button, with which you can interact, and which can be either selected or not.
+// Button is an interactive button that can be selected.
 type Button struct {
 	selected bool
 

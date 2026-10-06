@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Colors follow Friendly web theme, tuned for text contrast on light and dark terminals.
+// Colors follow the Friendly web theme, adjusted for text contrast on light and dark terminals.
 var (
 	ColorPrimary = lipgloss.AdaptiveColor{Light: "#0060D0", Dark: "#6E8BFF"}
 	ColorMuted   = lipgloss.AdaptiveColor{Light: "#646464", Dark: "#B4B4B4"}
@@ -25,7 +25,7 @@ var (
 	BoldStyle   = lipgloss.NewStyle().Bold(true)
 )
 
-// Fields renders "key: value" lines in muted keys, skipping pairs with empty value.
+// Fields renders "key: value" lines with muted keys. It skips pairs with an empty value.
 func Fields(pairs ...string) string {
 	var lines []string
 	for i := 0; i+1 < len(pairs); i += 2 {
@@ -37,7 +37,7 @@ func Fields(pairs ...string) string {
 	return strings.Join(lines, "\n")
 }
 
-// inputStyle frames text inputs, highlighting the border of the focused one.
+// inputStyle frames text inputs. The focused one gets a highlighted border.
 var (
 	inputStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(ColorBorder).Padding(0, 1)
 	inputFocusedStyle = inputStyle.BorderForeground(ColorPrimary)

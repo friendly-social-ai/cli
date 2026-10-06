@@ -13,12 +13,12 @@ import (
 	sdk "github.com/friendly-social/golang-sdk"
 )
 
-// LoginMsg signalizes that user logged in with new credentials.
+// LoginMsg signals that user logged in with new credentials.
 type LoginMsg struct {
 	User *sdk.Authorization
 }
 
-// LogoutMsg signalizes that user logged out and saved credentials are gone.
+// LogoutMsg signals that user logged out and saved credentials are gone.
 type LogoutMsg struct{}
 
 // Messages produced by key actions of the screen.

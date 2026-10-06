@@ -8,8 +8,8 @@ import (
 	"runtime"
 )
 
-// Open opens http or https link in the default browser without waiting for it. Other schemes are refused, so that
-// content from posts can't launch local files or applications.
+// Open opens http or https link in the default browser without waiting for it. It refuses other schemes, so content
+// from posts can't launch local files or applications.
 func Open(link string) error {
 	u, err := url.Parse(link)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
@@ -19,13 +19,13 @@ func Open(link string) error {
 	return start(u.String())
 }
 
-// OpenFile opens local file with its default application. Only for files created by the program itself.
+// OpenFile opens local file with its default application. Use it only for files the program created itself.
 func OpenFile(path string) error {
 	return start(path)
 }
 
-// start runs the system opener for target without waiting for it. Its output is discarded, it would draw over
-// the program otherwise.
+// start runs the system opener for target without waiting for it. It discards the output, which would otherwise
+// draw over the program.
 func start(target string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {

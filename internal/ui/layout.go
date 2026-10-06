@@ -6,8 +6,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Clip fits view into width x height cells. Lines are cut but never padded horizontally, leaving slack for emoji
-// that terminals draw wider than measured. Missing lines are added empty to keep anything below in place.
+// Clip fits view into width x height cells. It cuts long lines but never pads short ones, which leaves slack for
+// emoji that terminals draw wider than measured. It adds empty lines to keep anything below in place.
 func Clip(view string, width, height int) string {
 	if height <= 0 {
 		return ""

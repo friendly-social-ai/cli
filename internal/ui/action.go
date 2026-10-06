@@ -6,7 +6,7 @@ import (
 )
 
 // ActionMsg is a key pressed in normal mode that navigation didn't handle, meant for screen actions.
-// Text inputs never see it, they receive raw tea.KeyMsg only in insert mode.
+// Text inputs never see it. They receive raw tea.KeyMsg only in insert mode.
 type ActionMsg struct {
 	Key tea.KeyMsg
 }

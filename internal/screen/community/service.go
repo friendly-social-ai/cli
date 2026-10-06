@@ -130,7 +130,7 @@ func (s *Service) upload(user *sdk.Authorization, path string) (string, error) {
 	}
 
 	if info.Size() > maxUploadBytes {
-		return "", fmt.Errorf("image is %.1f MB, the limit is 5 MB", float64(info.Size())/1_000_000)
+		return "", fmt.Errorf("image is %.1f MB, over the 5 MB limit", float64(info.Size())/1_000_000)
 	}
 
 	if _, _, err := image.DecodeConfig(f); err != nil {

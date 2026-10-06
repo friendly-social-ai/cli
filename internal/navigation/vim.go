@@ -25,7 +25,7 @@ const (
 	VimModeInsert VimMode = "INSERT"
 )
 
-// VimWrapper translates raw tea.KeyMsgs to UI messages using Vim motions driven logic.
+// VimWrapper translates raw tea.KeyMsgs into UI messages with Vim-style modes and motions.
 type VimWrapper struct {
 	mode  VimMode
 	model tea.Model
@@ -73,7 +73,7 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q", "ctrl+c":
 				return w, tea.Quit
 			case "i":
-				// only where the model offers typing, so that footer and behaviour agree
+				// enter insert mode only where the model offers typing, so the footer matches the behaviour
 				if !key.Matches(msg, w.keys()...) {
 					return w, nil
 				}
@@ -112,7 +112,7 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			// the rest are screen actions, raw keys go to the model only in insert mode for typing
+			// remaining keys are screen actions. Raw keys reach the model only in insert mode, for typing.
 			var cmd tea.Cmd
 			w.model, cmd = w.model.Update(ui.ActionMsg{Key: msg})
 			return w, cmd
@@ -125,7 +125,6 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			// keys that can't be text work as shortcuts while typing
 			if isShortcut(msg, w.keys()) {
 				var cmd tea.Cmd
 				w.model, cmd = w.model.Update(ui.ActionMsg{Key: msg})
@@ -148,8 +147,8 @@ func (w VimWrapper) keys() []key.Binding {
 	return nil
 }
 
-// shortcut returns key of binding usable while typing. one that can't be text, like enter or ctrl and alt combinations.
-// Esc is left out since it always stops typing.
+// shortcut returns the key of binding that works while typing, one that can't be text, like enter or ctrl and alt
+// combinations. Esc doesn't count, since it always stops typing.
 func shortcut(binding key.Binding) (string, bool) {
 	for _, k := range binding.Keys() {
 		if len([]rune(k)) > 1 && k != "esc" {

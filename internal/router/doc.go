@@ -1,2 +1,2 @@
-// Package router acts as a composite of all screens in the application which orchestrate them all.
+// Package router composes all screens of the application and orchestrates them.
 package router
