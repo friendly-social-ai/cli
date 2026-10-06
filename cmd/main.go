@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/friendly-social/cli/internal/navigation"
@@ -32,8 +34,9 @@ func main() {
 	router := router.NewRouter(screens)
 	wrapper := navigation.NewVimWrapper(router)
 
-	p := tea.NewProgram(wrapper)
+	p := tea.NewProgram(wrapper, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		panic("failed to run app router: " + err.Error())
+		fmt.Fprintln(os.Stderr, "failed to run app router:", err)
+		os.Exit(1)
 	}
 }

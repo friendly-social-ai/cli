@@ -34,7 +34,7 @@ func (r Router) Init() tea.Cmd {
 		cmds = append(cmds, s.Init())
 	}
 
-	return tea.Sequence(tea.ClearScreen, tea.Batch(cmds...))
+	return tea.Batch(cmds...)
 }
 
 func (r Router) target(target screen.Type, msg tea.Msg) (tea.Model, tea.Cmd) {
