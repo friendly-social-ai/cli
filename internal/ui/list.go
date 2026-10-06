@@ -59,6 +59,17 @@ func (l *List) Select(i int) {
 	l.move(i)
 }
 
+// Position returns the selected item and the first visible item, to restore them later with SetPosition.
+func (l *List) Position() (cursor, offset int) {
+	return l.cursor, l.offset
+}
+
+// SetPosition selects item cursor and scrolls to show item offset first, both clamped to the items.
+func (l *List) SetPosition(cursor, offset int) {
+	l.move(max(min(cursor, len(l.items)-1), 0))
+	l.offset = max(min(offset, l.cursor), 0)
+}
+
 func (l *List) move(i int) tea.Cmd {
 	if i < 0 || i >= len(l.items) || i == l.cursor {
 		return nil

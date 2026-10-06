@@ -54,14 +54,13 @@ func (s *Service) replies(user *sdk.Authorization, post sdk.CommunityPostDescrip
 	return s.client.GetCommunityReplies(context.Background(), user, post, cursor)
 }
 
-func (s *Service) post(user *sdk.Authorization, text string, replyTo *sdk.CommunityPostDescriptor) error {
+func (s *Service) post(user *sdk.Authorization, text string, replyTo *sdk.CommunityPostDescriptor) (*sdk.CommunityPostDescriptor, error) {
 	postText, err := sdk.NewCommunityPostText(text)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = s.client.PostCommunity(context.Background(), user, postText, replyTo)
-	return err
+	return s.client.PostCommunity(context.Background(), user, postText, replyTo)
 }
 
 func (s *Service) edit(user *sdk.Authorization, id sdk.CommunityPostId, text string) error {

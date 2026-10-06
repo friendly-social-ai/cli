@@ -57,7 +57,8 @@ type (
 	repliesMsg struct {
 		page *sdk.Cursor[sdk.CommunityPostReply]
 	}
-	doneMsg struct{}
+	// doneMsg reports a finished write. posted is the new post, if any.
+	doneMsg struct{ posted *sdk.CommunityPostDescriptor }
 	// openedMsg reports that an image was opened in the image viewer.
 	openedMsg struct{}
 	// deletedMsg reports that the opened post was deleted.
@@ -110,6 +111,11 @@ type Screen struct {
 
 	// from is the screen to return to when leaving the opened post
 	from screen.Type
+
+	// listCursor and listOffset keep the list position while a post is open
+	listCursor, listOffset int
+	// pending is the post to select once the next load arrives
+	pending *sdk.CommunityPostId
 
 	content struct {
 		status *ui.Label
@@ -204,7 +210,8 @@ func (s Screen) submit() tea.Cmd {
 
 	if s.mode == modeList {
 		return s.request("posting...", func() (tea.Msg, error) {
-			return doneMsg{}, s.service.post(s.user, text, nil)
+			posted, err := s.service.post(s.user, text, nil)
+			return doneMsg{posted: posted}, err
 		})
 	}
 
@@ -217,7 +224,8 @@ func (s Screen) submit() tea.Cmd {
 
 	replyTo := post.Descriptor()
 	return s.request("replying...", func() (tea.Msg, error) {
-		return doneMsg{}, s.service.post(s.user, text, &replyTo)
+		posted, err := s.service.post(s.user, text, &replyTo)
+		return doneMsg{posted: posted}, err
 	})
 }
 
@@ -228,12 +236,106 @@ func (s Screen) delete() tea.Cmd {
 	})
 }
 
-func (s Screen) reload() tea.Cmd {
+// reload loads the current mode again. In list mode the selected post stays selected once the list arrives.
+func (s *Screen) reload() tea.Cmd {
 	if s.mode == modePost {
 		return s.loadDetails(s.details.Post.Descriptor())
 	}
 
+	if post, ok := s.selected(); ok {
+		s.pending = &post.Id
+	}
+
 	return s.loadList(nil)
+}
+
+// shown returns posts shown as list items in order, and the list index of the first one.
+func (s Screen) shown() ([]sdk.CommunityPost, int) {
+	first := s.fieldIndex() + 1
+	if s.attaching {
+		first++
+	}
+
+	if s.mode == modeList {
+		return s.posts, first
+	}
+
+	var posts []sdk.CommunityPost
+	for _, reply := range s.replies {
+		posts = append(posts, reply.Posts()...)
+	}
+
+	return posts, first
+}
+
+// indexOfPost returns the list index of post with id, or -1 when it isn't shown.
+func (s Screen) indexOfPost(id sdk.CommunityPostId) int {
+	posts, first := s.shown()
+	for i, post := range posts {
+		if post.Id == id {
+			return first + i
+		}
+	}
+
+	return -1
+}
+
+// selected returns the post under the cursor, when the cursor is on a post.
+func (s Screen) selected() (sdk.CommunityPost, bool) {
+	posts, first := s.shown()
+	if i := s.content.list.Cursor() - first; i >= 0 && i < len(posts) {
+		return posts[i], true
+	}
+
+	return sdk.CommunityPost{}, false
+}
+
+// selectPending selects the pending post when it is shown, keeping the scroll offset.
+func (s *Screen) selectPending() {
+	if s.pending == nil {
+		return
+	}
+
+	if i := s.indexOfPost(*s.pending); i >= 0 {
+		_, offset := s.content.list.Position()
+		s.content.list.SetPosition(i, offset)
+	}
+
+	s.pending = nil
+}
+
+// known returns post with id from what the screen already has loaded.
+func (s Screen) known(id sdk.CommunityPostId) (sdk.CommunityPost, bool) {
+	candidates := append([]sdk.CommunityPost{}, s.posts...)
+	for _, reply := range s.replies {
+		candidates = append(candidates, reply.Posts()...)
+	}
+
+	if s.details != nil {
+		candidates = append(candidates, s.details.Post)
+		candidates = append(candidates, s.details.Upstream...)
+	}
+
+	for _, post := range candidates {
+		if post.Id == id {
+			return post, true
+		}
+	}
+
+	return sdk.CommunityPost{}, false
+}
+
+// open shows post right away. Its replies and parents arrive with the details. It returns the sequence that frees
+// pictures of the previous post, for tea.Raw.
+func (s *Screen) open(post sdk.CommunityPost) string {
+	freed := s.dropPictures(post.Text)
+	s.mode = modePost
+	s.picking, s.editing, s.confirmDelete = false, false, false
+	s.details = &sdk.CommunityPostDetails{Post: post}
+	s.replies, s.repliesNext = nil, nil
+	s.content.field.Raw().SetValue("")
+	s.content.list.Reset(s.items()...)
+	return freed
 }
 
 func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
@@ -391,6 +493,15 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			s.from = msg.From
 		}
 
+		if s.mode == modeList {
+			s.listCursor, s.listOffset = s.content.list.Position()
+		}
+
+		if post, ok := s.known(msg.Post.Id); ok {
+			freed := s.open(post)
+			return s, tea.Batch(raw(freed), s.loadPictures(post), s.loadDetails(msg.Post))
+		}
+
 		return s, s.loadDetails(msg.Post)
 	case pickMsg:
 		s.picking = true
@@ -438,6 +549,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
+		s.content.list.SetPosition(s.listCursor, s.listOffset)
 		if s.from != "" {
 			from := s.from
 			s.from = ""
@@ -507,20 +619,37 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.posts = msg.page.Data
-		s.content.list.Reset(s.items()...)
+		if s.pending == nil {
+			s.content.list.Reset(s.items()...)
+			return s, nil
+		}
+
+		s.content.list.Set(s.items()...)
+		s.selectPending()
 		return s, nil
 	case detailsMsg:
-		freed := s.dropPictures(msg.details.Post.Text)
+		// details of the post already open update it in place. The cursor and any draft stay.
+		same := s.mode == modePost && s.details != nil && s.details.Post.Id == msg.details.Post.Id
+		var freed string
+		if !same {
+			freed = s.dropPictures(msg.details.Post.Text)
+			s.editing, s.confirmDelete = false, false
+			s.content.field.Raw().SetValue("")
+		}
+
 		s.mode = modePost
 		s.picking = false
 		s.details = msg.details
 		s.replies = msg.details.Replies.Data
 		s.repliesNext = msg.details.Replies.NextId
-		s.editing = false
-		s.confirmDelete = false
-		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
-		s.content.list.Reset(s.items()...)
+		if same {
+			s.content.list.Set(s.items()...)
+		} else {
+			s.content.list.Reset(s.items()...)
+		}
+
+		s.selectPending()
 		return s, tea.Batch(raw(freed), s.loadPictures(msg.details.Post))
 	case imageMsg:
 		// drop uploads of pictures that were left before downloading or got downloaded twice
@@ -546,6 +675,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case doneMsg:
 		s.content.field.Raw().SetValue("")
+		s.editing = false
+		// a new reply gets selected once the post reloads
+		if msg.posted != nil && s.mode == modePost {
+			s.pending = &msg.posted.Id
+		}
+
 		return s, s.reload()
 	case deletedMsg:
 		s.confirmDelete = false
