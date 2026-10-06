@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -86,14 +87,18 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if s.composing {
-		actions := []ui.Action{{Key: ui.Key("i", "write")}}
-		if s.content.field.Value() != "" {
-			actions = append(actions, ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}})
+		post := ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}}
+		closing := ui.Action{Key: ui.Key("esc", "close"), Msg: closeMsg{}}
+		if s.previewing {
+			return []ui.Action{{Key: ui.Key("v", "edit"), Msg: previewMsg{}}, post, closing}
 		}
 
-		return append(actions,
-			ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}},
-			ui.Action{Key: ui.Key("esc", "close"), Msg: closeMsg{}})
+		actions := []ui.Action{{Key: ui.Key("i", "write")}}
+		if s.content.field.Value() != "" {
+			actions = append(actions, post, ui.Action{Key: ui.Key("v", "preview"), Msg: previewMsg{}})
+		}
+
+		return append(actions, ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}}, closing)
 	}
 
 	var actions []ui.Action
@@ -342,8 +347,20 @@ func (s Screen) composer() string {
 		title, placeholder = "reply to "+author, "Write a reply"
 	}
 
+	// the length shows past 4000 characters, as on the web
+	text := s.content.field.Value()
+	if n := utf8.RuneCountInString(text); n > 4000 {
+		title += fmt.Sprintf(" · %d / %d", n, s.content.field.Raw().CharLimit)
+	}
+
 	s.content.field.Raw().Placeholder = placeholder
-	parts := []string{ui.MutedStyle.Render(title), s.content.field.View()}
+	field := s.content.field.View()
+	if s.previewing {
+		title += " · preview"
+		field = s.body(text)
+	}
+
+	parts := []string{ui.MutedStyle.Render(title), field}
 	if s.attaching {
 		parts = append(parts, s.content.prompt.View())
 	}

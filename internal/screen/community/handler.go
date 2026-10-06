@@ -47,6 +47,7 @@ type (
 	deleteMsg       struct{}
 	composeMsg      struct{}
 	closeMsg        struct{}
+	previewMsg      struct{}
 	// upMsg opens parent index of the opened post, counted from the top of the thread
 	upMsg struct{ index int }
 )
@@ -121,6 +122,8 @@ type Screen struct {
 	// composing shows the text field above the list, and editing makes it edit the opened post
 	composing bool
 	editing   bool
+	// previewing shows the draft rendered as markdown in place of the text field
+	previewing bool
 	// composeOffset is the list scroll before the composer took room from it, restored when it closes
 	composeOffset int
 
@@ -360,8 +363,13 @@ func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
 		return nil
 	}
 
+	return s.loadImages(post.Text.Value())
+}
+
+// loadImages downloads images of text that aren't loaded yet.
+func (s Screen) loadImages(text string) tea.Cmd {
 	var cmds []tea.Cmd
-	for _, match := range imagePattern.FindAllStringSubmatch(post.Text.Value(), -1) {
+	for _, match := range imagePattern.FindAllStringSubmatch(text, -1) {
 		url := match[1]
 		if _, ok := s.pictures[url]; ok {
 			continue
@@ -525,7 +533,7 @@ func (s *Screen) closeComposer() {
 		s.content.list.SetPosition(cursor, s.composeOffset)
 	}
 
-	s.composing = false
+	s.composing, s.previewing = false, false
 	s.content.field.Update(ui.UnfocusMsg{})
 	if s.editing {
 		s.editing = false
@@ -695,6 +703,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.openComposer()
 	case closeMsg:
 		s.closeComposer()
+		return s, nil
+	case previewMsg:
+		s.previewing = !s.previewing
+		if s.previewing {
+			return s, s.loadImages(s.content.field.Value())
+		}
+
 		return s, nil
 	case deleteMsg:
 		if s.confirmDelete {
