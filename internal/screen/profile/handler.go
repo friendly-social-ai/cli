@@ -56,11 +56,11 @@ func (s Screen) Init() tea.Cmd {
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case auth.LoginMsg:
-		s.content.label.Set("loading...")
+		s.content.label.Set(ui.MutedStyle.Render("loading..."))
 		return s, func() tea.Msg {
 			self, err := s.service.get(msg.User)
 			if err != nil {
-				s.content.label.Set(fmt.Sprintf("error loading profile: %s", err.Error()))
+				s.content.label.Set(ui.DangerStyle.Render(fmt.Sprintf("error loading profile: %s", err.Error())))
 				return screen.TickMsg{}
 			}
 
@@ -73,9 +73,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 				}
 			}
 
-			s.content.label.Set(fmt.Sprintf(
-				"your logged in profile:\nnickname: %s\ndescription: %s\ninterests: %s\nsocial link: %s",
-				self.Nickname.Value(), self.Description.Value(), interests.String(), self.SocialLink.Value()))
+			s.content.label.Set(ui.BoldStyle.Render(self.Nickname.Value()) + "\n" + ui.Fields(
+				"description", self.Description.Value(),
+				"interests", interests.String(),
+				"social link", self.SocialLink.Value()))
 
 			return screen.TickMsg{}
 		}

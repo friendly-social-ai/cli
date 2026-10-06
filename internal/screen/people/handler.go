@@ -38,7 +38,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.label = ui.NewLabel("log in to see people")
+	result.content.label = ui.NewLabel(ui.MutedStyle.Render("log in to see people"))
 	result.content.button.refresh = ui.NewButton("Refresh", func() tea.Msg {
 		return refreshMsg{}
 	})
@@ -65,15 +65,15 @@ func (s Screen) Init() tea.Cmd {
 
 func (s Screen) load() tea.Cmd {
 	if s.user == nil {
-		s.content.label.Set("log in to see people")
+		s.content.label.Set(ui.MutedStyle.Render("log in to see people"))
 		return nil
 	}
 
-	s.content.label.Set("loading...")
+	s.content.label.Set(ui.MutedStyle.Render("loading..."))
 	return func() tea.Msg {
 		entries, err := s.service.get(s.user)
 		if err != nil {
-			s.content.label.Set(fmt.Sprintf("error loading people: %s", err.Error()))
+			s.content.label.Set(ui.DangerStyle.Render(fmt.Sprintf("error loading people: %s", err.Error())))
 			return screen.TickMsg{}
 		}
 
@@ -104,7 +104,7 @@ func (s Screen) View() string {
 
 func render(entries []sdk.FeedEntry) string {
 	if len(entries) == 0 {
-		return "you are all caught up"
+		return ui.MutedStyle.Render("you are all caught up")
 	}
 
 	views := make([]string, len(entries))
@@ -127,12 +127,18 @@ func render(entries []sdk.FeedEntry) string {
 			tags = append(tags, fmt.Sprintf("%d common friends", n))
 		}
 
-		views[i] = fmt.Sprintf("%s\n  %s\n  interests: %s\n  social link: %s",
-			details.Nickname.Value(), details.Description.Value(),
-			strings.Join(interests, ", "), details.SocialLink.Value())
-		if len(tags) > 0 {
-			views[i] += "\n  " + strings.Join(tags, " | ")
+		lines := []string{details.Description.Value()}
+		if fields := ui.Fields(
+			"interests", strings.Join(interests, ", "),
+			"social link", details.SocialLink.Value()); fields != "" {
+			lines = append(lines, fields)
 		}
+		if len(tags) > 0 {
+			lines = append(lines, ui.AccentStyle.Render(strings.Join(tags, " · ")))
+		}
+
+		body := lipgloss.NewStyle().PaddingLeft(2).Render(strings.Join(lines, "\n"))
+		views[i] = ui.BoldStyle.Render(details.Nickname.Value()) + "\n" + body
 	}
 
 	return strings.Join(views, "\n\n")
