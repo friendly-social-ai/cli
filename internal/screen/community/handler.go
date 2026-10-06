@@ -1,6 +1,8 @@
 package community
 
 import (
+	"image"
+
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/friendly-social/cli/internal/router"
@@ -39,15 +41,31 @@ type (
 	repliesMsg struct {
 		page *sdk.Cursor[sdk.CommunityPostReply]
 	}
-	doneMsg   struct{}
+	doneMsg  struct{}
+	imageMsg struct {
+		url        string
+		img        image.Image
+		id         uint32
+		cols, rows int
+	}
 	failedMsg struct{ err error }
 )
 
+// picture is an image of post, img is nil when download failed. Non-zero id means it is uploaded to terminal
+// graphics and displayed as cols x rows placeholder.
+type picture struct {
+	img        image.Image
+	done       bool
+	id         uint32
+	cols, rows int
+}
+
 // Screen is a model of community screen: list of posts and details of a single post.
 type Screen struct {
-	service *Service
-	user    *sdk.Authorization
-	mode    mode
+	service  *Service
+	graphics *ui.Graphics
+	user     *sdk.Authorization
+	mode     mode
 
 	posts []sdk.CommunityPost
 	next  *sdk.CursorId
@@ -55,6 +73,10 @@ type Screen struct {
 	details     *sdk.CommunityPostDetails
 	replies     []sdk.CommunityPostReply
 	repliesNext *sdk.CursorId
+
+	// pictures holds post images by URL, rendered caches their half-block drawings by URL and size.
+	pictures map[string]*picture
+	rendered map[string]string
 
 	editing       bool
 	confirmDelete bool
@@ -70,9 +92,13 @@ type Screen struct {
 }
 
 // New creates new Screen from Service.
-func New(service *Service) Screen {
+// New creates new Screen from Service. Images are drawn with graphics when it is not nil, and with half-blocks otherwise.
+func New(service *Service, graphics *ui.Graphics) Screen {
 	result := Screen{
-		service: service,
+		service:  service,
+		graphics: graphics,
+		pictures: make(map[string]*picture),
+		rendered: make(map[string]string),
 	}
 
 	input := textarea.New()
@@ -179,6 +205,79 @@ func (s Screen) reload() tea.Cmd {
 	return s.loadList(nil)
 }
 
+func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
+	if post.Deleted() {
+		return nil
+	}
+
+	var cmds []tea.Cmd
+	for _, match := range imagePattern.FindAllStringSubmatch(post.Text.Value(), -1) {
+		url := match[1]
+		if _, ok := s.pictures[url]; ok {
+			continue
+		}
+
+		s.pictures[url] = &picture{}
+		width, rows := s.textWidth(), s.imageRows()
+		cmds = append(cmds, func() tea.Msg {
+			msg := imageMsg{url: url}
+			msg.img, _ = s.service.image(url)
+			if msg.img != nil && s.graphics != nil {
+				msg.cols, msg.rows = ui.Fit(msg.img, width, rows)
+				msg.id, _ = s.graphics.Upload(msg.img, msg.cols, msg.rows)
+			}
+
+			return router.TargetMsg{Type: screen.TypeCommunity, Inner: msg}
+		})
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (s Screen) imageRows() int {
+	// most of the header height, which is capped at s.height-10 to keep the reply field visible
+	return max(s.height-16, 4)
+}
+
+// place resizes uploaded picture to fit the current screen size.
+func (s Screen) place(p *picture) {
+	if p.id == 0 {
+		return
+	}
+
+	cols, rows := ui.Fit(p.img, s.textWidth(), s.imageRows())
+	if cols == p.cols && rows == p.rows {
+		return
+	}
+
+	if err := s.graphics.Place(p.id, cols, rows); err == nil {
+		p.cols, p.rows = cols, rows
+	}
+}
+
+// dropPictures forgets pictures not used by text, freeing their uploads.
+func (s Screen) dropPictures(text *sdk.CommunityPostText) {
+	keep := make(map[string]bool)
+	if text != nil {
+		for _, match := range imagePattern.FindAllStringSubmatch(text.Value(), -1) {
+			keep[match[1]] = true
+		}
+	}
+
+	for url, p := range s.pictures {
+		if keep[url] {
+			continue
+		}
+
+		if p.id != 0 {
+			_ = s.graphics.Delete(p.id)
+		}
+		delete(s.pictures, url)
+	}
+
+	clear(s.rendered)
+}
+
 func (s Screen) owns(post sdk.CommunityPost) bool {
 	return s.user != nil && post.Owner != nil && post.Owner.Id == s.user.Id
 }
@@ -189,6 +288,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.width = msg.Width
 		s.height = msg.Height
 		s.content.list.Set(s.items()...)
+		for _, p := range s.pictures {
+			s.place(p)
+		}
+
 		return s, nil
 	case auth.LoginMsg:
 		s.user = msg.User
@@ -211,6 +314,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		s.mode = modeList
 		s.details = nil
+		s.dropPictures(nil)
 		s.editing = false
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
@@ -249,6 +353,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case detailsMsg:
+		s.dropPictures(msg.details.Post.Text)
 		s.mode = modePost
 		s.details = msg.details
 		s.replies = msg.details.Replies.Data
@@ -258,6 +363,20 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
+		return s, s.loadPictures(msg.details.Post)
+	case imageMsg:
+		// drop uploads of pictures that were left before downloading or got downloaded twice
+		if p, ok := s.pictures[msg.url]; !ok || p.done {
+			if msg.id != 0 {
+				_ = s.graphics.Delete(msg.id)
+			}
+
+			return s, nil
+		}
+
+		p := &picture{img: msg.img, done: true, id: msg.id, cols: msg.cols, rows: msg.rows}
+		s.pictures[msg.url] = p
+		s.place(p)
 		return s, nil
 	case repliesMsg:
 		s.replies = append(s.replies, msg.page.Data...)

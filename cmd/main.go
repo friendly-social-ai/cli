@@ -15,6 +15,7 @@ import (
 	"github.com/friendly-social/cli/internal/screen/people"
 	"github.com/friendly-social/cli/internal/screen/profile"
 	"github.com/friendly-social/cli/internal/screen/register"
+	"github.com/friendly-social/cli/internal/ui"
 	sdk "github.com/friendly-social/golang-sdk"
 )
 
@@ -25,10 +26,13 @@ func main() {
 	}
 	defer f.Close() //nolint:errcheck
 
+	out := ui.NewOutput(os.Stdout)
+	graphics := ui.NewGraphics(out)
+
 	client := sdk.NewClient()
 	screens := []screen.Model{
 		home.New(),
-		community.New(community.NewService(client)),
+		community.New(community.NewService(client), graphics),
 		people.New(people.NewService(client)),
 		profile.New(profile.NewService(client)),
 		register.New(register.NewService(client)),
@@ -38,8 +42,13 @@ func main() {
 	router := router.NewRouter(screens)
 	wrapper := navigation.NewVimWrapper(router)
 
-	p := tea.NewProgram(wrapper, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
+	p := tea.NewProgram(wrapper, tea.WithAltScreen(), tea.WithOutput(out))
+	_, err = p.Run()
+	if graphics != nil {
+		graphics.Close()
+	}
+
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to run app router:", err)
 		os.Exit(1)
 	}

@@ -2,6 +2,7 @@ package community
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +12,9 @@ import (
 	"github.com/friendly-social/cli/internal/ui"
 	sdk "github.com/friendly-social/golang-sdk"
 )
+
+// imagePattern matches markdown image and captures its URL.
+var imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
 
 var (
 	dimStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
@@ -129,7 +133,8 @@ func firstLine(post sdk.CommunityPost) string {
 		return "this post was deleted"
 	}
 
-	line, _, _ := strings.Cut(strings.TrimSpace(post.Text.Value()), "\n")
+	text := imagePattern.ReplaceAllString(post.Text.Value(), "[image]")
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
 	return line
 }
 
@@ -158,18 +163,63 @@ func (s Screen) header() string {
 	}
 
 	post := s.details.Post
-	text := "this post was deleted"
+	body := "this post was deleted"
 	if !post.Deleted() {
-		text = post.Text.Value()
+		body = s.body(post.Text.Value())
 	}
 
 	lines = append(lines,
 		boldStyle.Render(ansi.Truncate(meta(post), s.textWidth(), "…")),
-		lipgloss.NewStyle().Width(s.textWidth()).Render(text))
+		body)
 
+	// leave room for the reply field and a few list items below
 	return lipgloss.NewStyle().
-		MaxHeight(max(s.height/2, 3)).
+		MaxHeight(max(s.height-10, 3)).
 		Render(strings.Join(lines, "\n"))
+}
+
+// body renders post text wrapped to screen width with markdown images drawn in place.
+func (s Screen) body(text string) string {
+	style := lipgloss.NewStyle().Width(s.textWidth())
+
+	var parts []string
+	last := 0
+	for _, match := range imagePattern.FindAllStringSubmatchIndex(text, -1) {
+		if segment := strings.TrimSpace(text[last:match[0]]); segment != "" {
+			parts = append(parts, style.Render(segment))
+		}
+
+		parts = append(parts, s.picture(text[match[2]:match[3]]))
+		last = match[1]
+	}
+
+	if segment := strings.TrimSpace(text[last:]); segment != "" {
+		parts = append(parts, style.Render(segment))
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func (s Screen) picture(url string) string {
+	p, ok := s.pictures[url]
+	switch {
+	case !ok || !p.done:
+		return dimStyle.Render("[loading image]")
+	case p.img == nil:
+		return dimStyle.Render("[image unavailable]")
+	case p.id != 0:
+		return ui.Placeholder(p.id, p.cols, p.rows)
+	}
+
+	rows := s.imageRows()
+	key := fmt.Sprintf("%s@%dx%d", url, s.textWidth(), rows)
+	if drawing, ok := s.rendered[key]; ok {
+		return drawing
+	}
+
+	drawing := ui.RenderImage(p.img, s.textWidth(), rows)
+	s.rendered[key] = drawing
+	return drawing
 }
 
 func (s Screen) View() string {
