@@ -125,12 +125,6 @@ func (w VimWrapper) footer() string {
 func (w VimWrapper) View() string {
 	footer := w.footer()
 
-	height := w.height - lipgloss.Height(footer)
-	content := lipgloss.NewStyle().
-		Width(w.width).
-		Height(height).
-		MaxHeight(height).
-		Render(w.model.View())
-
-	return lipgloss.JoinVertical(lipgloss.Top, content, footer)
+	content := ui.Clip(w.model.View(), w.width, w.height-lipgloss.Height(footer))
+	return content + "\n" + footer
 }
