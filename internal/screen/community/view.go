@@ -15,8 +15,16 @@ import (
 	sdk "github.com/friendly-social/golang-sdk"
 )
 
-// imagePattern matches markdown image and captures its URL.
-var imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
+var (
+	// imagePattern matches markdown image and captures its URL.
+	imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
+	// inlineLinkPattern matches markdown link and captures its text.
+	inlineLinkPattern = regexp.MustCompile(`\[([^\]]*)\]\([^)\s]*\)`)
+	// blockMarkPattern matches heading, quote and list marks starting a line.
+	blockMarkPattern = regexp.MustCompile(`^(#{1,6}|>|[-*+]|\d+\.)\s+`)
+	// inlineMarks removes bold and code marks.
+	inlineMarks = strings.NewReplacer("**", "", "__", "", "`", "")
+)
 
 // items builds elements of the current mode: the opened post in post mode, then the text field followed by posts.
 func (s Screen) items() []ui.Component {
@@ -222,7 +230,7 @@ func metaParts(post sdk.CommunityPost) (string, string) {
 	return post.Owner.Nickname.Value(), strings.Join(parts, " · ")
 }
 
-// FirstLine returns first line of post text for previews, with images shown as [image].
+// FirstLine returns the first line of post text for previews. It shows images as [image] and removes markdown marks.
 func FirstLine(post sdk.CommunityPost) string {
 	if post.Deleted() {
 		return "this post was deleted"
@@ -230,7 +238,8 @@ func FirstLine(post sdk.CommunityPost) string {
 
 	text := imagePattern.ReplaceAllString(post.Text.Value(), "[image]")
 	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
-	return line
+	line = blockMarkPattern.ReplaceAllString(line, "")
+	return inlineMarks.Replace(inlineLinkPattern.ReplaceAllString(line, "$1"))
 }
 
 // Ago returns short relative time of t, like "5m ago", or its date when older than a day.
@@ -285,15 +294,13 @@ func (s Screen) fieldIndex() int {
 	return 0
 }
 
-// body renders post text wrapped to screen width with markdown images drawn in place.
+// body renders post text as markdown wrapped to screen width and draws its images in place.
 func (s Screen) body(text string) string {
-	style := lipgloss.NewStyle().Width(s.textWidth())
-
 	var parts []string
 	last := 0
 	for _, match := range imagePattern.FindAllStringSubmatchIndex(text, -1) {
 		if segment := strings.TrimSpace(text[last:match[0]]); segment != "" {
-			parts = append(parts, style.Render(segment))
+			parts = append(parts, s.markdown.Render(segment, s.textWidth()))
 		}
 
 		parts = append(parts, s.picture(text[match[2]:match[3]]))
@@ -301,7 +308,7 @@ func (s Screen) body(text string) string {
 	}
 
 	if segment := strings.TrimSpace(text[last:]); segment != "" {
-		parts = append(parts, style.Render(segment))
+		parts = append(parts, s.markdown.Render(segment, s.textWidth()))
 	}
 
 	return strings.Join(parts, "\n")

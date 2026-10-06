@@ -87,6 +87,7 @@ type picture struct {
 type Screen struct {
 	service  *Service
 	graphics *ui.Graphics
+	markdown *ui.Markdown
 	user     *sdk.Authorization
 	mode     mode
 
@@ -126,6 +127,7 @@ func New(service *Service, graphics *ui.Graphics) Screen {
 	result := Screen{
 		service:  service,
 		graphics: graphics,
+		markdown: ui.NewMarkdown(),
 		pictures: make(map[string]*picture),
 		rendered: make(map[string]string),
 	}

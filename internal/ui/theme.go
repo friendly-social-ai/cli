@@ -39,16 +39,34 @@ func init() {
 	SetTheme(true)
 }
 
+// palette holds the theme as hex strings for libraries that take colors as strings, like glamour.
+var palette struct {
+	dark    bool
+	primary string
+	muted   string
+}
+
 // SetTheme picks colors for dark or light terminal background. Call it before building the UI, since rendered text
 // keeps the colors it was rendered with.
 func SetTheme(dark bool) {
-	pick := lipgloss.LightDark(dark)
-	ColorPrimary = pick(lipgloss.Color("#0060D0"), lipgloss.Color("#6E8BFF"))
-	ColorMuted = pick(lipgloss.Color("#646464"), lipgloss.Color("#B4B4B4"))
-	ColorDanger = pick(lipgloss.Color("#C4391D"), lipgloss.Color("#F0715A"))
-	ColorSuccess = pick(lipgloss.Color("#18794E"), lipgloss.Color("#3DD68C"))
-	ColorBorder = pick(lipgloss.Color("#C8C8C8"), lipgloss.Color("#4E4E4E"))
-	ColorOnAccent = pick(lipgloss.Color("#FFFFFF"), lipgloss.Color("#111111"))
+	pick := func(onLight, onDark string) string {
+		if dark {
+			return onDark
+		}
+
+		return onLight
+	}
+
+	palette.dark = dark
+	palette.primary = pick("#0060D0", "#6E8BFF")
+	palette.muted = pick("#646464", "#B4B4B4")
+
+	ColorPrimary = lipgloss.Color(palette.primary)
+	ColorMuted = lipgloss.Color(palette.muted)
+	ColorDanger = lipgloss.Color(pick("#C4391D", "#F0715A"))
+	ColorSuccess = lipgloss.Color(pick("#18794E", "#3DD68C"))
+	ColorBorder = lipgloss.Color(pick("#C8C8C8", "#4E4E4E"))
+	ColorOnAccent = lipgloss.Color(pick("#FFFFFF", "#111111"))
 
 	MutedStyle = lipgloss.NewStyle().Foreground(ColorMuted)
 	AccentStyle = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
