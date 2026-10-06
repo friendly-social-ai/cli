@@ -7,7 +7,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var listUnselectedStyle = lipgloss.NewStyle().PaddingLeft(3)
+// listMarker is drawn beside every line of the selected item, unselected items are indented by its width.
+var listMarker = lipgloss.NewStyle().Foreground(ColorPrimary).Render("▎ ")
 
 // List represents collection of elements that you can select and interact with.
 type List struct {
@@ -17,6 +18,9 @@ type List struct {
 	// height limits rendered lines, scrolling to keep cursor visible. Zero means unlimited.
 	height int
 	offset int
+
+	// gap is the number of blank lines between items.
+	gap int
 }
 
 // NewList creates new List based on the list of items.
@@ -41,6 +45,11 @@ func (l *List) Reset(items ...tea.Model) {
 	l.cursor = 0
 	l.offset = 0
 	l.Set(items...)
+}
+
+// SetGap sets number of blank lines between items.
+func (l *List) SetGap(gap int) {
+	l.gap = gap
 }
 
 // SetHeight limits List to provided number of lines.
@@ -82,12 +91,20 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (l *List) View() string {
 	views := make([]string, len(l.items))
 	for i, input := range l.items {
+		prefix := "  "
 		if l.cursor == i {
-			views[i] = lipgloss.JoinHorizontal(lipgloss.Left, "-> ", input.View())
-			continue
+			prefix = listMarker
 		}
 
-		views[i] = listUnselectedStyle.Render(input.View())
+		lines := strings.Split(input.View(), "\n")
+		for j := range lines {
+			lines[j] = prefix + lines[j]
+		}
+
+		views[i] = strings.Join(lines, "\n")
+		if i < len(l.items)-1 {
+			views[i] += strings.Repeat("\n", l.gap)
+		}
 	}
 
 	if l.height <= 0 {

@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // TextArea is an abstraction over textarea.Model for embedding multi-line input into ui package contract.
@@ -14,6 +15,12 @@ type TextArea struct {
 // NewTextArea creates new TextArea based on provided textarea.Model.
 func NewTextArea(input textarea.Model) *TextArea {
 	input.Blur()
+	for _, style := range []*textarea.Style{&input.FocusedStyle, &input.BlurredStyle} {
+		style.CursorLine = lipgloss.NewStyle()
+		style.Placeholder = MutedStyle
+		style.EndOfBuffer = lipgloss.NewStyle()
+	}
+
 	return &TextArea{
 		input: &input,
 	}
@@ -41,7 +48,7 @@ func (a *TextArea) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a *TextArea) View() string {
-	return a.input.View()
+	return inputView(a.input.View(), a.input.Focused())
 }
 
 // Value returns current filled string.

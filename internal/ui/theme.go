@@ -36,3 +36,17 @@ func Fields(pairs ...string) string {
 
 	return strings.Join(lines, "\n")
 }
+
+// inputStyle frames text inputs, highlighting the border of the focused one.
+var (
+	inputStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(ColorBorder).Padding(0, 1)
+	inputFocusedStyle = inputStyle.BorderForeground(ColorPrimary)
+)
+
+func inputView(view string, focused bool) string {
+	if focused {
+		return inputFocusedStyle.Render(view)
+	}
+
+	return inputStyle.Render(view)
+}

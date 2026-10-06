@@ -14,6 +14,7 @@ type Field struct {
 // NewField creates new Field based on provided textinput.Model.
 func NewField(input textinput.Model) *Field {
 	input.Blur()
+	input.PlaceholderStyle = MutedStyle
 	return &Field{
 		input: &input,
 	}
@@ -41,7 +42,7 @@ func (f *Field) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (f *Field) View() string {
-	return f.input.View()
+	return inputView(f.input.View(), f.input.Focused())
 }
 
 // Value returns current filled string.
