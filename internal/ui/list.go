@@ -59,6 +59,16 @@ func (l *List) Select(i int) {
 	l.move(i)
 }
 
+// SelectFocused moves cursor to item i and focus with it, so typing goes on in item i.
+func (l *List) SelectFocused(i int) tea.Cmd {
+	l.items[l.cursor], _ = l.items[l.cursor].Update(UnfocusMsg{})
+	l.move(i)
+
+	var cmd tea.Cmd
+	l.items[l.cursor], cmd = l.items[l.cursor].Update(FocusMsg{})
+	return cmd
+}
+
 // Position returns the selected item and the first visible item, to restore them later with SetPosition.
 func (l *List) Position() (cursor, offset int) {
 	return l.cursor, l.offset

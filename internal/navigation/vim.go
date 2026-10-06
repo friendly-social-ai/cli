@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -73,16 +74,22 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "q", "ctrl+c":
 				return w, tea.Quit
-			case "i":
-				// enter insert mode only where the model offers typing, so the footer matches the behaviour
-				if !key.Matches(msg, w.keys()...) {
-					return w, nil
+			case "i", "enter":
+				// i and enter start typing only where the model offers it, so the footer matches. Elsewhere enter interacts.
+				if typable(w.keys()) {
+					w.mode = VimModeInsert
+					return w, func() tea.Msg {
+						return ui.FocusMsg{}
+					}
 				}
 
-				w.mode = VimModeInsert
-				return w, func() tea.Msg {
-					return ui.FocusMsg{}
+				if msg.String() == "enter" {
+					return w, func() tea.Msg {
+						return ui.InteractMsg{}
+					}
 				}
+
+				return w, nil
 			case "h", "left":
 				return w, func() tea.Msg {
 					return ui.MoveMsg{Direction: ui.DirectionLeft}
@@ -98,10 +105,6 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "l", "right":
 				return w, func() tea.Msg {
 					return ui.MoveMsg{Direction: ui.DirectionRight}
-				}
-			case "enter":
-				return w, func() tea.Msg {
-					return ui.InteractMsg{}
 				}
 			case "ctrl+d":
 				return w, func() tea.Msg {
@@ -142,6 +145,17 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // keys returns key bindings currently offered by the router.
 func (w VimWrapper) keys() []key.Binding {
 	return w.model.Keys()
+}
+
+// typable reports whether bindings offer typing with i.
+func typable(bindings []key.Binding) bool {
+	for _, binding := range bindings {
+		if binding.Enabled() && slices.Contains(binding.Keys(), "i") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // shortcut returns the key of binding that works while typing, one that can't be text, like enter or ctrl and alt
@@ -193,7 +207,15 @@ func (w VimWrapper) footer() string {
 	var hints string
 	switch w.mode {
 	case VimModeNormal:
-		hints = renderKeys(append(append([]key.Binding{keyMove}, w.keys()...), keyQuit))
+		bindings := []key.Binding{keyMove}
+		for _, binding := range w.keys() {
+			// where enter starts typing, its bindings work only while typing
+			if !typable(w.keys()) || !slices.Contains(binding.Keys(), "enter") {
+				bindings = append(bindings, binding)
+			}
+		}
+
+		hints = renderKeys(append(bindings, keyQuit))
 	case VimModeInsert:
 		bindings := []key.Binding{keyDone}
 		for _, binding := range w.keys() {

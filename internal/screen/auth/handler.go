@@ -24,6 +24,8 @@ type LogoutMsg struct{}
 type (
 	sendMsg    struct{}
 	confirmMsg struct{}
+	// nextMsg sends the code and moves to the code field from the e-mail field. From the code field it confirms.
+	nextMsg struct{}
 )
 
 // Screen is a model of e-mail login screen.
@@ -98,9 +100,15 @@ func (s Screen) Init() tea.Cmd {
 		})
 }
 
-func (Screen) actions() []ui.Action {
+func (s Screen) actions() []ui.Action {
+	next := ui.Action{Key: ui.Key("enter", "send code"), Msg: nextMsg{}}
+	if s.content.list.Cursor() == 1 {
+		next = ui.Action{Key: ui.Key("enter", "confirm"), Msg: nextMsg{}}
+	}
+
 	return []ui.Action{
 		{Key: ui.Key("i", "type")},
+		next,
 		{Key: ui.Key("s", "send code"), Msg: sendMsg{}},
 		{Key: ui.Key("c", "confirm"), Msg: confirmMsg{}},
 		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
@@ -147,6 +155,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.send()
 	case confirmMsg:
 		return s, s.confirm()
+	case nextMsg:
+		if s.content.list.Cursor() == 0 {
+			return s, tea.Batch(s.send(), s.content.list.SelectFocused(1))
+		}
+
+		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.confirm())
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height

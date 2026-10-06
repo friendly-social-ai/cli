@@ -10,8 +10,13 @@ import (
 	"github.com/friendly-social/cli/internal/ui"
 )
 
-// submitMsg asks registration screen to register with filled fields.
-type submitMsg struct{}
+// Messages produced by key actions of the screen.
+type (
+	// submitMsg asks registration screen to register with filled fields.
+	submitMsg struct{}
+	// nextMsg moves to the next field, and submits from the last one
+	nextMsg struct{}
+)
 
 // Screen is a model of registration screen.
 type Screen struct {
@@ -80,9 +85,15 @@ func (s Screen) Init() tea.Cmd {
 	}
 }
 
-func (Screen) actions() []ui.Action {
+func (s Screen) actions() []ui.Action {
+	next := ui.Action{Key: ui.Key("enter", "next"), Msg: nextMsg{}}
+	if s.content.list.Cursor() == len(s.content.fields)-1 {
+		next = ui.Action{Key: ui.Key("enter", "submit"), Msg: nextMsg{}}
+	}
+
 	return []ui.Action{
 		{Key: ui.Key("i", "type")},
+		next,
 		{Key: ui.Key("s", "submit"), Msg: submitMsg{}},
 		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
 	}
@@ -117,6 +128,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 	case submitMsg:
 		return s, s.submit()
+	case nextMsg:
+		if cursor := s.content.list.Cursor(); cursor < len(s.content.fields)-1 {
+			return s, s.content.list.SelectFocused(cursor + 1)
+		}
+
+		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.submit())
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
