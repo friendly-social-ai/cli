@@ -156,6 +156,12 @@ func (l *List) Update(msg tea.Msg) (Component, tea.Cmd) {
 		}
 
 		return l, nil
+	case JumpMsg:
+		if msg.Direction == DirectionUp {
+			return l, l.move(0)
+		}
+
+		return l, l.move(len(l.items) - 1)
 	case ScrollMsg:
 		if l.Scrollable() {
 			step := max(l.clip()/2, 1)

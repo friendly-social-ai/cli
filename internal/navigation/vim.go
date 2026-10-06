@@ -36,6 +36,8 @@ type VimWrapper struct {
 
 	// help shows all keys in place of the screen until the next key press
 	help bool
+	// pendingG is set after g, which waits for a second g to jump to the first item
+	pendingG bool
 
 	width  int
 	height int
@@ -103,6 +105,15 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch w.mode {
 		case VimModeNormal:
+			if w.pendingG {
+				w.pendingG = false
+				if msg.String() == "g" {
+					return w, func() tea.Msg {
+						return ui.JumpMsg{Direction: ui.DirectionUp}
+					}
+				}
+			}
+
 			switch msg.String() {
 			case "q", "ctrl+c":
 				return w, tea.Quit
@@ -140,6 +151,13 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "l", "right":
 				return w, func() tea.Msg {
 					return ui.MoveMsg{Direction: ui.DirectionRight}
+				}
+			case "g":
+				w.pendingG = true
+				return w, nil
+			case "G":
+				return w, func() tea.Msg {
+					return ui.JumpMsg{Direction: ui.DirectionDown}
 				}
 			case "ctrl+d":
 				return w, func() tea.Msg {
@@ -232,7 +250,8 @@ var keySeparator = ui.MutedStyle.Render(" · ")
 
 // helpView lists keys of the current screen, then the ones that work on every screen.
 func (w VimWrapper) helpView() string {
-	everywhere := []key.Binding{keyMove, ui.Key("ctrl+d/u", "scroll a long item"), ui.Key("esc", "stop typing")}
+	everywhere := []key.Binding{keyMove, ui.Key("gg/G", "first/last item"), ui.Key("ctrl+d/u", "scroll a long item"),
+		ui.Key("esc", "stop typing")}
 	if w.model.OnTab() {
 		everywhere = append(everywhere, ui.Key("1-4", "switch tabs"))
 	}

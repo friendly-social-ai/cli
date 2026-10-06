@@ -1,5 +1,7 @@
 package ui
 
+import tea "charm.land/bubbletea/v2"
+
 // Direction represents possible moving directions.
 type Direction int
 
@@ -12,6 +14,11 @@ const (
 
 // MoveMsg shows that user wants to move to a different component in some direction.
 type MoveMsg struct {
+	Direction Direction
+}
+
+// JumpMsg shows that user wants to move to the first item with DirectionUp, or to the last one with DirectionDown.
+type JumpMsg struct {
 	Direction Direction
 }
 
@@ -40,3 +47,13 @@ type SelectMsg struct{}
 
 // UnselectMsg shows that user no longer wants current component to be selected.
 type UnselectMsg struct{}
+
+// Moves reports whether msg moves the cursor between items.
+func Moves(msg tea.Msg) bool {
+	switch msg.(type) {
+	case MoveMsg, JumpMsg:
+		return true
+	}
+
+	return false
+}
