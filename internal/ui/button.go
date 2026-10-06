@@ -20,6 +20,11 @@ func NewButton(title string, action tea.Cmd) *Button {
 	}
 }
 
+// SetTitle replaces title of the button.
+func (b *Button) SetTitle(title string) {
+	b.title = title
+}
+
 func (b *Button) Init() tea.Cmd {
 	return nil
 }

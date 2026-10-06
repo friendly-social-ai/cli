@@ -22,6 +22,13 @@ const (
 	modePost
 )
 
+// OpenMsg asks community screen to open post. From is the screen to return to when leaving the post, empty for
+// the community list.
+type OpenMsg struct {
+	Post sdk.CommunityPostDescriptor
+	From screen.Type
+}
+
 // Messages produced by key actions of the screen.
 type (
 	attachMsg       struct{}
@@ -38,7 +45,6 @@ type (
 	editMsg         struct{}
 	cancelEditMsg   struct{}
 	deleteMsg       struct{}
-	openMsg         struct{ post sdk.CommunityPostDescriptor }
 )
 
 // Messages produced by requests, always wrapped into router.TargetMsg so they reach this screen even after leaving it.
@@ -99,6 +105,9 @@ type Screen struct {
 	loadingMore   bool
 	attaching     bool
 	picking       bool
+
+	// from is the screen to return to when leaving the opened post
+	from screen.Type
 
 	content struct {
 		status *ui.Label
@@ -337,6 +346,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.dropPictures(nil)
 		s.user = nil
 		s.mode = modeList
+		s.from = ""
 		s.picking = false
 		s.posts, s.next = nil, nil
 		s.details, s.replies, s.repliesNext = nil, nil, nil
@@ -362,8 +372,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		return s, s.loadList(s.next)
-	case openMsg:
-		return s, s.loadDetails(msg.post)
+	case OpenMsg:
+		// posts opened from inside a post keep where the first one came from
+		if s.mode == modeList || msg.From != "" {
+			s.from = msg.From
+		}
+
+		return s, s.loadDetails(msg.Post)
 	case pickMsg:
 		s.picking = true
 		s.content.list.Reset(s.items()...)
@@ -410,6 +425,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
+		if s.from != "" {
+			from := s.from
+			s.from = ""
+			return s, screen.Send(screen.ChangeMsg{NewType: from})
+		}
+
 		return s, nil
 	case editMsg:
 		s.editing = true

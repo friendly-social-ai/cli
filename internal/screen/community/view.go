@@ -138,7 +138,7 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if n := len(s.details.Upstream); n > 0 {
-		actions = append(actions, ui.Action{Key: ui.Key("u", "parent"), Msg: openMsg{post: s.details.Upstream[n-1].Descriptor()}})
+		actions = append(actions, ui.Action{Key: ui.Key("u", "parent"), Msg: OpenMsg{Post: s.details.Upstream[n-1].Descriptor()}})
 	}
 
 	return append(actions, refresh, back)
@@ -178,7 +178,7 @@ func (s Screen) textWidth() int {
 
 func (s Screen) postButton(post sdk.CommunityPost, indent string) *ui.Button {
 	width := s.textWidth() - lipgloss.Width(indent)
-	line := firstLine(post)
+	line := FirstLine(post)
 	if post.Deleted() {
 		line = ui.MutedStyle.Render(line)
 	}
@@ -186,7 +186,7 @@ func (s Screen) postButton(post sdk.CommunityPost, indent string) *ui.Button {
 	title := indent + ansi.Truncate(styledMeta(post), width, "…") + "\n" +
 		indent + ansi.Truncate(line, width, "…")
 
-	return ui.NewButton(title, screen.Send(openMsg{post: post.Descriptor()}))
+	return ui.NewButton(title, screen.Send(OpenMsg{Post: post.Descriptor()}))
 }
 
 func meta(post sdk.CommunityPost) string {
@@ -202,10 +202,10 @@ func styledMeta(post sdk.CommunityPost) string {
 
 func metaParts(post sdk.CommunityPost) (string, string) {
 	if post.Deleted() {
-		return "[deleted]", when(post.Instant)
+		return "[deleted]", Ago(post.Instant)
 	}
 
-	parts := []string{when(post.Instant)}
+	parts := []string{Ago(post.Instant)}
 	if post.Edited {
 		parts = append(parts, "edited")
 	}
@@ -222,7 +222,8 @@ func metaParts(post sdk.CommunityPost) (string, string) {
 	return post.Owner.Nickname.Value(), strings.Join(parts, " · ")
 }
 
-func firstLine(post sdk.CommunityPost) string {
+// FirstLine returns first line of post text for previews, with images shown as [image].
+func FirstLine(post sdk.CommunityPost) string {
 	if post.Deleted() {
 		return "this post was deleted"
 	}
@@ -232,7 +233,8 @@ func firstLine(post sdk.CommunityPost) string {
 	return line
 }
 
-func when(t time.Time) string {
+// Ago returns short relative time of t, like "5m ago", or its date when older than a day.
+func Ago(t time.Time) string {
 	d := time.Since(t)
 	switch {
 	case d < time.Minute:
@@ -257,7 +259,7 @@ func (s Screen) header() string {
 
 	var lines []string
 	for _, post := range s.details.Upstream {
-		lines = append(lines, ui.MutedStyle.Render(ansi.Truncate("↑ "+meta(post)+": "+firstLine(post), s.textWidth(), "…")))
+		lines = append(lines, ui.MutedStyle.Render(ansi.Truncate("↑ "+meta(post)+": "+FirstLine(post), s.textWidth(), "…")))
 	}
 
 	return strings.Join(lines, "\n")
