@@ -15,6 +15,7 @@ type Screen struct {
 
 		buttons struct {
 			profile  *ui.Button
+			login    *ui.Button
 			register *ui.Button
 			exit     *ui.Button
 		}
@@ -31,10 +32,14 @@ func New() Screen {
 	result.content.buttons.profile = ui.NewButton("Profile", func() tea.Msg {
 		return screen.ChangeMsg{NewType: screen.TypeProfile}
 	})
+	result.content.buttons.login = ui.NewButton("Login", func() tea.Msg {
+		return screen.ChangeMsg{NewType: screen.TypeAuth}
+	})
 	result.content.buttons.exit = ui.NewButton("Exit", tea.Quit)
 
 	result.content.list = ui.NewList(
 		result.content.buttons.profile,
+		result.content.buttons.login,
 		result.content.buttons.register,
 		result.content.buttons.exit)
 

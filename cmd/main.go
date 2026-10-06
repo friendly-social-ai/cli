@@ -7,6 +7,7 @@ import (
 	"github.com/friendly-social/cli/internal/navigation"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
+	"github.com/friendly-social/cli/internal/screen/auth"
 	"github.com/friendly-social/cli/internal/screen/home"
 	"github.com/friendly-social/cli/internal/screen/profile"
 	"github.com/friendly-social/cli/internal/screen/register"
@@ -25,6 +26,7 @@ func main() {
 		home.New(),
 		profile.New(profile.NewService(client)),
 		register.New(register.NewService(client)),
+		auth.New(auth.NewService(client)),
 	}
 
 	router := router.NewRouter(screens)

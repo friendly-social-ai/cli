@@ -2,18 +2,11 @@ package register
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/friendly-social/cli/internal/screen/auth"
 	sdk "github.com/friendly-social/golang-sdk"
-)
-
-const (
-	saveFile   = "user.json"
-	saveFolder = "friendly"
 )
 
 // Service provides registration logic.
@@ -26,32 +19,6 @@ func NewService(client *sdk.Client) *Service {
 	return &Service{
 		client: client,
 	}
-}
-
-func (s *Service) load() (*sdk.Authorization, error) {
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return nil, fmt.Errorf("register: failed to get user cache dir: %w", err)
-	}
-
-	saveFile := filepath.Join(cacheDir, saveFolder, saveFile)
-	_, err = os.Stat(saveFile)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-
-	userBytes, err := os.ReadFile(saveFile)
-	if err != nil {
-		return nil, fmt.Errorf("register: failed to read user bytes: %w", err)
-	}
-
-	user := new(sdk.Authorization)
-	err = json.Unmarshal(userBytes, user)
-	if err != nil {
-		return nil, fmt.Errorf("register: failed to unmarshal user bytes: %w", err)
-	}
-
-	return user, nil
 }
 
 func (s *Service) register(nicknameString, descriptionString, interestsString, socialString string) (*sdk.Authorization, error) {
@@ -90,26 +57,9 @@ func (s *Service) register(nicknameString, descriptionString, interestsString, s
 		return nil, fmt.Errorf("register: failed to register: %w", err)
 	}
 
-	cacheFolder, err := os.UserCacheDir()
+	err = auth.Save(user)
 	if err != nil {
-		return nil, fmt.Errorf("register: failed to get user cache directory: %w", err)
-	}
-
-	saveFolder := filepath.Join(cacheFolder, saveFolder)
-	err = os.MkdirAll(saveFolder, 0700)
-	if err != nil {
-		return nil, fmt.Errorf("register: failed to create save folder: %w", err)
-	}
-
-	userBytes, err := json.Marshal(user)
-	if err != nil {
-		return nil, fmt.Errorf("register: failed to marshal user data: %w", err)
-	}
-
-	saveFile := filepath.Join(saveFolder, saveFile)
-	err = os.WriteFile(saveFile, userBytes, 0600)
-	if err != nil {
-		return nil, fmt.Errorf("register: failed to write user data to save file: %w", err)
+		return nil, err
 	}
 
 	return user, nil

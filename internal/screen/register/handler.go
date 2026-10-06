@@ -104,22 +104,9 @@ func (Screen) ID() screen.Type {
 }
 
 func (s Screen) Init() tea.Cmd {
-	return tea.Sequence(
-		func() tea.Msg {
-			user, err := s.service.load()
-			if err != nil {
-				return screen.ErrorMsg{Value: err}
-			}
-
-			if user == nil {
-				return nil
-			}
-
-			return router.BroadcastMsg{Inner: auth.LoginMsg{User: user}}
-		},
-		func() tea.Msg {
-			return router.TargetMsg{Type: s.ID(), Inner: ui.SelectMsg{}}
-		})
+	return func() tea.Msg {
+		return router.TargetMsg{Type: s.ID(), Inner: ui.SelectMsg{}}
+	}
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
