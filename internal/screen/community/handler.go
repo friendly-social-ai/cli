@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/friendly-social/cli/internal/browser"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/screen/auth"
@@ -24,6 +25,10 @@ const (
 // Messages produced by key actions of the screen.
 type (
 	attachMsg       struct{}
+	pickMsg         struct{}
+	cancelPickMsg   struct{}
+	openLinkMsg     struct{ url string }
+	openImageMsg    struct{ url string }
 	attachDoneMsg   struct{}
 	cancelDeleteMsg struct{}
 	submitMsg       struct{}
@@ -47,6 +52,8 @@ type (
 		page *sdk.Cursor[sdk.CommunityPostReply]
 	}
 	doneMsg struct{}
+	// openedMsg reports that an image was opened in the image viewer.
+	openedMsg struct{}
 	// deletedMsg reports that the opened post was deleted.
 	deletedMsg struct{}
 	// attachedMsg carries URL of uploaded image for embedding into the post.
@@ -91,6 +98,7 @@ type Screen struct {
 	confirmDelete bool
 	loadingMore   bool
 	attaching     bool
+	picking       bool
 
 	content struct {
 		status *ui.Label
@@ -329,6 +337,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.dropPictures(nil)
 		s.user = nil
 		s.mode = modeList
+		s.picking = false
 		s.posts, s.next = nil, nil
 		s.details, s.replies, s.repliesNext = nil, nil, nil
 		s.editing, s.confirmDelete, s.loadingMore, s.attaching = false, false, false, false
@@ -355,12 +364,46 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.loadList(s.next)
 	case openMsg:
 		return s, s.loadDetails(msg.post)
+	case pickMsg:
+		s.picking = true
+		s.content.list.Reset(s.items()...)
+		return s, nil
+	case cancelPickMsg:
+		s.picking = false
+		s.content.list.Reset(s.items()...)
+		return s, nil
+	case openLinkMsg:
+		s.picking = false
+		s.content.list.Reset(s.items()...)
+		s.content.status.Set(ui.MutedStyle.Render("opened " + msg.url))
+		return s, func() tea.Msg {
+			if err := browser.Open(msg.url); err != nil {
+				return router.TargetMsg{Type: screen.TypeCommunity, Inner: failedMsg{err: err}}
+			}
+
+			return nil
+		}
+	case openImageMsg:
+		s.picking = false
+		s.content.list.Reset(s.items()...)
+		return s, s.request("opening image...", func() (tea.Msg, error) {
+			path, err := s.service.saveImage(msg.url)
+			if err == nil {
+				err = browser.OpenFile(path)
+			}
+
+			return openedMsg{}, err
+		})
+	case openedMsg:
+		s.content.status.Set(ui.MutedStyle.Render("opened image"))
+		return s, nil
 	case backMsg:
 		if s.mode == modeList {
 			return s, screen.Send(screen.ChangeMsg{NewType: screen.TypeHome})
 		}
 
 		s.mode = modeList
+		s.picking = false
 		s.details = nil
 		s.dropPictures(nil)
 		s.editing = false
@@ -435,6 +478,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case detailsMsg:
 		s.dropPictures(msg.details.Post.Text)
 		s.mode = modePost
+		s.picking = false
 		s.details = msg.details
 		s.replies = msg.details.Replies.Data
 		s.repliesNext = msg.details.Replies.NextId

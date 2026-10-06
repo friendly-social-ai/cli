@@ -1,7 +1,9 @@
 package community
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -174,6 +176,42 @@ func cleanPath(path string) (string, error) {
 		}
 
 		path = filepath.Join(home, path[1:])
+	}
+
+	return path, nil
+}
+
+// saveImage downloads image at url into a temporary file named with its real extension and returns its path.
+// Server sends images without content type, so opening their URL makes browsers download a file instead.
+func (s *Service) saveImage(url string) (string, error) {
+	resp, err := s.http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to download image: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to download image: status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxImageBytes))
+	if err != nil {
+		return "", fmt.Errorf("failed to download image: %w", err)
+	}
+
+	_, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("failed to decode image: %w", err)
+	}
+
+	dir := filepath.Join(os.TempDir(), "friendly-images")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("failed to save image: %w", err)
+	}
+
+	path := filepath.Join(dir, fmt.Sprintf("%x.%s", sha256.Sum256([]byte(url)), format))
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return "", fmt.Errorf("failed to save image: %w", err)
 	}
 
 	return path, nil

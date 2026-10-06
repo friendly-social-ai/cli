@@ -21,6 +21,19 @@ var imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
 // items builds elements of the current mode: the opened post in post mode, then the text field followed by posts.
 func (s Screen) items() []tea.Model {
 	var items []tea.Model
+	if s.picking {
+		for _, l := range links(s.details.Post.Text.Value()) {
+			title := ui.BoldStyle.Render(ansi.Truncate(l.label, s.textWidth(), "…"))
+			if l.label != l.url {
+				title += "\n" + ui.MutedStyle.Render(ansi.Truncate(l.url, s.textWidth(), "…"))
+			}
+
+			items = append(items, ui.NewButton(title, screen.Send(openLinkAction(l))))
+		}
+
+		return items
+	}
+
 	if s.mode == modePost {
 		items = append(items, ui.NewLabel(s.opened()))
 	}
@@ -64,6 +77,13 @@ func (s Screen) actions() []ui.Action {
 		return []ui.Action{{Key: ui.Key("enter", "attach"), Msg: attachDoneMsg{}}}
 	}
 
+	if s.picking {
+		return []ui.Action{
+			{Key: ui.Key("enter", "open")},
+			{Key: ui.Key("esc", "cancel"), Msg: cancelPickMsg{}},
+		}
+	}
+
 	var actions []ui.Action
 	if s.content.list.Scrollable() {
 		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
@@ -79,6 +99,20 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}})
 	case cursor > s.fieldIndex():
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
+	case cursor < s.fieldIndex() && !s.details.Post.Deleted():
+		// cursor on the opened post: one link opens right away, more open a picker
+		switch found := links(s.details.Post.Text.Value()); len(found) {
+		case 0:
+		case 1:
+			desc := "open link"
+			if found[0].image {
+				desc = "open image"
+			}
+
+			actions = append(actions, ui.Action{Key: ui.Key("o", desc), Msg: openLinkAction(found[0])})
+		default:
+			actions = append(actions, ui.Action{Key: ui.Key("o", "links"), Msg: pickMsg{}})
+		}
 	}
 
 	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
@@ -108,6 +142,15 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	return append(actions, refresh, back)
+}
+
+// openLinkAction returns message opening l: images in the image viewer, other links in the browser.
+func openLinkAction(l link) tea.Msg {
+	if l.image {
+		return openImageMsg{url: l.url}
+	}
+
+	return openLinkMsg{url: l.url}
 }
 
 func (s Screen) submitLabel() string {
@@ -206,6 +249,10 @@ func when(t time.Time) string {
 func (s Screen) header() string {
 	if s.mode == modeList {
 		return ""
+	}
+
+	if s.picking {
+		return ui.MutedStyle.Render("links in this post")
 	}
 
 	var lines []string
