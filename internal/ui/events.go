@@ -15,6 +15,11 @@ type MoveMsg struct {
 	Direction Direction
 }
 
+// ScrollMsg shows that user wants to scroll content of the selected component.
+type ScrollMsg struct {
+	Direction Direction
+}
+
 // InteractMsg shows that user wants to interact with some component.
 type InteractMsg struct{}
 

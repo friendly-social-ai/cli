@@ -86,11 +86,15 @@ func (s Screen) items() []tea.Model {
 	return items
 }
 
-func (Screen) actions() []ui.Action {
-	return []ui.Action{
-		{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}},
-		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
+func (s Screen) actions() []ui.Action {
+	var actions []ui.Action
+	if s.content.list.Scrollable() {
+		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
 	}
+
+	return append(actions,
+		ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}},
+		ui.Action{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}})
 }
 
 func (s Screen) Keys() []key.Binding {

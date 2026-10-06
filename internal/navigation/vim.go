@@ -102,6 +102,14 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return w, func() tea.Msg {
 					return ui.InteractMsg{}
 				}
+			case "ctrl+d":
+				return w, func() tea.Msg {
+					return ui.ScrollMsg{Direction: ui.DirectionDown}
+				}
+			case "ctrl+u":
+				return w, func() tea.Msg {
+					return ui.ScrollMsg{Direction: ui.DirectionUp}
+				}
 			}
 
 			// the rest are screen actions, raw keys go to the model only in insert mode for typing
