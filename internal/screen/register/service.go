@@ -47,9 +47,13 @@ func (s *Service) register(nicknameString, descriptionString, interestsString, s
 		return nil, fmt.Errorf("register: failed to create interests: %w", err)
 	}
 
-	socialLink, err := sdk.NewSocialLink(socialString)
-	if err != nil {
-		return nil, fmt.Errorf("register: failed to create social link: %w", err)
+	// social link is optional, zero value is sent as null
+	var socialLink sdk.SocialLink
+	if strings.TrimSpace(socialString) != "" {
+		socialLink, err = sdk.NewSocialLink(socialString)
+		if err != nil {
+			return nil, fmt.Errorf("register: failed to create social link: %w", err)
+		}
 	}
 
 	user, err := s.client.Register(context.Background(), nickname, description, interests, nil, socialLink)
