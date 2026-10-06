@@ -14,6 +14,8 @@ import (
 
 // Screen is a model of home screen.
 type Screen struct {
+	// checked tells that the saved login was checked. The menu stays empty until then.
+	checked  bool
 	loggedIn bool
 
 	content struct {
@@ -72,7 +74,11 @@ func (Screen) ID() screen.Type {
 	return screen.TypeHome
 }
 
-func (Screen) Keys() []key.Binding {
+func (s Screen) Keys() []key.Binding {
+	if !s.checked {
+		return nil
+	}
+
 	return []key.Binding{ui.Key("enter", "open")}
 }
 
@@ -93,11 +99,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.buttons.activity.SetTitle(title)
 		return s, nil
 	case auth.LoginMsg:
-		s.loggedIn = true
+		s.checked, s.loggedIn = true, true
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case auth.LogoutMsg:
-		s.loggedIn = false
+		s.checked, s.loggedIn = true, false
 		s.content.buttons.activity.SetTitle("Activity")
 		s.content.list.Reset(s.items()...)
 		return s, nil
@@ -112,5 +118,9 @@ func (Screen) Status() string {
 }
 
 func (s Screen) View() string {
+	if !s.checked {
+		return ""
+	}
+
 	return s.content.list.View()
 }

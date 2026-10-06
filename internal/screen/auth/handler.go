@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"log"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
@@ -84,13 +85,14 @@ func (Screen) ID() screen.Type {
 func (s Screen) Init() tea.Cmd {
 	return tea.Sequence(
 		func() tea.Msg {
+			// screens show nothing until one of these messages arrives. A save that fails to load counts as logged out.
 			user, err := Load()
 			if err != nil {
-				return screen.ErrorMsg{Value: err}
+				log.Printf("error: %v", err)
 			}
 
 			if user == nil {
-				return nil
+				return router.BroadcastMsg{Inner: LogoutMsg{}}
 			}
 
 			return router.BroadcastMsg{Inner: LoginMsg{User: user}}
