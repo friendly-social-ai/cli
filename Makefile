@@ -53,6 +53,6 @@ $(OUT_DIR)/lint.cache: $(SRC) | $(OUT_DIR)
 # building
 $(OUT_DIR)/build.cache: $(SRC) | $(OUT_DIR)
 	@echo ">> Building CLI..."
-	@GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/cli cmd/main.go
+	@go build -o $(BIN_DIR)/cli cmd/main.go
 	@echo ">> Built in $(BIN_DIR)/cli"
 	@touch $@
