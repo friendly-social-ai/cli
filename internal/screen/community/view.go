@@ -26,7 +26,7 @@ var (
 	inlineMarks = strings.NewReplacer("**", "", "__", "", "`", "")
 )
 
-// items builds elements of the current mode: the opened post in post mode, then the text field followed by posts.
+// items builds elements of the current mode: posts in list mode, the opened post followed by replies in post mode.
 func (s Screen) items() []ui.Component {
 	var items []ui.Component
 	if s.picking {
@@ -42,17 +42,7 @@ func (s Screen) items() []ui.Component {
 		return items
 	}
 
-	if s.mode == modePost {
-		items = append(items, ui.NewLabel(s.opened()))
-	}
-
-	items = append(items, s.content.field)
-	if s.attaching {
-		items = append(items, s.content.prompt)
-	}
-
 	if s.mode == modeList {
-		s.content.field.Raw().Placeholder = "Write a post"
 		for _, post := range s.posts {
 			items = append(items, s.postButton(post, ""))
 		}
@@ -60,11 +50,7 @@ func (s Screen) items() []ui.Component {
 		return items
 	}
 
-	s.content.field.Raw().Placeholder = "Write a reply"
-	if s.editing {
-		s.content.field.Raw().Placeholder = "Edit your post"
-	}
-
+	items = append(items, ui.NewLabel(s.opened()))
 	for _, reply := range s.replies {
 		for i, post := range reply.Posts() {
 			indent := ""
@@ -79,7 +65,7 @@ func (s Screen) items() []ui.Component {
 	return items
 }
 
-// actions builds keys available in the current state. The cursor on the text field offers writing, on a post opening.
+// actions builds keys available in the current state. The composer takes all keys while it is open.
 func (s Screen) actions() []ui.Action {
 	if s.attaching {
 		return []ui.Action{{Key: ui.Key("enter", "attach"), Msg: attachDoneMsg{}}}
@@ -92,22 +78,28 @@ func (s Screen) actions() []ui.Action {
 		}
 	}
 
+	if s.composing {
+		actions := []ui.Action{{Key: ui.Key("i", "write")}}
+		if s.content.field.Value() != "" {
+			actions = append(actions, ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}})
+		}
+
+		return append(actions,
+			ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}},
+			ui.Action{Key: ui.Key("esc", "close"), Msg: closeMsg{}})
+	}
+
 	var actions []ui.Action
 	if s.content.list.Scrollable() {
 		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
 	}
 
 	switch cursor := s.content.list.Cursor(); {
-	case cursor == s.fieldIndex():
-		actions = append(actions, ui.Action{Key: ui.Key("i", "write")})
-		if s.content.field.Value() != "" {
-			actions = append(actions, ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}})
+	case s.mode == modePost && cursor == 0:
+		if s.details.Post.Deleted() {
+			break
 		}
 
-		actions = append(actions, ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}})
-	case cursor > s.fieldIndex():
-		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
-	case cursor < s.fieldIndex() && !s.details.Post.Deleted():
 		// with the cursor on the opened post, a single link opens right away and several open a picker
 		switch found := links(s.details.Post.Text.Value()); len(found) {
 		case 0:
@@ -121,24 +113,22 @@ func (s Screen) actions() []ui.Action {
 		default:
 			actions = append(actions, ui.Action{Key: ui.Key("o", "links"), Msg: pickMsg{}})
 		}
+	case s.content.list.Len() > 0:
+		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	}
 
 	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
 	if s.mode == modeList {
-		return append(actions, refresh)
+		return append(actions, ui.Action{Key: ui.Key("n", "new post"), Msg: composeMsg{}}, refresh)
 	}
 
-	back := ui.Action{Key: ui.Key("esc", "back"), Msg: backMsg{}}
-
-	switch {
-	case s.editing:
-		return append(actions, ui.Action{Key: ui.Key("esc", "cancel"), Msg: cancelEditMsg{}})
-	case s.confirmDelete:
+	if s.confirmDelete {
 		return append(actions,
 			ui.Action{Key: ui.Key("d", "confirm delete"), Msg: deleteMsg{}},
 			ui.Action{Key: ui.Key("esc", "cancel"), Msg: cancelDeleteMsg{}})
 	}
 
+	actions = append(actions, ui.Action{Key: ui.Key("n", "reply"), Msg: composeMsg{}})
 	if post := s.details.Post; s.owns(post) && !post.Deleted() {
 		actions = append(actions,
 			ui.Action{Key: ui.Key("e", "edit"), Msg: editMsg{}},
@@ -149,7 +139,7 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("u", "parent"), Msg: OpenMsg{Post: s.details.Upstream[n-1].Descriptor()}})
 	}
 
-	return append(actions, refresh, back)
+	return append(actions, refresh, ui.Action{Key: ui.Key("esc", "back"), Msg: backMsg{}})
 }
 
 // openLinkAction returns the message that opens l. Images open in the image viewer, other links in the browser.
@@ -289,15 +279,6 @@ func (s Screen) opened() string {
 	return ansi.Truncate(styledMeta(post), s.textWidth(), "…") + "\n" + body
 }
 
-// fieldIndex returns list index of the text field, which follows the opened post in post mode.
-func (s Screen) fieldIndex() int {
-	if s.mode == modePost {
-		return 1
-	}
-
-	return 0
-}
-
 // body renders post text as markdown wrapped to screen width and draws its images in place.
 func (s Screen) body(text string) string {
 	var parts []string
@@ -340,22 +321,51 @@ func (s Screen) picture(url string) string {
 	return drawing
 }
 
-func (s Screen) View() string {
+// composer renders the text field pinned above the list, and the path prompt below it while attaching.
+func (s Screen) composer() string {
 	// leave room for input border and padding
 	s.content.field.Raw().SetWidth(s.textWidth() - 4)
 	// one cell narrower than the text field, since a single line input draws an extra cell for the cursor
 	s.content.prompt.Raw().SetWidth(s.textWidth() - 5)
 
+	title, placeholder := "new post", "Write a post"
+	switch {
+	case s.editing:
+		title, placeholder = "edit post", "Edit your post"
+	case s.mode == modePost:
+		author, _ := metaParts(s.details.Post)
+		title, placeholder = "reply to "+author, "Write a reply"
+	}
+
+	s.content.field.Raw().Placeholder = placeholder
+	parts := []string{ui.MutedStyle.Render(title), s.content.field.View()}
+	if s.attaching {
+		parts = append(parts, s.content.prompt.View())
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func (s Screen) View() string {
 	if s.user == nil {
 		return ui.MutedStyle.Render("log in to see community")
 	}
 
-	header := s.header()
-	if header == "" {
+	var top []string
+	if header := s.header(); header != "" {
+		top = append(top, header)
+	}
+
+	if s.composing {
+		top = append(top, s.composer())
+	}
+
+	if len(top) == 0 {
 		s.content.list.SetHeight(s.height)
 		return s.content.list.View()
 	}
 
+	header := strings.Join(top, "\n\n")
 	if s.height > 0 {
 		s.content.list.SetHeight(max(s.height-lipgloss.Height(header)-1, 3))
 	}

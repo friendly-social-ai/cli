@@ -43,8 +43,9 @@ type (
 	moreMsg         struct{}
 	backMsg         struct{}
 	editMsg         struct{}
-	cancelEditMsg   struct{}
 	deleteMsg       struct{}
+	composeMsg      struct{}
+	closeMsg        struct{}
 )
 
 // Messages produced by requests. Requests wrap them into router.TargetMsg so they reach this screen even after the user leaves.
@@ -112,7 +113,12 @@ type Screen struct {
 	pictures map[string]*picture
 	rendered map[string]string
 
-	editing       bool
+	// composing shows the text field above the list, and editing makes it edit the opened post
+	composing bool
+	editing   bool
+	// composeOffset is the list scroll before the composer took room from it, restored when it closes
+	composeOffset int
+
 	confirmDelete bool
 	loadingMore   bool
 	attaching     bool
@@ -164,7 +170,6 @@ func New(service *Service, graphics *ui.Graphics) Screen {
 	result.content.prompt = ui.NewField(prompt)
 	result.content.list = ui.NewList()
 	result.content.list.SetGap(1)
-	result.content.list.Reset(result.items()...)
 
 	return result
 }
@@ -252,22 +257,18 @@ func (s *Screen) reload() tea.Cmd {
 		return s.loadDetails(s.details.Post.Descriptor())
 	}
 
-	if post, ok := s.selected(); ok {
+	if post, ok := s.selected(); ok && s.pending == nil {
 		s.pending = &post.Id
 	}
 
 	return s.loadList(nil)
 }
 
-// shown returns posts shown as list items in order, and the list index of the first one.
+// shown returns posts shown as list items in order, and the list index of the first one, which follows the opened
+// post in post mode.
 func (s Screen) shown() ([]sdk.CommunityPost, int) {
-	first := s.fieldIndex() + 1
-	if s.attaching {
-		first++
-	}
-
 	if s.mode == modeList {
-		return s.posts, first
+		return s.posts, 0
 	}
 
 	var posts []sdk.CommunityPost
@@ -275,7 +276,7 @@ func (s Screen) shown() ([]sdk.CommunityPost, int) {
 		posts = append(posts, reply.Posts()...)
 	}
 
-	return posts, first
+	return posts, 1
 }
 
 // indexOfPost returns the list index of post with id, or -1 when it isn't shown.
@@ -340,7 +341,8 @@ func (s Screen) known(id sdk.CommunityPostId) (sdk.CommunityPost, bool) {
 func (s *Screen) open(post sdk.CommunityPost) string {
 	freed := s.dropPictures(post.Text)
 	s.mode = modePost
-	s.picking, s.editing, s.confirmDelete = false, false, false
+	s.closeComposer()
+	s.picking, s.confirmDelete = false, false
 	s.details = &sdk.CommunityPostDetails{Post: post}
 	s.replies, s.repliesNext = nil, nil
 	s.content.field.Raw().SetValue("")
@@ -431,12 +433,33 @@ func raw(seq string) tea.Cmd {
 	return tea.Raw(seq)
 }
 
-// stopAttaching hides path prompt and moves cursor back to the text field.
+// stopAttaching hides path prompt.
 func (s *Screen) stopAttaching() {
 	s.attaching = false
 	s.content.prompt.Update(ui.UnfocusMsg{})
-	s.content.list.Reset(s.items()...)
-	s.content.list.Select(s.fieldIndex())
+}
+
+// openComposer shows the composer and starts typing in it.
+func (s *Screen) openComposer() tea.Cmd {
+	s.composing = true
+	_, s.composeOffset = s.content.list.Position()
+	return screen.Send(ui.InsertMsg{})
+}
+
+// closeComposer hides the composer. Its draft stays for the next one, except for an edit.
+func (s *Screen) closeComposer() {
+	s.stopAttaching()
+	if s.composing {
+		cursor, _ := s.content.list.Position()
+		s.content.list.SetPosition(cursor, s.composeOffset)
+	}
+
+	s.composing = false
+	s.content.field.Update(ui.UnfocusMsg{})
+	if s.editing {
+		s.editing = false
+		s.content.field.Raw().SetValue("")
+	}
 }
 
 func (s Screen) owns(post sdk.CommunityPost) bool {
@@ -476,7 +499,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.picking = false
 		s.posts, s.next = nil, nil
 		s.details, s.replies, s.repliesNext = nil, nil, nil
-		s.editing, s.confirmDelete, s.loadingMore, s.attaching = false, false, false, false
+		s.closeComposer()
+		s.confirmDelete, s.loadingMore = false, false
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
@@ -564,7 +588,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			view := s.stack[n-1]
 			s.stack = s.stack[:n-1]
 			freed := s.dropPictures(view.details.Post.Text)
-			s.picking, s.editing, s.confirmDelete = false, false, false
+			s.closeComposer()
+			s.picking, s.confirmDelete = false, false
 			s.details, s.replies, s.repliesNext = view.details, view.replies, view.repliesNext
 			s.content.field.Raw().SetValue("")
 			s.content.list.Reset(s.items()...)
@@ -576,7 +601,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.picking = false
 		s.details = nil
 		freed := s.dropPictures(nil)
-		s.editing = false
+		s.closeComposer()
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
@@ -588,16 +613,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		return s, raw(freed)
+	case composeMsg:
+		return s, s.openComposer()
 	case editMsg:
 		s.editing = true
 		s.content.field.Raw().SetValue(s.details.Post.Text.Value())
-		s.content.list.Reset(s.items()...)
-		s.content.list.Select(s.fieldIndex())
-		return s, nil
-	case cancelEditMsg:
-		s.editing = false
-		s.content.field.Raw().SetValue("")
-		s.content.list.Reset(s.items()...)
+		return s, s.openComposer()
+	case closeMsg:
+		s.closeComposer()
 		return s, nil
 	case deleteMsg:
 		if s.confirmDelete {
@@ -609,8 +632,6 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case attachMsg:
 		s.attaching = true
 		s.content.prompt.Raw().SetValue("")
-		s.content.list.Set(s.items()...)
-		s.content.list.Select(s.fieldIndex() + 1)
 		return s, screen.Send(ui.InsertMsg{})
 	case attachDoneMsg:
 		path := s.content.prompt.Value()
@@ -664,7 +685,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		var freed string
 		if !same {
 			freed = s.dropPictures(msg.details.Post.Text)
-			s.editing, s.confirmDelete = false, false
+			s.closeComposer()
+			s.confirmDelete = false
 			s.content.field.Raw().SetValue("")
 		}
 
@@ -706,13 +728,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case doneMsg:
 		s.content.field.Raw().SetValue("")
-		s.editing = false
-		// a new reply gets selected once the post reloads
-		if msg.posted != nil && s.mode == modePost {
+		s.closeComposer()
+		// a new post or reply gets selected once it loads
+		if msg.posted != nil {
 			s.pending = &msg.posted.Id
 		}
 
-		return s, s.reload()
+		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.reload())
 	case deletedMsg:
 		s.confirmDelete = false
 		if len(s.replies) > 0 {
@@ -732,10 +754,21 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	}
 
+	// the open composer takes typing and focus, and the list stays where it is
+	if s.composing {
+		target := ui.Component(s.content.field)
+		if s.attaching {
+			target = s.content.prompt
+		}
+
+		_, cmd := target.Update(msg)
+		return s, cmd
+	}
+
 	_, cmd := s.content.list.Update(msg)
 
 	// load the next page when the cursor gets close to the end
-	if _, ok := msg.(ui.MoveMsg); ok && s.content.list.Cursor() >= s.content.list.Len()-3 {
+	if ui.Moves(msg) && s.content.list.Cursor() >= s.content.list.Len()-3 {
 		model, more := s.Update(moreMsg{})
 		return model, tea.Batch(cmd, more)
 	}
