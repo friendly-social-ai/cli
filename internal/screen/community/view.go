@@ -21,6 +21,9 @@ var imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
 // items builds elements of the current mode: the text field followed by posts.
 func (s Screen) items() []tea.Model {
 	items := []tea.Model{s.content.field}
+	if s.attaching {
+		items = append(items, s.content.prompt)
+	}
 
 	if s.mode == modeList {
 		s.content.field.Raw().Placeholder = "Write a post"
@@ -52,12 +55,18 @@ func (s Screen) items() []tea.Model {
 
 // actions builds keys available in the current state. Cursor on the text field offers writing, on a post opening.
 func (s Screen) actions() []ui.Action {
+	if s.attaching {
+		return []ui.Action{{Key: ui.Key("enter", "attach"), Msg: attachDoneMsg{}}}
+	}
+
 	var actions []ui.Action
 	if s.content.list.Cursor() == 0 {
 		actions = append(actions, ui.Action{Key: ui.Key("i", "write")})
 		if s.content.field.Value() != "" {
 			actions = append(actions, ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}})
 		}
+
+		actions = append(actions, ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}})
 	} else {
 		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	}
@@ -257,6 +266,8 @@ func (s Screen) picture(url string) string {
 func (s Screen) View() string {
 	// leave room for input border and padding
 	s.content.field.Raw().SetWidth(s.textWidth() - 4)
+	// one less than the text field since single line input draws an extra cell for the cursor
+	s.content.prompt.Raw().Width = s.textWidth() - 5
 
 	var top []string
 	for _, part := range []string{s.header(), s.content.status.View()} {

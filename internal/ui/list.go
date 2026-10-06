@@ -52,6 +52,17 @@ func (l *List) Cursor() int {
 	return l.cursor
 }
 
+// Select moves cursor to item i.
+func (l *List) Select(i int) {
+	if i < 0 || i >= len(l.items) {
+		return
+	}
+
+	l.items[l.cursor], _ = l.items[l.cursor].Update(UnselectMsg{})
+	l.cursor = i
+	l.items[l.cursor], _ = l.items[l.cursor].Update(SelectMsg{})
+}
+
 // Len returns number of items.
 func (l *List) Len() int {
 	return len(l.items)

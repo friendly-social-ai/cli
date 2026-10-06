@@ -2,8 +2,10 @@ package community
 
 import (
 	"image"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -21,6 +23,8 @@ const (
 
 // Messages produced by key actions of the screen.
 type (
+	attachMsg       struct{}
+	attachDoneMsg   struct{}
 	cancelDeleteMsg struct{}
 	submitMsg       struct{}
 	refreshMsg      struct{}
@@ -42,8 +46,10 @@ type (
 	repliesMsg struct {
 		page *sdk.Cursor[sdk.CommunityPostReply]
 	}
-	doneMsg  struct{}
-	imageMsg struct {
+	doneMsg struct{}
+	// attachedMsg carries URL of uploaded image for embedding into the post.
+	attachedMsg struct{ url string }
+	imageMsg    struct {
 		url        string
 		img        image.Image
 		id         uint32
@@ -82,10 +88,12 @@ type Screen struct {
 	editing       bool
 	confirmDelete bool
 	loadingMore   bool
+	attaching     bool
 
 	content struct {
 		status *ui.Label
 		field  *ui.TextArea
+		prompt *ui.Field
 		list   *ui.List
 	}
 
@@ -111,6 +119,11 @@ func New(service *Service, graphics *ui.Graphics) Screen {
 
 	result.content.status = ui.NewLabel(ui.MutedStyle.Render("log in to see community"))
 	result.content.field = ui.NewTextArea(input)
+
+	prompt := textinput.New()
+	prompt.Prompt = ""
+	prompt.Placeholder = "Path to a png, jpeg or gif, or drop a file here"
+	result.content.prompt = ui.NewField(prompt)
 	result.content.list = ui.NewList()
 	result.content.list.SetGap(1)
 	result.content.list.Reset(result.items()...)
@@ -275,6 +288,13 @@ func (s Screen) dropPictures(text *sdk.CommunityPostText) {
 	clear(s.rendered)
 }
 
+// stopAttaching hides path prompt and moves cursor back to the text field.
+func (s *Screen) stopAttaching() {
+	s.attaching = false
+	s.content.prompt.Update(ui.UnfocusMsg{})
+	s.content.list.Reset(s.items()...)
+}
+
 func (s Screen) owns(post sdk.CommunityPost) bool {
 	return s.user != nil && post.Owner != nil && post.Owner.Id == s.user.Id
 }
@@ -350,6 +370,34 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.confirmDelete = true
+		return s, nil
+	case attachMsg:
+		s.attaching = true
+		s.content.prompt.Raw().SetValue("")
+		s.content.list.Set(s.items()...)
+		s.content.list.Select(1)
+		return s, screen.Send(ui.InsertMsg{})
+	case attachDoneMsg:
+		path := s.content.prompt.Value()
+		s.stopAttaching()
+		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.request("uploading image...", func() (tea.Msg, error) {
+			url, err := s.service.upload(s.user, path)
+			return attachedMsg{url: url}, err
+		}))
+	case ui.UnfocusMsg:
+		// esc while typing the path cancels attaching
+		if s.attaching {
+			s.stopAttaching()
+			return s, nil
+		}
+	case attachedMsg:
+		text := s.content.field.Value()
+		if text != "" && !strings.HasSuffix(text, "\n") {
+			text += "\n"
+		}
+
+		s.content.field.Raw().SetValue(text + "![](" + msg.url + ")\n")
+		s.content.status.Set("")
 		return s, nil
 	case cancelDeleteMsg:
 		s.confirmDelete = false

@@ -56,6 +56,16 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		w.model, cmd = w.model.Update(msg)
 		return w, cmd
+	case ui.InsertMsg:
+		w.mode = VimModeInsert
+		return w, func() tea.Msg {
+			return ui.FocusMsg{}
+		}
+	case ui.NormalMsg:
+		w.mode = VimModeNormal
+		return w, func() tea.Msg {
+			return ui.UnfocusMsg{}
+		}
 	case tea.KeyMsg:
 		switch w.mode {
 		case VimModeNormal:
@@ -107,7 +117,7 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			// shortcuts work while typing, printable keys always go to the text
+			// keys that can't be text work as shortcuts while typing
 			if isShortcut(msg, w.keys()) {
 				var cmd tea.Cmd
 				w.model, cmd = w.model.Update(ui.ActionMsg{Key: msg})
@@ -130,10 +140,11 @@ func (w VimWrapper) keys() []key.Binding {
 	return nil
 }
 
-// shortcut returns ctrl or alt key of binding, usable while typing since it can't be text.
+// shortcut returns key of binding usable while typing. one that can't be text, like enter or ctrl and alt combinations.
+// Esc is left out since it always stops typing.
 func shortcut(binding key.Binding) (string, bool) {
 	for _, k := range binding.Keys() {
-		if strings.HasPrefix(k, "ctrl+") || strings.HasPrefix(k, "alt+") {
+		if len([]rune(k)) > 1 && k != "esc" {
 			return k, binding.Enabled()
 		}
 	}

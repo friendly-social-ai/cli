@@ -9,13 +9,22 @@ import (
 	_ "image/png"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	sdk "github.com/friendly-social/golang-sdk"
 )
 
-// maxImageBytes limits size of downloaded post images.
-const maxImageBytes = 20 << 20
+const (
+	// maxImageBytes limits size of downloaded post images.
+	maxImageBytes = 20 << 20
+
+	// maxUploadBytes limits size of attached images, same as web.
+	maxUploadBytes = 5_000_000
+)
 
 // Service provides logic of reading and writing community posts.
 type Service struct {
@@ -83,4 +92,89 @@ func (s *Service) image(url string) (image.Image, error) {
 	}
 
 	return img, nil
+}
+
+// upload sends image at path typed or dropped onto the terminal and returns its URL for embedding into a post.
+func (s *Service) upload(user *sdk.Authorization, path string) (string, error) {
+	path, err := cleanPath(path)
+	if err != nil {
+		return "", err
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open image: %w", err)
+	}
+	defer f.Close() //nolint:errcheck
+
+	info, err := f.Stat()
+	if err != nil {
+		return "", fmt.Errorf("failed to read image: %w", err)
+	}
+
+	if info.Size() > maxUploadBytes {
+		return "", fmt.Errorf("image is %.1f MB, the limit is 5 MB", float64(info.Size())/1_000_000)
+	}
+
+	if _, _, err := image.DecodeConfig(f); err != nil {
+		return "", fmt.Errorf("not a png, jpeg or gif image: %w", err)
+	}
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("failed to read image: %w", err)
+	}
+
+	file, err := s.client.UploadFile(context.Background(), user, filepath.Base(path), f, info.Size())
+	if err != nil {
+		return "", err
+	}
+
+	return s.client.GetFileURL(file)
+}
+
+// cleanPath turns path typed or dropped onto the terminal into a file path, removing quotes, shell escapes and
+// file:// prefix, and expanding ~.
+func cleanPath(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", fmt.Errorf("enter a path to an image")
+	}
+
+	if n := len(path); n >= 2 && (path[0] == '\'' || path[0] == '"') && path[n-1] == path[0] {
+		path = path[1 : n-1]
+	} else {
+		var b strings.Builder
+		escaped := false
+		for _, r := range path {
+			if r == '\\' && !escaped {
+				escaped = true
+				continue
+			}
+
+			escaped = false
+			b.WriteRune(r)
+		}
+
+		path = b.String()
+	}
+
+	if strings.HasPrefix(path, "file://") {
+		u, err := url.Parse(path)
+		if err != nil {
+			return "", fmt.Errorf("invalid file url: %w", err)
+		}
+
+		path = u.Path
+	}
+
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to expand ~: %w", err)
+		}
+
+		path = filepath.Join(home, path[1:])
+	}
+
+	return path, nil
 }
