@@ -5,11 +5,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
+	"github.com/friendly-social/cli/internal/screen/auth"
 	"github.com/friendly-social/cli/internal/ui"
 )
 
 // Screen is a model of home screen.
 type Screen struct {
+	loggedIn bool
+
 	content struct {
 		list *ui.List
 
@@ -43,14 +46,19 @@ func New() Screen {
 		return screen.ChangeMsg{NewType: screen.TypeAuth}
 	})
 
-	result.content.list = ui.NewList(
-		result.content.buttons.community,
-		result.content.buttons.people,
-		result.content.buttons.profile,
-		result.content.buttons.login,
-		result.content.buttons.register)
+	result.content.list = ui.NewList()
+	result.content.list.Reset(result.items()...)
 
 	return result
+}
+
+// items builds menu for the current login state.
+func (s Screen) items() []tea.Model {
+	if s.loggedIn {
+		return []tea.Model{s.content.buttons.community, s.content.buttons.people, s.content.buttons.profile}
+	}
+
+	return []tea.Model{s.content.buttons.login, s.content.buttons.register}
 }
 
 func (Screen) ID() screen.Type {
@@ -68,6 +76,17 @@ func (s Screen) Init() tea.Cmd {
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
+	switch msg.(type) {
+	case auth.LoginMsg:
+		s.loggedIn = true
+		s.content.list.Reset(s.items()...)
+		return s, nil
+	case auth.LogoutMsg:
+		s.loggedIn = false
+		s.content.list.Reset(s.items()...)
+		return s, nil
+	}
+
 	_, cmd := s.content.list.Update(msg)
 	return s, cmd
 }
