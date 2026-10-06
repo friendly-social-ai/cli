@@ -47,6 +47,8 @@ type (
 		page *sdk.Cursor[sdk.CommunityPostReply]
 	}
 	doneMsg struct{}
+	// deletedMsg reports that the opened post was deleted.
+	deletedMsg struct{}
 	// attachedMsg carries URL of uploaded image for embedding into the post.
 	attachedMsg struct{ url string }
 	imageMsg    struct {
@@ -203,7 +205,7 @@ func (s Screen) submit() tea.Cmd {
 func (s Screen) delete() tea.Cmd {
 	id := s.details.Post.Id
 	return s.request("deleting...", func() (tea.Msg, error) {
-		return doneMsg{}, s.service.delete(s.user, id)
+		return deletedMsg{}, s.service.delete(s.user, id)
 	})
 }
 
@@ -453,8 +455,21 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case doneMsg:
 		s.content.field.Raw().SetValue("")
 		return s, s.reload()
+	case deletedMsg:
+		s.confirmDelete = false
+		if len(s.replies) > 0 {
+			return s, s.reload()
+		}
+
+		if n := len(s.details.Upstream); n > 0 {
+			return s, s.loadDetails(s.details.Upstream[n-1].Descriptor())
+		}
+
+		model, _ := s.Update(backMsg{})
+		return model, model.(Screen).loadList(nil)
 	case failedMsg:
 		s.loadingMore = false
+		s.confirmDelete = false
 		s.content.status.Set(ui.DangerStyle.Render("error: " + msg.err.Error()))
 		return s, nil
 	}
