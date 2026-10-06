@@ -4,17 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
-
-// listMarker marks every line of the selected item. Unselected items get an indent of the same width.
-var listMarker = lipgloss.NewStyle().Foreground(ColorPrimary).Render("▎ ")
 
 // List represents collection of elements that you can select and interact with.
 type List struct {
 	cursor int
-	items  []tea.Model
+	items  []Component
 
 	// height limits rendered lines, and the list scrolls to keep the cursor visible. Zero means unlimited.
 	height int
@@ -28,14 +25,14 @@ type List struct {
 }
 
 // NewList creates new List based on the list of items.
-func NewList(items ...tea.Model) *List {
+func NewList(items ...Component) *List {
 	return &List{
 		items: items,
 	}
 }
 
 // Set replaces items keeping cursor position where possible and selects the item under cursor.
-func (l *List) Set(items ...tea.Model) {
+func (l *List) Set(items ...Component) {
 	l.items = items
 	l.cursor = max(min(l.cursor, len(items)-1), 0)
 	l.offset = min(l.offset, l.cursor)
@@ -45,7 +42,7 @@ func (l *List) Set(items ...tea.Model) {
 }
 
 // Reset replaces items moving cursor to the first one.
-func (l *List) Reset(items ...tea.Model) {
+func (l *List) Reset(items ...Component) {
 	l.cursor = 0
 	l.offset = 0
 	l.inner = 0
@@ -123,11 +120,7 @@ func (l *List) SetHeight(height int) {
 	l.height = height
 }
 
-func (l *List) Init() tea.Cmd {
-	return nil
-}
-
-func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (l *List) Update(msg tea.Msg) (Component, tea.Cmd) {
 	if len(l.items) == 0 {
 		return l, nil
 	}

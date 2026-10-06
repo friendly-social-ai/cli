@@ -3,10 +3,11 @@ package navigation
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/ui"
 )
 
@@ -25,17 +26,17 @@ const (
 	VimModeInsert VimMode = "INSERT"
 )
 
-// VimWrapper translates raw tea.KeyMsgs into UI messages with Vim-style modes and motions.
+// VimWrapper translates key presses into UI messages for the router with Vim-style modes and motions.
 type VimWrapper struct {
 	mode  VimMode
-	model tea.Model
+	model router.Router
 
 	width  int
 	height int
 }
 
-// NewVimWrapper creates new VimWrapper based on provided model.
-func NewVimWrapper(model tea.Model) VimWrapper {
+// NewVimWrapper creates new VimWrapper around router.
+func NewVimWrapper(model router.Router) VimWrapper {
 	return VimWrapper{
 		model: model,
 		mode:  VimModeNormal,
@@ -66,7 +67,7 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return w, func() tea.Msg {
 			return ui.UnfocusMsg{}
 		}
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch w.mode {
 		case VimModeNormal:
 			switch msg.String() {
@@ -138,13 +139,9 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return w, cmd
 }
 
-// keys returns key bindings currently offered by the wrapped model.
+// keys returns key bindings currently offered by the router.
 func (w VimWrapper) keys() []key.Binding {
-	if model, ok := w.model.(interface{ Keys() []key.Binding }); ok {
-		return model.Keys()
-	}
-
-	return nil
+	return w.model.Keys()
 }
 
 // shortcut returns the key of binding that works while typing, one that can't be text, like enter or ctrl and alt
@@ -160,7 +157,7 @@ func shortcut(binding key.Binding) (string, bool) {
 }
 
 // isShortcut reports whether msg is a shortcut of one of bindings.
-func isShortcut(msg tea.KeyMsg, bindings []key.Binding) bool {
+func isShortcut(msg tea.KeyPressMsg, bindings []key.Binding) bool {
 	for _, binding := range bindings {
 		if k, ok := shortcut(binding); ok && msg.String() == k {
 			return true
@@ -218,9 +215,11 @@ func (w VimWrapper) footer() string {
 		Render(badge + "  " + hints)
 }
 
-func (w VimWrapper) View() string {
+func (w VimWrapper) View() tea.View {
 	footer := w.footer()
 
 	content := ui.Clip(w.model.View(), w.width, w.height-lipgloss.Height(footer))
-	return content + "\n" + footer
+	view := tea.NewView(content + "\n" + footer)
+	view.AltScreen = true
+	return view
 }

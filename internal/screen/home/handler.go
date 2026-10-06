@@ -3,8 +3,8 @@ package home
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/screen/activity"
@@ -60,12 +60,12 @@ func New() Screen {
 }
 
 // items builds menu for the current login state.
-func (s Screen) items() []tea.Model {
+func (s Screen) items() []ui.Component {
 	if s.loggedIn {
-		return []tea.Model{s.content.buttons.community, s.content.buttons.activity, s.content.buttons.people, s.content.buttons.profile}
+		return []ui.Component{s.content.buttons.community, s.content.buttons.activity, s.content.buttons.people, s.content.buttons.profile}
 	}
 
-	return []tea.Model{s.content.buttons.login, s.content.buttons.register}
+	return []ui.Component{s.content.buttons.login, s.content.buttons.register}
 }
 
 func (Screen) ID() screen.Type {

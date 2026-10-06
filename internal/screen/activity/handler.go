@@ -1,9 +1,9 @@
 package activity
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -203,13 +203,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 }
 
 // items builds list of activities, unread ones marked with a dot.
-func (s Screen) items() []tea.Model {
+func (s Screen) items() []ui.Component {
 	width := 74
 	if s.width > 0 {
 		width = max(s.width-6, 20)
 	}
 
-	items := make([]tea.Model, len(s.activities))
+	items := make([]ui.Component, len(s.activities))
 	for i, activity := range s.activities {
 		if activity.Type != "reply" || activity.Post == nil || activity.Post.Owner == nil {
 			items[i] = ui.NewLabel(ui.MutedStyle.Render("unsupported activity"))

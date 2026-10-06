@@ -1,10 +1,10 @@
 package register
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/screen/auth"
@@ -143,7 +143,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 func (s Screen) View() string {
 	for _, field := range s.content.fields {
-		field.Raw().Width = s.width - 10
+		field.Raw().SetWidth(s.width - 10)
 	}
 
 	return lipgloss.JoinVertical(

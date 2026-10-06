@@ -23,42 +23,18 @@ const (
 	maxPlaceholderCells = 297
 )
 
-// Output is a terminal file whose writes are serialized, so that graphics commands never split renderer frames.
-type Output struct {
-	*os.File
-	mu sync.Mutex
-}
-
-// NewOutput wraps terminal file into Output.
-func NewOutput(f *os.File) *Output {
-	return &Output{File: f}
-}
-
-func (o *Output) Write(p []byte) (int, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.File.Write(p)
-}
-
-// WriteString shadows promoted os.File.WriteString, which io.WriteString would otherwise call bypassing the lock.
-func (o *Output) WriteString(s string) (int, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.File.WriteString(s)
-}
-
 // Graphics displays images with Kitty graphics protocol Unicode placeholders. It transmits an image once and draws
-// it as placeholder text, so redraws of the program and tmux keep it in place.
+// it as placeholder text, so redraws of the program and tmux keep it in place. Its methods return escape sequences
+// for tea.Raw, which writes them between renderer frames.
 type Graphics struct {
-	out  io.Writer
 	tmux bool
 
 	mu  sync.Mutex
 	ids map[uint32]struct{}
 }
 
-// NewGraphics returns Graphics writing to out, or nil when terminal doesn't support Unicode placeholders.
-func NewGraphics(out io.Writer) *Graphics {
+// NewGraphics returns Graphics, or nil when terminal doesn't support Unicode placeholders.
+func NewGraphics() *Graphics {
 	tmux := os.Getenv("TMUX") != ""
 
 	term := os.Getenv("TERM_PROGRAM")
@@ -86,28 +62,28 @@ func NewGraphics(out io.Writer) *Graphics {
 	}
 
 	return &Graphics{
-		out:  out,
 		tmux: tmux,
 		ids:  make(map[uint32]struct{}),
 	}
 }
 
-func (g *Graphics) write(seq string) error {
+// wrap passes seq through tmux to the outer terminal when running inside tmux.
+func (g *Graphics) wrap(seq string) string {
 	if g.tmux {
-		seq = ansi.TmuxPassthrough(seq)
+		return ansi.TmuxPassthrough(seq)
 	}
 
-	_, err := io.WriteString(g.out, seq)
-	return err
+	return seq
 }
 
-// Upload transmits img to the terminal and places it in cols x rows cells. It returns the image ID for Placeholder.
-func (g *Graphics) Upload(img image.Image, cols, rows int) (uint32, error) {
+// Upload encodes img for the terminal and places it in cols x rows cells. It returns the image ID for Placeholder
+// and the sequence that transmits the image.
+func (g *Graphics) Upload(img image.Image, cols, rows int) (uint32, string, error) {
 	id := rand.Uint32N(1<<24-1) + 1
 
 	opts := &kitty.Options{
 		Action:           kitty.TransmitAndPut,
-		Quite:            2,
+		Quiet:            2,
 		ID:               int(id),
 		PlacementID:      1,
 		Format:           kitty.PNG,
@@ -115,7 +91,8 @@ func (g *Graphics) Upload(img image.Image, cols, rows int) (uint32, error) {
 		Columns:          cols,
 		Rows:             rows,
 		Chunk:            true,
-		Transmission:     kitty.Direct,
+		// EncodeGraphics defaults transmission only after encoding, leaving payload empty when it is unset
+		Transmission: kitty.Direct,
 	}
 	if g.tmux {
 		opts.ChunkFormatter = ansi.TmuxPassthrough
@@ -123,25 +100,21 @@ func (g *Graphics) Upload(img image.Image, cols, rows int) (uint32, error) {
 
 	var buf bytes.Buffer
 	if err := kitty.EncodeGraphics(&buf, downscale(img, maxGraphicsSide), opts); err != nil {
-		return 0, fmt.Errorf("failed to encode image: %w", err)
-	}
-
-	if _, err := g.out.Write(buf.Bytes()); err != nil {
-		return 0, fmt.Errorf("failed to upload image: %w", err)
+		return 0, "", fmt.Errorf("failed to encode image: %w", err)
 	}
 
 	g.mu.Lock()
 	g.ids[id] = struct{}{}
 	g.mu.Unlock()
 
-	return id, nil
+	return id, buf.String(), nil
 }
 
-// Place resizes placement of uploaded image to cols x rows cells.
-func (g *Graphics) Place(id uint32, cols, rows int) error {
+// Place returns the sequence that resizes the placement of uploaded image to cols x rows cells.
+func (g *Graphics) Place(id uint32, cols, rows int) string {
 	opts := kitty.Options{
 		Action:           kitty.Put,
-		Quite:            2,
+		Quiet:            2,
 		ID:               int(id),
 		PlacementID:      1,
 		VirtualPlacement: true,
@@ -149,11 +122,11 @@ func (g *Graphics) Place(id uint32, cols, rows int) error {
 		Rows:             rows,
 	}
 
-	return g.write(ansi.KittyGraphics(nil, opts.Options()...))
+	return g.wrap(ansi.KittyGraphics(nil, opts.Options()...))
 }
 
-// Delete frees uploaded image in terminal.
-func (g *Graphics) Delete(id uint32) error {
+// Delete returns the sequence that frees uploaded image in the terminal.
+func (g *Graphics) Delete(id uint32) string {
 	g.mu.Lock()
 	delete(g.ids, id)
 	g.mu.Unlock()
@@ -162,15 +135,15 @@ func (g *Graphics) Delete(id uint32) error {
 		Action:          kitty.Delete,
 		Delete:          kitty.DeleteID,
 		DeleteResources: true,
-		Quite:           2,
+		Quiet:           2,
 		ID:              int(id),
 	}
 
-	return g.write(ansi.KittyGraphics(nil, opts.Options()...))
+	return g.wrap(ansi.KittyGraphics(nil, opts.Options()...))
 }
 
-// Close frees all uploaded images.
-func (g *Graphics) Close() {
+// Close writes sequences that free all uploaded images to w. Use it after the program stops.
+func (g *Graphics) Close(w io.Writer) {
 	g.mu.Lock()
 	ids := make([]uint32, 0, len(g.ids))
 	for id := range g.ids {
@@ -179,7 +152,7 @@ func (g *Graphics) Close() {
 	g.mu.Unlock()
 
 	for _, id := range ids {
-		_ = g.Delete(id)
+		_, _ = io.WriteString(w, g.Delete(id))
 	}
 }
 

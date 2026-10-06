@@ -1,6 +1,6 @@
 package screen
 
-import tea "github.com/charmbracelet/bubbletea"
+import tea "charm.land/bubbletea/v2"
 
 // Send returns command delivering msg.
 func Send(msg tea.Msg) tea.Cmd {

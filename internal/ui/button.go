@@ -1,7 +1,7 @@
 package ui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Button is an interactive button that can be selected.
@@ -25,11 +25,7 @@ func (b *Button) SetTitle(title string) {
 	b.title = title
 }
 
-func (b *Button) Init() tea.Cmd {
-	return nil
-}
-
-func (b *Button) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (b *Button) Update(msg tea.Msg) (Component, tea.Cmd) {
 	switch msg.(type) {
 	case SelectMsg:
 		b.selected = true

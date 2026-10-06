@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/screen/auth"
@@ -77,8 +77,8 @@ func (s Screen) load() tea.Cmd {
 }
 
 // items builds list of people.
-func (s Screen) items() []tea.Model {
-	items := make([]tea.Model, len(s.entries))
+func (s Screen) items() []ui.Component {
+	items := make([]ui.Component, len(s.entries))
 	for i, entry := range s.entries {
 		items[i] = ui.NewLabel(s.card(entry))
 	}

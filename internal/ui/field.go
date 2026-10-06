@@ -1,9 +1,8 @@
 package ui
 
 import (
-	"github.com/charmbracelet/bubbles/cursor"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Field is an abstraction over textinput.Model for embedding it into ui package contract.
@@ -14,26 +13,23 @@ type Field struct {
 // NewField creates new Field based on provided textinput.Model.
 func NewField(input textinput.Model) *Field {
 	input.Blur()
-	input.PlaceholderStyle = MutedStyle
+	styles := input.Styles()
+	styles.Focused.Placeholder = MutedStyle
+	styles.Blurred.Placeholder = MutedStyle
+	input.SetStyles(styles)
+
 	return &Field{
 		input: &input,
 	}
 }
 
-func (f *Field) Init() tea.Cmd {
-	return nil
-}
-
-func (f *Field) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (f *Field) Update(msg tea.Msg) (Component, tea.Cmd) {
 	switch msg.(type) {
 	case FocusMsg:
-		return f, tea.Batch(
-			f.input.Focus(),
-			f.input.Cursor.SetMode(cursor.CursorBlink),
-		)
+		return f, f.input.Focus()
 	case UnfocusMsg:
 		f.input.Blur()
-		return f, f.input.Cursor.SetMode(cursor.CursorStatic)
+		return f, nil
 	}
 
 	model, cmd := f.input.Update(msg)

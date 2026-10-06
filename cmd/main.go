@@ -5,7 +5,8 @@ import (
 	"log"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/friendly-social/cli/internal/navigation"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -30,8 +31,8 @@ func main() {
 		defer f.Close() //nolint:errcheck
 	}
 
-	out := ui.NewOutput(os.Stdout)
-	graphics := ui.NewGraphics(out)
+	ui.SetTheme(lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
+	graphics := ui.NewGraphics()
 
 	client := sdk.NewClient()
 	screens := []screen.Model{
@@ -47,10 +48,10 @@ func main() {
 	router := router.NewRouter(screens)
 	wrapper := navigation.NewVimWrapper(router)
 
-	p := tea.NewProgram(wrapper, tea.WithAltScreen(), tea.WithOutput(out))
+	p := tea.NewProgram(wrapper)
 	_, err := p.Run()
 	if graphics != nil {
-		graphics.Close()
+		graphics.Close(os.Stdout)
 	}
 
 	if err != nil {

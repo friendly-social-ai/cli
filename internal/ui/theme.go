@@ -1,29 +1,63 @@
 package ui
 
 import (
+	"image/color"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
-// Colors follow the Friendly web theme, adjusted for text contrast on light and dark terminals.
+// Colors follow the Friendly web theme, adjusted for text contrast on light and dark terminals. SetTheme picks them.
 var (
-	ColorPrimary = lipgloss.AdaptiveColor{Light: "#0060D0", Dark: "#6E8BFF"}
-	ColorMuted   = lipgloss.AdaptiveColor{Light: "#646464", Dark: "#B4B4B4"}
-	ColorDanger  = lipgloss.AdaptiveColor{Light: "#C4391D", Dark: "#F0715A"}
-	ColorSuccess = lipgloss.AdaptiveColor{Light: "#18794E", Dark: "#3DD68C"}
-	ColorBorder  = lipgloss.AdaptiveColor{Light: "#C8C8C8", Dark: "#4E4E4E"}
+	ColorPrimary color.Color
+	ColorMuted   color.Color
+	ColorDanger  color.Color
+	ColorSuccess color.Color
+	ColorBorder  color.Color
 
 	// ColorOnAccent is text color on top of ColorPrimary or ColorSuccess backgrounds.
-	ColorOnAccent = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#111111"}
+	ColorOnAccent color.Color
 )
 
 var (
-	MutedStyle  = lipgloss.NewStyle().Foreground(ColorMuted)
-	AccentStyle = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
-	DangerStyle = lipgloss.NewStyle().Foreground(ColorDanger)
+	MutedStyle  lipgloss.Style
+	AccentStyle lipgloss.Style
+	DangerStyle lipgloss.Style
 	BoldStyle   = lipgloss.NewStyle().Bold(true)
 )
+
+var (
+	// inputStyle frames text inputs. The focused one gets a highlighted border.
+	inputStyle        lipgloss.Style
+	inputFocusedStyle lipgloss.Style
+
+	// listMarker marks every line of the selected item. Unselected items get an indent of the same width.
+	listMarker string
+)
+
+func init() {
+	SetTheme(true)
+}
+
+// SetTheme picks colors for dark or light terminal background. Call it before building the UI, since rendered text
+// keeps the colors it was rendered with.
+func SetTheme(dark bool) {
+	pick := lipgloss.LightDark(dark)
+	ColorPrimary = pick(lipgloss.Color("#0060D0"), lipgloss.Color("#6E8BFF"))
+	ColorMuted = pick(lipgloss.Color("#646464"), lipgloss.Color("#B4B4B4"))
+	ColorDanger = pick(lipgloss.Color("#C4391D"), lipgloss.Color("#F0715A"))
+	ColorSuccess = pick(lipgloss.Color("#18794E"), lipgloss.Color("#3DD68C"))
+	ColorBorder = pick(lipgloss.Color("#C8C8C8"), lipgloss.Color("#4E4E4E"))
+	ColorOnAccent = pick(lipgloss.Color("#FFFFFF"), lipgloss.Color("#111111"))
+
+	MutedStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	AccentStyle = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
+	DangerStyle = lipgloss.NewStyle().Foreground(ColorDanger)
+
+	inputStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(ColorBorder).Padding(0, 1)
+	inputFocusedStyle = inputStyle.BorderForeground(ColorPrimary)
+	listMarker = lipgloss.NewStyle().Foreground(ColorPrimary).Render("▎ ")
+}
 
 // Fields renders "key: value" lines with muted keys. It skips pairs with an empty value.
 func Fields(pairs ...string) string {
@@ -36,12 +70,6 @@ func Fields(pairs ...string) string {
 
 	return strings.Join(lines, "\n")
 }
-
-// inputStyle frames text inputs. The focused one gets a highlighted border.
-var (
-	inputStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(ColorBorder).Padding(0, 1)
-	inputFocusedStyle = inputStyle.BorderForeground(ColorPrimary)
-)
 
 func inputView(view string, focused bool) string {
 	if focused {

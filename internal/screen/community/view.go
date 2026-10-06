@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/ui"
@@ -19,8 +19,8 @@ import (
 var imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
 
 // items builds elements of the current mode: the opened post in post mode, then the text field followed by posts.
-func (s Screen) items() []tea.Model {
-	var items []tea.Model
+func (s Screen) items() []ui.Component {
+	var items []ui.Component
 	if s.picking {
 		for _, l := range links(s.details.Post.Text.Value()) {
 			title := ui.BoldStyle.Render(ansi.Truncate(l.label, s.textWidth(), "…"))
@@ -333,7 +333,7 @@ func (s Screen) View() string {
 	// leave room for input border and padding
 	s.content.field.Raw().SetWidth(s.textWidth() - 4)
 	// one cell narrower than the text field, since a single line input draws an extra cell for the cursor
-	s.content.prompt.Raw().Width = s.textWidth() - 5
+	s.content.prompt.Raw().SetWidth(s.textWidth() - 5)
 
 	var top []string
 	for _, part := range []string{s.header(), s.content.status.View()} {

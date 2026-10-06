@@ -4,9 +4,9 @@ import (
 	"image"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/friendly-social/cli/internal/browser"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -69,6 +69,7 @@ type (
 		img        image.Image
 		id         uint32
 		cols, rows int
+		upload     string
 	}
 	failedMsg struct{ err error }
 )
@@ -252,7 +253,7 @@ func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
 			msg.img, _ = s.service.image(url)
 			if msg.img != nil && s.graphics != nil {
 				msg.cols, msg.rows = ui.Fit(msg.img, width, rows)
-				msg.id, _ = s.graphics.Upload(msg.img, msg.cols, msg.rows)
+				msg.id, msg.upload, _ = s.graphics.Upload(msg.img, msg.cols, msg.rows)
 			}
 
 			return router.TargetMsg{Type: screen.TypeCommunity, Inner: msg}
@@ -267,24 +268,23 @@ func (s Screen) imageRows() int {
 	return max(s.height/2-3, 4)
 }
 
-// place resizes uploaded picture to fit the current screen size.
-func (s Screen) place(p *picture) {
+// place resizes uploaded picture to fit the current screen size. It returns the sequence for tea.Raw.
+func (s Screen) place(p *picture) string {
 	if p.id == 0 {
-		return
+		return ""
 	}
 
 	cols, rows := ui.Fit(p.img, s.textWidth(), s.imageRows())
 	if cols == p.cols && rows == p.rows {
-		return
+		return ""
 	}
 
-	if err := s.graphics.Place(p.id, cols, rows); err == nil {
-		p.cols, p.rows = cols, rows
-	}
+	p.cols, p.rows = cols, rows
+	return s.graphics.Place(p.id, cols, rows)
 }
 
-// dropPictures forgets pictures not used by text, freeing their uploads.
-func (s Screen) dropPictures(text *sdk.CommunityPostText) {
+// dropPictures forgets pictures not used by text. It returns the sequence that frees their uploads, for tea.Raw.
+func (s Screen) dropPictures(text *sdk.CommunityPostText) string {
 	keep := make(map[string]bool)
 	if text != nil {
 		for _, match := range imagePattern.FindAllStringSubmatch(text.Value(), -1) {
@@ -292,18 +292,29 @@ func (s Screen) dropPictures(text *sdk.CommunityPostText) {
 		}
 	}
 
+	var freed strings.Builder
 	for url, p := range s.pictures {
 		if keep[url] {
 			continue
 		}
 
 		if p.id != 0 {
-			_ = s.graphics.Delete(p.id)
+			freed.WriteString(s.graphics.Delete(p.id))
 		}
 		delete(s.pictures, url)
 	}
 
 	clear(s.rendered)
+	return freed.String()
+}
+
+// raw returns command writing seq to the terminal, nil when there is nothing to write.
+func raw(seq string) tea.Cmd {
+	if seq == "" {
+		return nil
+	}
+
+	return tea.Raw(seq)
 }
 
 // stopAttaching hides path prompt and moves cursor back to the text field.
@@ -336,13 +347,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.width = msg.Width
 		s.height = msg.Height
 		s.content.list.Set(s.items()...)
+		var placed strings.Builder
 		for _, p := range s.pictures {
-			s.place(p)
+			placed.WriteString(s.place(p))
 		}
 
-		return s, nil
+		return s, raw(placed.String())
 	case auth.LogoutMsg:
-		s.dropPictures(nil)
+		freed := s.dropPictures(nil)
 		s.user = nil
 		s.mode = modeList
 		s.from = ""
@@ -353,7 +365,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set(ui.MutedStyle.Render("log in to see community"))
 		s.content.list.Reset(s.items()...)
-		return s, nil
+		return s, raw(freed)
 	case auth.LoginMsg:
 		s.user = msg.User
 		s.mode = modeList
@@ -419,7 +431,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.mode = modeList
 		s.picking = false
 		s.details = nil
-		s.dropPictures(nil)
+		freed := s.dropPictures(nil)
 		s.editing = false
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
@@ -427,10 +439,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		if s.from != "" {
 			from := s.from
 			s.from = ""
-			return s, screen.Send(screen.ChangeMsg{NewType: from})
+			return s, tea.Batch(raw(freed), screen.Send(screen.ChangeMsg{NewType: from}))
 		}
 
-		return s, nil
+		return s, raw(freed)
 	case editMsg:
 		s.editing = true
 		s.content.field.Raw().SetValue(s.details.Post.Text.Value())
@@ -496,7 +508,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case detailsMsg:
-		s.dropPictures(msg.details.Post.Text)
+		freed := s.dropPictures(msg.details.Post.Text)
 		s.mode = modePost
 		s.picking = false
 		s.details = msg.details
@@ -507,12 +519,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.field.Raw().SetValue("")
 		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
-		return s, s.loadPictures(msg.details.Post)
+		return s, tea.Batch(raw(freed), s.loadPictures(msg.details.Post))
 	case imageMsg:
 		// drop uploads of pictures that were left before downloading or got downloaded twice
 		if p, ok := s.pictures[msg.url]; !ok || p.done {
 			if msg.id != 0 {
-				_ = s.graphics.Delete(msg.id)
+				return s, raw(s.graphics.Delete(msg.id))
 			}
 
 			return s, nil
@@ -520,10 +532,9 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		p := &picture{img: msg.img, done: true, id: msg.id, cols: msg.cols, rows: msg.rows}
 		s.pictures[msg.url] = p
-		s.place(p)
 		// rebuild items so the opened post shows the picture
 		s.content.list.Set(s.items()...)
-		return s, nil
+		return s, raw(msg.upload + s.place(p))
 	case repliesMsg:
 		s.loadingMore = false
 		s.replies = append(s.replies, msg.page.Data...)

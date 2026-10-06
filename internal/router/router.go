@@ -1,9 +1,9 @@
 package router
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/ui"
 )
@@ -39,13 +39,13 @@ func (r Router) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (r Router) target(target screen.Type, msg tea.Msg) (tea.Model, tea.Cmd) {
+func (r Router) target(target screen.Type, msg tea.Msg) (Router, tea.Cmd) {
 	var cmd tea.Cmd
 	r.screens[target], cmd = r.screens[target].Update(msg)
 	return r, cmd
 }
 
-func (r Router) broadcast(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (r Router) broadcast(msg tea.Msg) (Router, tea.Cmd) {
 	var cmd tea.Cmd
 	cmds := make([]tea.Cmd, 0, len(r.screens))
 
@@ -57,7 +57,7 @@ func (r Router) broadcast(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return r, tea.Batch(cmds...)
 }
 
-func (r Router) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (r Router) Update(msg tea.Msg) (Router, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		r.width = msg.Width

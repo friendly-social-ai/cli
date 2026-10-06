@@ -1,14 +1,14 @@
 package ui
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 )
 
 // ActionMsg is a key pressed in normal mode that navigation didn't handle, meant for screen actions.
-// Text inputs never see it. They receive raw tea.KeyMsg only in insert mode.
+// Text inputs never see it. They receive raw tea.KeyPressMsg only in insert mode.
 type ActionMsg struct {
-	Key tea.KeyMsg
+	Key tea.KeyPressMsg
 }
 
 func (m ActionMsg) String() string {

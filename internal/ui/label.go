@@ -1,6 +1,6 @@
 package ui
 
-import tea "github.com/charmbracelet/bubbletea"
+import tea "charm.land/bubbletea/v2"
 
 // Label is a plain string shown in the UI. It can be a non-interactive List item.
 type Label struct {
@@ -14,11 +14,7 @@ func NewLabel(title string) *Label {
 	}
 }
 
-func (l *Label) Init() tea.Cmd {
-	return nil
-}
-
-func (l *Label) Update(tea.Msg) (tea.Model, tea.Cmd) {
+func (l *Label) Update(tea.Msg) (Component, tea.Cmd) {
 	return l, nil
 }
 
