@@ -1,12 +1,17 @@
 package navigation
 
 import (
-	"fmt"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social/cli/internal/ui"
 )
+
+// vimHints lists keys available in each mode.
+var vimHints = map[VimMode]string{
+	VimModeNormal: "j/k move · enter select · i type · q quit",
+	VimModeInsert: "esc stop typing",
+}
 
 // VimMode represents possible modes for Vim motions.
 type VimMode string
@@ -96,11 +101,25 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (w VimWrapper) footer() string {
+	color := ui.ColorPrimary
+	if w.mode == VimModeInsert {
+		color = ui.ColorSuccess
+	}
+
+	badge := lipgloss.NewStyle().
+		Bold(true).
+		Padding(0, 1).
+		Foreground(ui.ColorOnAccent).
+		Background(color).
+		Render(string(w.mode))
+	hints := ansi.Truncate(vimHints[w.mode], max(w.width-lipgloss.Width(badge)-4, 0), "…")
+
 	return lipgloss.NewStyle().
-		Align(lipgloss.Left).
 		Width(w.width).
-		Border(lipgloss.InnerHalfBlockBorder(), true, false, false, false).
-		Render(fmt.Sprintf("--- %s ---", w.mode))
+		Padding(0, 1).
+		Border(lipgloss.NormalBorder(), true, false, false, false).
+		BorderForeground(ui.ColorBorder).
+		Render(badge + "  " + ui.MutedStyle.Render(hints))
 }
 
 func (w VimWrapper) View() string {

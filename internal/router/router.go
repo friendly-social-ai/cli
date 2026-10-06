@@ -4,6 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/friendly-social/cli/internal/screen"
+	"github.com/friendly-social/cli/internal/ui"
 )
 
 // Router orchestrates multiple screens.
@@ -77,10 +78,11 @@ func (r Router) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (r Router) header() string {
 	return lipgloss.NewStyle().
-		Align(lipgloss.Center).
 		Width(r.width).
-		Border(lipgloss.InnerHalfBlockBorder(), false, false, true, false).
-		Render("Friendly CLI")
+		Padding(0, 1).
+		Border(lipgloss.NormalBorder(), false, false, true, false).
+		BorderForeground(ui.ColorBorder).
+		Render(ui.AccentStyle.Render("friendly") + ui.MutedStyle.Render(" · "+string(r.current)))
 }
 
 func (r Router) View() string {
