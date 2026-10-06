@@ -545,8 +545,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, s.loadDetails(s.details.Upstream[n-1].Descriptor())
 		}
 
-		model, _ := s.Update(backMsg{})
-		return model, model.(Screen).loadList(nil)
+		model, back := s.Update(backMsg{})
+		return model, tea.Batch(back, model.(Screen).loadList(nil))
 	case failedMsg:
 		s.loadingMore = false
 		s.confirmDelete = false
