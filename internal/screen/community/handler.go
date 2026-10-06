@@ -105,11 +105,12 @@ func New(service *Service, graphics *ui.Graphics) Screen {
 	input.Prompt = ""
 	input.ShowLineNumbers = false
 	input.CharLimit = 4096
-	input.SetHeight(4)
+	input.SetHeight(3)
 
-	result.content.status = ui.NewLabel("log in to see community")
+	result.content.status = ui.NewLabel(ui.MutedStyle.Render("log in to see community"))
 	result.content.field = ui.NewTextArea(input)
 	result.content.list = ui.NewList()
+	result.content.list.SetGap(1)
 	result.content.list.Reset(result.items()...)
 
 	return result
@@ -131,11 +132,11 @@ func send(msg tea.Msg) tea.Cmd {
 
 func (s Screen) request(status string, fn func() (tea.Msg, error)) tea.Cmd {
 	if s.user == nil {
-		s.content.status.Set("log in to see community")
+		s.content.status.Set(ui.MutedStyle.Render("log in to see community"))
 		return nil
 	}
 
-	s.content.status.Set(status)
+	s.content.status.Set(ui.MutedStyle.Render(status))
 	return func() tea.Msg {
 		msg, err := fn()
 		if err != nil {
@@ -388,7 +389,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.field.Raw().SetValue("")
 		return s, s.reload()
 	case failedMsg:
-		s.content.status.Set("error: " + msg.err.Error())
+		s.content.status.Set(ui.DangerStyle.Render("error: " + msg.err.Error()))
 		return s, nil
 	}
 

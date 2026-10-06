@@ -16,11 +16,6 @@ import (
 // imagePattern matches markdown image and captures its URL.
 var imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
 
-var (
-	dimStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
-	boldStyle = lipgloss.NewStyle().Bold(true)
-)
-
 // items builds interactive elements of the current mode.
 func (s Screen) items() []tea.Model {
 	if s.mode == modeList {
@@ -58,7 +53,7 @@ func (s Screen) items() []tea.Model {
 		if s.owns(post) && !post.Deleted() {
 			deleteTitle := "Delete"
 			if s.confirmDelete {
-				deleteTitle = "Confirm delete"
+				deleteTitle = ui.DangerStyle.Render("Confirm delete")
 			}
 
 			items = append(items,
@@ -76,7 +71,7 @@ func (s Screen) items() []tea.Model {
 		for i, post := range reply.Posts() {
 			indent := ""
 			if i > 0 {
-				indent = "  "
+				indent = ui.MutedStyle.Render("│ ")
 			}
 
 			items = append(items, s.postButton(post, indent))
@@ -99,19 +94,35 @@ func (s Screen) textWidth() int {
 }
 
 func (s Screen) postButton(post sdk.CommunityPost, indent string) *ui.Button {
-	width := s.textWidth() - len(indent)
-	title := indent + ansi.Truncate(meta(post), width, "…") + "\n" +
-		indent + ansi.Truncate(firstLine(post), width, "…")
+	width := s.textWidth() - lipgloss.Width(indent)
+	line := firstLine(post)
+	if post.Deleted() {
+		line = ui.MutedStyle.Render(line)
+	}
+
+	title := indent + ansi.Truncate(styledMeta(post), width, "…") + "\n" +
+		indent + ansi.Truncate(line, width, "…")
 
 	return ui.NewButton(title, send(openMsg{post: post.Descriptor()}))
 }
 
 func meta(post sdk.CommunityPost) string {
+	author, details := metaParts(post)
+	return author + " · " + details
+}
+
+// styledMeta is meta with emphasized author.
+func styledMeta(post sdk.CommunityPost) string {
+	author, details := metaParts(post)
+	return ui.BoldStyle.Render(author) + ui.MutedStyle.Render(" · "+details)
+}
+
+func metaParts(post sdk.CommunityPost) (string, string) {
 	if post.Deleted() {
-		return "[deleted] · " + when(post.Instant)
+		return "[deleted]", when(post.Instant)
 	}
 
-	parts := []string{post.Owner.Nickname.Value(), when(post.Instant)}
+	parts := []string{when(post.Instant)}
 	if post.Edited {
 		parts = append(parts, "edited")
 	}
@@ -125,7 +136,7 @@ func meta(post sdk.CommunityPost) string {
 		parts = append(parts, "replies from "+strings.Join(names, ", "))
 	}
 
-	return strings.Join(parts, " · ")
+	return post.Owner.Nickname.Value(), strings.Join(parts, " · ")
 }
 
 func firstLine(post sdk.CommunityPost) string {
@@ -154,22 +165,22 @@ func when(t time.Time) string {
 
 func (s Screen) header() string {
 	if s.mode == modeList {
-		return "community"
+		return ""
 	}
 
 	var lines []string
 	for _, post := range s.details.Upstream {
-		lines = append(lines, dimStyle.Render(ansi.Truncate("↑ "+meta(post)+": "+firstLine(post), s.textWidth(), "…")))
+		lines = append(lines, ui.MutedStyle.Render(ansi.Truncate("↑ "+meta(post)+": "+firstLine(post), s.textWidth(), "…")))
 	}
 
 	post := s.details.Post
-	body := "this post was deleted"
+	body := ui.MutedStyle.Render("this post was deleted")
 	if !post.Deleted() {
 		body = s.body(post.Text.Value())
 	}
 
 	lines = append(lines,
-		boldStyle.Render(ansi.Truncate(meta(post), s.textWidth(), "…")),
+		ansi.Truncate(styledMeta(post), s.textWidth(), "…"),
 		body)
 
 	// leave room for the reply field and a few list items below
@@ -204,9 +215,9 @@ func (s Screen) picture(url string) string {
 	p, ok := s.pictures[url]
 	switch {
 	case !ok || !p.done:
-		return dimStyle.Render("[loading image]")
+		return ui.MutedStyle.Render("[loading image]")
 	case p.img == nil:
-		return dimStyle.Render("[image unavailable]")
+		return ui.MutedStyle.Render("[image unavailable]")
 	case p.id != 0:
 		return ui.Placeholder(p.id, p.cols, p.rows)
 	}
@@ -223,16 +234,25 @@ func (s Screen) picture(url string) string {
 }
 
 func (s Screen) View() string {
-	s.content.field.Raw().SetWidth(s.textWidth())
+	// leave room for input border and padding
+	s.content.field.Raw().SetWidth(s.textWidth() - 4)
 
-	top := s.header()
-	if status := s.content.status.View(); status != "" {
-		top = lipgloss.JoinVertical(lipgloss.Left, top, status)
+	var top []string
+	for _, part := range []string{s.header(), s.content.status.View()} {
+		if part != "" {
+			top = append(top, part)
+		}
 	}
 
+	if len(top) == 0 {
+		s.content.list.SetHeight(s.height)
+		return s.content.list.View()
+	}
+
+	header := strings.Join(top, "\n")
 	if s.height > 0 {
-		s.content.list.SetHeight(max(s.height-lipgloss.Height(top)-1, 3))
+		s.content.list.SetHeight(max(s.height-lipgloss.Height(header)-1, 3))
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, top, "", s.content.list.View())
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", s.content.list.View())
 }
