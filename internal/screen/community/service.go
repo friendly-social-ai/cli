@@ -77,7 +77,8 @@ func (s *Service) delete(user *sdk.Authorization, id sdk.CommunityPostId) error 
 	return s.client.DeleteCommunityPost(context.Background(), user, id)
 }
 
-func (s *Service) image(url string) (image.Image, error) {
+// download fetches image at url, up to maxImageBytes.
+func (s *Service) download(url string) ([]byte, error) {
 	resp, err := s.http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download image: %w", err)
@@ -88,7 +89,21 @@ func (s *Service) image(url string) (image.Image, error) {
 		return nil, fmt.Errorf("failed to download image: status %d", resp.StatusCode)
 	}
 
-	img, _, err := image.Decode(io.LimitReader(resp.Body, maxImageBytes))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxImageBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to download image: %w", err)
+	}
+
+	return data, nil
+}
+
+func (s *Service) image(url string) (image.Image, error) {
+	data, err := s.download(url)
+	if err != nil {
+		return nil, err
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}
@@ -184,19 +199,9 @@ func cleanPath(path string) (string, error) {
 // saveImage downloads image at url into a temporary file named with its real extension and returns its path.
 // Server sends images without content type, so opening their URL makes browsers download a file instead.
 func (s *Service) saveImage(url string) (string, error) {
-	resp, err := s.http.Get(url)
+	data, err := s.download(url)
 	if err != nil {
-		return "", fmt.Errorf("failed to download image: %w", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to download image: status %d", resp.StatusCode)
-	}
-
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxImageBytes))
-	if err != nil {
-		return "", fmt.Errorf("failed to download image: %w", err)
+		return "", err
 	}
 
 	_, format, err := image.DecodeConfig(bytes.NewReader(data))
