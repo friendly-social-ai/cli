@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -17,6 +18,12 @@ type LoginMsg struct {
 	User *sdk.Authorization
 }
 
+// Messages produced by key actions of the screen.
+type (
+	sendMsg    struct{}
+	confirmMsg struct{}
+)
+
 // Screen is a model of e-mail login screen.
 type Screen struct {
 	service *Service
@@ -29,12 +36,6 @@ type Screen struct {
 		field  struct {
 			email *ui.Field
 			code  *ui.Field
-		}
-
-		button struct {
-			send    *ui.Button
-			confirm *ui.Button
-			back    *ui.Button
 		}
 	}
 
@@ -59,35 +60,6 @@ func New(service *Service) Screen {
 	result.content.field.email = field("E-mail", 2048)
 	result.content.field.code = field("Code", 8)
 
-	result.content.button.send = ui.NewButton("Send code",
-		func() tea.Msg {
-			result.content.status.Set("sending code...")
-			email := result.content.field.email.Value()
-			err := service.send(email)
-			if err != nil {
-				return screen.ErrorMsg{Value: err}
-			}
-
-			result.content.status.Set(fmt.Sprintf("code sent to %s, check your inbox", email))
-			return screen.TickMsg{}
-		})
-	result.content.button.confirm = ui.NewButton("Confirm",
-		func() tea.Msg {
-			result.content.status.Set("authenticating...")
-			user, err := service.confirm(
-				result.content.field.email.Value(),
-				result.content.field.code.Value())
-
-			if err != nil {
-				return screen.ErrorMsg{Value: err}
-			}
-
-			return router.BroadcastMsg{Inner: LoginMsg{User: user}}
-		})
-	result.content.button.back = ui.NewButton("Back", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeHome}
-	})
-
 	result.content.fields = []*ui.Field{
 		result.content.field.email,
 		result.content.field.code,
@@ -96,10 +68,7 @@ func New(service *Service) Screen {
 	result.content.status = ui.NewLabel("")
 	result.content.list = ui.NewList(
 		result.content.field.email,
-		result.content.button.send,
-		result.content.field.code,
-		result.content.button.confirm,
-		result.content.button.back)
+		result.content.field.code)
 
 	return result
 }
@@ -127,8 +96,55 @@ func (s Screen) Init() tea.Cmd {
 		})
 }
 
+func (Screen) actions() []ui.Action {
+	return []ui.Action{
+		{Key: ui.Key("i", "type")},
+		{Key: ui.Key("s", "send code"), Msg: sendMsg{}},
+		{Key: ui.Key("c", "confirm"), Msg: confirmMsg{}},
+		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
+	}
+}
+
+func (s Screen) Keys() []key.Binding {
+	return ui.Keys(s.actions())
+}
+
+func (s Screen) send() tea.Cmd {
+	email := s.content.field.email.Value()
+	s.content.status.Set(ui.MutedStyle.Render("sending code..."))
+	return func() tea.Msg {
+		if err := s.service.send(email); err != nil {
+			return screen.ErrorMsg{Value: err}
+		}
+
+		s.content.status.Set(fmt.Sprintf("code sent to %s, check your inbox", email))
+		return screen.TickMsg{}
+	}
+}
+
+func (s Screen) confirm() tea.Cmd {
+	email, code := s.content.field.email.Value(), s.content.field.code.Value()
+	s.content.status.Set(ui.MutedStyle.Render("authenticating..."))
+	return func() tea.Msg {
+		user, err := s.service.confirm(email, code)
+		if err != nil {
+			return screen.ErrorMsg{Value: err}
+		}
+
+		return router.BroadcastMsg{Inner: LoginMsg{User: user}}
+	}
+}
+
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ui.ActionMsg:
+		if action := ui.Dispatch(s.actions(), msg); action != nil {
+			return s, screen.Send(action)
+		}
+	case sendMsg:
+		return s, s.send()
+	case confirmMsg:
+		return s, s.confirm()
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
@@ -137,7 +153,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return screen.ChangeMsg{NewType: screen.TypeHome}
 		}
 	case screen.ErrorMsg:
-		s.content.status.Set(msg.Value.Error())
+		s.content.status.Set(ui.DangerStyle.Render(msg.Value.Error()))
 		return s, nil
 	}
 

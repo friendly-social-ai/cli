@@ -1,6 +1,7 @@
 package register
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -9,6 +10,9 @@ import (
 	"github.com/friendly-social/cli/internal/screen/auth"
 	"github.com/friendly-social/cli/internal/ui"
 )
+
+// submitMsg asks registration screen to register with filled fields.
+type submitMsg struct{}
 
 // Screen is a model of registration screen.
 type Screen struct {
@@ -24,12 +28,6 @@ type Screen struct {
 			description *ui.Field
 			interests   *ui.Field
 			social      *ui.Field
-		}
-
-		buttons []*ui.Button
-		button  struct {
-			submit *ui.Button
-			back   *ui.Button
 		}
 	}
 
@@ -56,25 +54,6 @@ func New(service *Service) Screen {
 	result.content.field.interests = field("Interests", 0)
 	result.content.field.social = field("Social Link", 1024)
 
-	result.content.button.submit = ui.NewButton("Submit",
-		func() tea.Msg {
-			result.content.status.Set("authenticating...")
-			user, err := service.register(
-				result.content.field.nickname.Value(),
-				result.content.field.description.Value(),
-				result.content.field.interests.Value(),
-				result.content.field.social.Value())
-
-			if err != nil {
-				return screen.ErrorMsg{Value: err}
-			}
-
-			return router.BroadcastMsg{Inner: auth.LoginMsg{User: user}}
-		})
-	result.content.button.back = ui.NewButton("Back", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeHome}
-	})
-
 	result.content.fields = []*ui.Field{
 		result.content.field.nickname,
 		result.content.field.description,
@@ -82,19 +61,12 @@ func New(service *Service) Screen {
 		result.content.field.social,
 	}
 
-	result.content.buttons = []*ui.Button{
-		result.content.button.submit,
-		result.content.button.back,
-	}
-
 	result.content.status = ui.NewLabel("")
 	result.content.list = ui.NewList(
 		result.content.field.nickname,
 		result.content.field.description,
 		result.content.field.interests,
-		result.content.field.social,
-		result.content.button.submit,
-		result.content.button.back)
+		result.content.field.social)
 
 	return result
 }
@@ -109,8 +81,43 @@ func (s Screen) Init() tea.Cmd {
 	}
 }
 
+func (Screen) actions() []ui.Action {
+	return []ui.Action{
+		{Key: ui.Key("i", "type")},
+		{Key: ui.Key("s", "submit"), Msg: submitMsg{}},
+		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
+	}
+}
+
+func (s Screen) Keys() []key.Binding {
+	return ui.Keys(s.actions())
+}
+
+func (s Screen) submit() tea.Cmd {
+	nickname := s.content.field.nickname.Value()
+	description := s.content.field.description.Value()
+	interests := s.content.field.interests.Value()
+	social := s.content.field.social.Value()
+
+	s.content.status.Set(ui.MutedStyle.Render("authenticating..."))
+	return func() tea.Msg {
+		user, err := s.service.register(nickname, description, interests, social)
+		if err != nil {
+			return screen.ErrorMsg{Value: err}
+		}
+
+		return router.BroadcastMsg{Inner: auth.LoginMsg{User: user}}
+	}
+}
+
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ui.ActionMsg:
+		if action := ui.Dispatch(s.actions(), msg); action != nil {
+			return s, screen.Send(action)
+		}
+	case submitMsg:
+		return s, s.submit()
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
@@ -119,7 +126,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return screen.ChangeMsg{NewType: screen.TypeHome}
 		}
 	case screen.ErrorMsg:
-		s.content.status.Set(msg.Value.Error())
+		s.content.status.Set(ui.DangerStyle.Render(msg.Value.Error()))
 		return s, nil
 	}
 

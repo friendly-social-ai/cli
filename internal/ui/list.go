@@ -47,6 +47,11 @@ func (l *List) Reset(items ...tea.Model) {
 	l.Set(items...)
 }
 
+// Cursor returns index of the selected item.
+func (l *List) Cursor() int {
+	return l.cursor
+}
+
 // SetGap sets number of blank lines between items.
 func (l *List) SetGap(gap int) {
 	l.gap = gap

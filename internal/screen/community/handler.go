@@ -19,16 +19,17 @@ const (
 	modePost
 )
 
-// Messages produced by buttons of the screen.
+// Messages produced by key actions of the screen.
 type (
-	submitMsg     struct{}
-	refreshMsg    struct{}
-	moreMsg       struct{}
-	backMsg       struct{}
-	editMsg       struct{}
-	cancelEditMsg struct{}
-	deleteMsg     struct{}
-	openMsg       struct{ post sdk.CommunityPostDescriptor }
+	cancelDeleteMsg struct{}
+	submitMsg       struct{}
+	refreshMsg      struct{}
+	moreMsg         struct{}
+	backMsg         struct{}
+	editMsg         struct{}
+	cancelEditMsg   struct{}
+	deleteMsg       struct{}
+	openMsg         struct{ post sdk.CommunityPostDescriptor }
 )
 
 // Messages produced by requests, always wrapped into router.TargetMsg so they reach this screen even after leaving it.
@@ -122,12 +123,6 @@ func (Screen) ID() screen.Type {
 
 func (s Screen) Init() tea.Cmd {
 	return nil
-}
-
-func send(msg tea.Msg) tea.Cmd {
-	return func() tea.Msg {
-		return msg
-	}
 }
 
 func (s Screen) request(status string, fn func() (tea.Msg, error)) tea.Cmd {
@@ -285,6 +280,18 @@ func (s Screen) owns(post sdk.CommunityPost) bool {
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ui.ActionMsg:
+		action := ui.Dispatch(s.actions(), msg)
+		// any other key drops pending delete confirmation
+		if _, ok := action.(deleteMsg); !ok {
+			s.confirmDelete = false
+		}
+
+		if action == nil {
+			return s, nil
+		}
+
+		return s, screen.Send(action)
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
@@ -310,7 +317,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.loadDetails(msg.post)
 	case backMsg:
 		if s.mode == modeList {
-			return s, send(screen.ChangeMsg{NewType: screen.TypeHome})
+			return s, screen.Send(screen.ChangeMsg{NewType: screen.TypeHome})
 		}
 
 		s.mode = modeList
@@ -337,7 +344,9 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.confirmDelete = true
-		s.content.list.Set(s.items()...)
+		return s, nil
+	case cancelDeleteMsg:
+		s.confirmDelete = false
 		return s, nil
 	case submitMsg:
 		return s, s.submit()

@@ -1,17 +1,21 @@
 package navigation
 
 import (
+	"strings"
+
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social/cli/internal/ui"
 )
 
-// vimHints lists keys available in each mode.
-var vimHints = map[VimMode]string{
-	VimModeNormal: "j/k move · enter select · i type · q quit",
-	VimModeInsert: "esc stop typing",
-}
+// Keys handled by VimWrapper itself, shown around the keys of the wrapped model.
+var (
+	keyMove = ui.Key("j/k", "move")
+	keyQuit = ui.Key("q", "quit")
+	keyDone = ui.Key("esc", "done")
+)
 
 // VimMode represents possible modes for Vim motions.
 type VimMode string
@@ -59,6 +63,11 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "q", "ctrl+c":
 				return w, tea.Quit
 			case "i":
+				// only where the model offers typing, so that footer and behaviour agree
+				if !key.Matches(msg, w.keys()...) {
+					return w, nil
+				}
+
 				w.mode = VimModeInsert
 				return w, func() tea.Msg {
 					return ui.FocusMsg{}
@@ -84,6 +93,11 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return ui.InteractMsg{}
 				}
 			}
+
+			// the rest are screen actions, raw keys go to the model only in insert mode for typing
+			var cmd tea.Cmd
+			w.model, cmd = w.model.Update(ui.ActionMsg{Key: msg})
+			return w, cmd
 		case VimModeInsert:
 			switch msg.String() {
 			case "esc", "ctrl+c":
@@ -100,6 +114,26 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return w, cmd
 }
 
+// keys returns key bindings currently offered by the wrapped model.
+func (w VimWrapper) keys() []key.Binding {
+	if model, ok := w.model.(interface{ Keys() []key.Binding }); ok {
+		return model.Keys()
+	}
+
+	return nil
+}
+
+func renderKeys(bindings []key.Binding) string {
+	var hints []string
+	for _, binding := range bindings {
+		if binding.Enabled() {
+			hints = append(hints, binding.Help().Key+" "+ui.MutedStyle.Render(binding.Help().Desc))
+		}
+	}
+
+	return strings.Join(hints, ui.MutedStyle.Render(" · "))
+}
+
 func (w VimWrapper) footer() string {
 	color := ui.ColorPrimary
 	if w.mode == VimModeInsert {
@@ -112,14 +146,19 @@ func (w VimWrapper) footer() string {
 		Foreground(ui.ColorOnAccent).
 		Background(color).
 		Render(string(w.mode))
-	hints := ansi.Truncate(vimHints[w.mode], max(w.width-lipgloss.Width(badge)-4, 0), "…")
+	bindings := []key.Binding{keyDone}
+	if w.mode == VimModeNormal {
+		bindings = append(append([]key.Binding{keyMove}, w.keys()...), keyQuit)
+	}
+
+	hints := ansi.Truncate(renderKeys(bindings), max(w.width-lipgloss.Width(badge)-4, 0), "…")
 
 	return lipgloss.NewStyle().
 		Width(w.width).
 		Padding(0, 1).
 		Border(lipgloss.NormalBorder(), true, false, false, false).
 		BorderForeground(ui.ColorBorder).
-		Render(badge + "  " + ui.MutedStyle.Render(hints))
+		Render(badge + "  " + hints)
 }
 
 func (w VimWrapper) View() string {

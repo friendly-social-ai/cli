@@ -6,9 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/ui"
 	sdk "github.com/friendly-social/golang-sdk"
 )
@@ -16,55 +18,22 @@ import (
 // imagePattern matches markdown image and captures its URL.
 var imagePattern = regexp.MustCompile(`!\[[^\]]*\]\(([^)\s]+)\)`)
 
-// items builds interactive elements of the current mode.
+// items builds elements of the current mode: the text field followed by posts.
 func (s Screen) items() []tea.Model {
+	items := []tea.Model{s.content.field}
+
 	if s.mode == modeList {
 		s.content.field.Raw().Placeholder = "Write a post"
-		items := []tea.Model{
-			s.content.field,
-			ui.NewButton("Post", send(submitMsg{})),
-			ui.NewButton("Refresh", send(refreshMsg{})),
-		}
-
 		for _, post := range s.posts {
 			items = append(items, s.postButton(post, ""))
 		}
 
-		if s.next != nil {
-			items = append(items, ui.NewButton("Load more", send(moreMsg{})))
-		}
-
-		return append(items, ui.NewButton("Back", send(backMsg{})))
+		return items
 	}
 
-	post := s.details.Post
-	items := []tea.Model{s.content.field}
-
-	switch {
-	case s.editing:
+	s.content.field.Raw().Placeholder = "Write a reply"
+	if s.editing {
 		s.content.field.Raw().Placeholder = "Edit your post"
-		items = append(items,
-			ui.NewButton("Save", send(submitMsg{})),
-			ui.NewButton("Cancel", send(cancelEditMsg{})))
-	default:
-		s.content.field.Raw().Placeholder = "Write a reply"
-		items = append(items, ui.NewButton("Reply", send(submitMsg{})))
-
-		if s.owns(post) && !post.Deleted() {
-			deleteTitle := "Delete"
-			if s.confirmDelete {
-				deleteTitle = ui.DangerStyle.Render("Confirm delete")
-			}
-
-			items = append(items,
-				ui.NewButton("Edit", send(editMsg{})),
-				ui.NewButton(deleteTitle, send(deleteMsg{})))
-		}
-	}
-
-	if n := len(s.details.Upstream); n > 0 {
-		parent := s.details.Upstream[n-1]
-		items = append(items, ui.NewButton("Open parent", send(openMsg{post: parent.Descriptor()})))
 	}
 
 	for _, reply := range s.replies {
@@ -78,11 +47,74 @@ func (s Screen) items() []tea.Model {
 		}
 	}
 
-	if s.repliesNext != nil {
-		items = append(items, ui.NewButton("Load more replies", send(moreMsg{})))
+	return items
+}
+
+// actions builds keys available in the current state. Cursor on the text field offers writing, on a post opening.
+func (s Screen) actions() []ui.Action {
+	var actions []ui.Action
+	if s.content.list.Cursor() == 0 {
+		actions = append(actions, ui.Action{Key: ui.Key("i", "write")})
+		if s.content.field.Value() != "" {
+			actions = append(actions, ui.Action{Key: ui.Key("p", s.submitLabel()), Msg: submitMsg{}})
+		}
+	} else {
+		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
 	}
 
-	return append(items, ui.NewButton("Back", send(backMsg{})))
+	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
+	more := ui.Action{Key: ui.Key("m", "more"), Msg: moreMsg{}}
+	back := ui.Action{Key: ui.Key("esc", "back"), Msg: backMsg{}}
+
+	if s.mode == modeList {
+		actions = append(actions, refresh)
+		if s.next != nil {
+			actions = append(actions, more)
+		}
+
+		return append(actions, back)
+	}
+
+	switch {
+	case s.editing:
+		return append(actions, ui.Action{Key: ui.Key("esc", "cancel"), Msg: cancelEditMsg{}})
+	case s.confirmDelete:
+		return append(actions,
+			ui.Action{Key: ui.Key("d", "confirm delete"), Msg: deleteMsg{}},
+			ui.Action{Key: ui.Key("esc", "cancel"), Msg: cancelDeleteMsg{}})
+	}
+
+	if post := s.details.Post; s.owns(post) && !post.Deleted() {
+		actions = append(actions,
+			ui.Action{Key: ui.Key("e", "edit"), Msg: editMsg{}},
+			ui.Action{Key: ui.Key("d", "delete"), Msg: deleteMsg{}})
+	}
+
+	if n := len(s.details.Upstream); n > 0 {
+		actions = append(actions, ui.Action{Key: ui.Key("u", "parent"), Msg: openMsg{post: s.details.Upstream[n-1].Descriptor()}})
+	}
+
+	actions = append(actions, refresh)
+	if s.repliesNext != nil {
+		actions = append(actions, more)
+	}
+
+	return append(actions, back)
+}
+
+func (s Screen) submitLabel() string {
+	switch {
+	case s.mode == modeList:
+		return "post"
+	case s.editing:
+		return "save"
+	}
+
+	return "reply"
+}
+
+func (s Screen) Keys() []key.Binding {
+	return ui.Keys(s.actions())
 }
 
 func (s Screen) textWidth() int {
@@ -103,7 +135,7 @@ func (s Screen) postButton(post sdk.CommunityPost, indent string) *ui.Button {
 	title := indent + ansi.Truncate(styledMeta(post), width, "…") + "\n" +
 		indent + ansi.Truncate(line, width, "…")
 
-	return ui.NewButton(title, send(openMsg{post: post.Descriptor()}))
+	return ui.NewButton(title, screen.Send(openMsg{post: post.Descriptor()}))
 }
 
 func meta(post sdk.CommunityPost) string {

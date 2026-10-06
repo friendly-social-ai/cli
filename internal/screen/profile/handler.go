@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
 	"github.com/friendly-social/cli/internal/screen/auth"
 	"github.com/friendly-social/cli/internal/ui"
@@ -18,11 +17,6 @@ type Screen struct {
 
 	content struct {
 		label *ui.Label
-		list  *ui.List
-
-		button struct {
-			home *ui.Button
-		}
 	}
 }
 
@@ -32,14 +26,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.label = ui.NewLabel("")
-	result.content.button.home = ui.NewButton("Back", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeHome}
-	})
-
-	result.content.list = ui.NewList(
-		result.content.button.home)
-
+	result.content.label = ui.NewLabel(ui.MutedStyle.Render("log in to see your profile"))
 	return result
 }
 
@@ -47,14 +34,24 @@ func (Screen) ID() screen.Type {
 	return screen.TypeProfile
 }
 
-func (s Screen) Init() tea.Cmd {
-	return func() tea.Msg {
-		return router.TargetMsg{Type: s.ID(), Inner: ui.SelectMsg{}}
-	}
+func (Screen) Init() tea.Cmd {
+	return nil
+}
+
+func (Screen) actions() []ui.Action {
+	return []ui.Action{{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}}}
+}
+
+func (s Screen) Keys() []key.Binding {
+	return ui.Keys(s.actions())
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ui.ActionMsg:
+		if action := ui.Dispatch(s.actions(), msg); action != nil {
+			return s, screen.Send(action)
+		}
 	case auth.LoginMsg:
 		s.content.label.Set(ui.MutedStyle.Render("loading..."))
 		return s, func() tea.Msg {
@@ -82,13 +79,9 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 	}
 
-	_, cmd := s.content.list.Update(msg)
-	return s, cmd
+	return s, nil
 }
 
 func (s Screen) View() string {
-	return lipgloss.JoinVertical(lipgloss.Left,
-		s.content.label.View(),
-		"",
-		s.content.list.View())
+	return s.content.label.View()
 }

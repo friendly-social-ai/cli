@@ -1,6 +1,7 @@
 package home
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -18,7 +19,6 @@ type Screen struct {
 			profile   *ui.Button
 			login     *ui.Button
 			register  *ui.Button
-			exit      *ui.Button
 		}
 	}
 }
@@ -42,21 +42,23 @@ func New() Screen {
 	result.content.buttons.login = ui.NewButton("Login", func() tea.Msg {
 		return screen.ChangeMsg{NewType: screen.TypeAuth}
 	})
-	result.content.buttons.exit = ui.NewButton("Exit", tea.Quit)
 
 	result.content.list = ui.NewList(
 		result.content.buttons.community,
 		result.content.buttons.people,
 		result.content.buttons.profile,
 		result.content.buttons.login,
-		result.content.buttons.register,
-		result.content.buttons.exit)
+		result.content.buttons.register)
 
 	return result
 }
 
 func (Screen) ID() screen.Type {
 	return screen.TypeHome
+}
+
+func (Screen) Keys() []key.Binding {
+	return []key.Binding{ui.Key("enter", "open")}
 }
 
 func (s Screen) Init() tea.Cmd {

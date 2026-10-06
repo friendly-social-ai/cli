@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/friendly-social/cli/internal/screen"
@@ -74,6 +75,11 @@ func (r Router) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return r.target(r.current, msg)
+}
+
+// Keys returns key bindings of the current screen.
+func (r Router) Keys() []key.Binding {
+	return r.screens[r.current].Keys()
 }
 
 func (r Router) header() string {

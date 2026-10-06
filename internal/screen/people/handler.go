@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/friendly-social/cli/internal/router"
@@ -31,11 +32,6 @@ type Screen struct {
 	content struct {
 		label *ui.Label
 		list  *ui.List
-
-		button struct {
-			refresh *ui.Button
-			home    *ui.Button
-		}
 	}
 
 	width  int
@@ -49,12 +45,6 @@ func New(service *Service) Screen {
 	}
 
 	result.content.label = ui.NewLabel(ui.MutedStyle.Render("log in to see people"))
-	result.content.button.refresh = ui.NewButton("Refresh", func() tea.Msg {
-		return refreshMsg{}
-	})
-	result.content.button.home = ui.NewButton("Back", func() tea.Msg {
-		return screen.ChangeMsg{NewType: screen.TypeHome}
-	})
 
 	result.content.list = ui.NewList()
 	result.content.list.SetGap(1)
@@ -86,18 +76,33 @@ func (s Screen) load() tea.Cmd {
 	}
 }
 
-// items builds list of controls followed by people.
+// items builds list of people.
 func (s Screen) items() []tea.Model {
-	items := []tea.Model{s.content.button.refresh, s.content.button.home}
-	for _, entry := range s.entries {
-		items = append(items, ui.NewLabel(s.card(entry)))
+	items := make([]tea.Model, len(s.entries))
+	for i, entry := range s.entries {
+		items[i] = ui.NewLabel(s.card(entry))
 	}
 
 	return items
 }
 
+func (Screen) actions() []ui.Action {
+	return []ui.Action{
+		{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}},
+		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
+	}
+}
+
+func (s Screen) Keys() []key.Binding {
+	return ui.Keys(s.actions())
+}
+
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case ui.ActionMsg:
+		if action := ui.Dispatch(s.actions(), msg); action != nil {
+			return s, screen.Send(action)
+		}
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
