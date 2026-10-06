@@ -3,6 +3,7 @@ package community
 import (
 	"image"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
@@ -76,6 +77,8 @@ type (
 		upload     string
 	}
 	failedMsg struct{ err error }
+	// clearNoticeMsg clears the status when it still shows notice text
+	clearNoticeMsg struct{ text string }
 )
 
 // picture is an image of a post. img is nil when the download failed. A non-zero id means terminal graphics holds
@@ -426,6 +429,14 @@ func (s Screen) dropPictures(text *sdk.CommunityPostText) string {
 	return freed.String()
 }
 
+// notice shows text in the status for a few seconds.
+func (s Screen) notice(text string) tea.Cmd {
+	s.content.status.Set(ui.MutedStyle.Render(text))
+	return tea.Tick(4*time.Second, func(time.Time) tea.Msg {
+		return router.TargetMsg{Type: screen.TypeCommunity, Inner: clearNoticeMsg{text: text}}
+	})
+}
+
 // raw returns command writing seq to the terminal, nil when there is nothing to write.
 func raw(seq string) tea.Cmd {
 	if seq == "" {
@@ -618,14 +629,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case openLinkMsg:
 		s.stopPicking()
-		s.content.status.Set(ui.MutedStyle.Render("opened " + msg.url))
-		return s, func() tea.Msg {
+		return s, tea.Batch(s.notice("opened "+msg.url), func() tea.Msg {
 			if err := browser.Open(msg.url); err != nil {
 				return router.TargetMsg{Type: screen.TypeCommunity, Inner: failedMsg{err: err}}
 			}
 
 			return nil
-		}
+		})
 	case openImageMsg:
 		s.stopPicking()
 		return s, s.request("opening image...", func() (tea.Msg, error) {
@@ -637,7 +647,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return openedMsg{}, err
 		})
 	case openedMsg:
-		s.content.status.Set(ui.MutedStyle.Render("opened image"))
+		return s, s.notice("opened image")
+	case clearNoticeMsg:
+		if s.content.status.Value() == ui.MutedStyle.Render(msg.text) {
+			s.content.status.Set("")
+		}
+
 		return s, nil
 	case backMsg:
 		if s.mode == modeList {
