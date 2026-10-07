@@ -25,7 +25,13 @@ var (
 	blockMarkPattern = regexp.MustCompile(`^(#{1,6}|>|[-*+]|\d+\.)\s+`)
 	// inlineMarks removes bold and code marks.
 	inlineMarks = strings.NewReplacer("**", "", "__", "", "`", "")
+	// shortcodeQueryPattern matches a shortcode being typed at the end of text and captures its name. The colon starts
+	// a word, so times like 10:30 and links don't count.
+	shortcodeQueryPattern = regexp.MustCompile(`(?:^|\s):([A-Za-z0-9_+-]{2,})$`)
 )
+
+// suggestionLimit is the number of shortcodes the composer suggests at once.
+const suggestionLimit = 6
 
 // items builds elements of the current mode. List mode shows posts. Post mode shows the parents from the top of the
 // thread, then the opened post and its replies.
@@ -113,6 +119,18 @@ func (s Screen) actions() []ui.Action {
 		}
 
 		var actions []ui.Action
+		if found := s.suggestions(); len(found) > 0 {
+			name := ":" + found[min(s.suggestion, len(found)-1)].Name + ":"
+			actions = append(actions,
+				ui.Action{Key: ui.Key("tab", "insert "+name, "enter"), Msg: completeMsg{}},
+				ui.Action{Key: ui.Key("down", "next", "ctrl+n"), Msg: chooseMsg{step: 1}},
+				ui.Action{Key: ui.Key("up", "previous", "ctrl+p"), Msg: chooseMsg{step: -1}},
+				ui.Action{Key: ui.Key("esc", "hide"), Msg: hideEmojiMsg{}},
+				post,
+				ui.Action{Key: ui.Key("ctrl+o", "menu"), Msg: menuMsg{}})
+			return actions
+		}
+
 		if s.content.field.Value() != "" {
 			actions = append(actions, post)
 		}
@@ -461,7 +479,55 @@ func (s Screen) composer() string {
 		parts = append(parts, s.menuView())
 	}
 
+	if found := s.suggestions(); len(found) > 0 {
+		parts = append(parts, s.suggestionsView(found))
+	}
+
 	return strings.Join(parts, "\n")
+}
+
+// shortcodeQuery returns the name of the shortcode being typed before the cursor, like sm for :sm, or "" when there is
+// none. It needs two characters, as one would match too many.
+func (s Screen) shortcodeQuery() string {
+	field := s.content.field.Raw()
+	line := []rune(strings.Split(field.Value(), "\n")[field.Line()])
+	match := shortcodeQueryPattern.FindStringSubmatch(string(line[:field.Column()]))
+	if match == nil {
+		return ""
+	}
+
+	return match[1]
+}
+
+// suggestions returns shortcodes for the one being typed in the text field, unless esc hid them.
+func (s Screen) suggestions() []ui.Shortcode {
+	if !s.composing || s.previewing || s.menu || s.confirmDiscard || s.attaching {
+		return nil
+	}
+
+	query := s.shortcodeQuery()
+	if query == "" || query == s.hidden {
+		return nil
+	}
+
+	return ui.SuggestShortcodes(query, suggestionLimit)
+}
+
+// suggestionsView lists found shortcodes with the chosen one marked. Emoji go last on their lines, so one that the
+// terminal draws wider than measured shifts nothing.
+func (s Screen) suggestionsView(found []ui.Shortcode) string {
+	chosen := min(s.suggestion, len(found)-1)
+	lines := make([]string, len(found))
+	for i, shortcode := range found {
+		name := ":" + shortcode.Name + ":"
+		if i == chosen {
+			lines[i] = ui.AccentStyle.Render("› "+name) + " " + shortcode.Emoji
+		} else {
+			lines[i] = ui.MutedStyle.Render("  "+name) + " " + shortcode.Emoji
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // previewRows returns the number of lines the preview shows at once, half of the screen like a clipped post.

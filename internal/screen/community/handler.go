@@ -65,6 +65,10 @@ type (
 	filterDoneMsg    struct{}
 	clearFilterMsg   struct{}
 	authorMsg        struct{ owner sdk.UserDetails }
+	completeMsg      struct{}
+	hideEmojiMsg     struct{}
+	// chooseMsg moves the chosen shortcode suggestion by step
+	chooseMsg struct{ step int }
 	// copyMsg puts text in the clipboard. what names the copied thing in the notice.
 	copyMsg struct{ text, what string }
 	// upMsg opens parent index of the opened post, counted from the top of the thread
@@ -159,6 +163,9 @@ type Screen struct {
 	confirmDiscard bool
 	// composeOffset is the list scroll before the composer took room from it, restored when it closes
 	composeOffset int
+	// suggestion is the chosen shortcode suggestion. hidden is the shortcode esc hid suggestions for.
+	suggestion int
+	hidden     string
 
 	confirmDelete bool
 	loadingMore   bool
@@ -687,6 +694,7 @@ func (s *Screen) closeComposer() {
 	}
 
 	s.composing, s.previewing, s.menu, s.confirmDiscard = false, false, false, false
+	s.suggestion, s.hidden = 0, ""
 	s.content.field.Update(ui.UnfocusMsg{})
 	if s.editing != nil {
 		s.editing = nil
@@ -884,6 +892,23 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case closeMenuMsg:
 		// the action already closed the menu
+		return s, nil
+	case completeMsg:
+		found := s.suggestions()
+		// backspaces remove the typed name after its colon, so the cursor ends up after the inserted shortcode
+		for range utf8.RuneCountInString(s.shortcodeQuery()) {
+			s.content.field.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+		}
+
+		s.content.field.Raw().InsertString(found[min(s.suggestion, len(found)-1)].Name + ":")
+		s.suggestion = 0
+		return s, nil
+	case chooseMsg:
+		n := len(s.suggestions())
+		s.suggestion = (s.suggestion + msg.step + n) % n
+		return s, nil
+	case hideEmojiMsg:
+		s.hidden = s.shortcodeQuery()
 		return s, nil
 	case editorMsg:
 		return s, s.openEditor()
@@ -1108,7 +1133,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			target = s.content.prompt
 		}
 
+		// typing a different shortcode chooses its first suggestion again
+		typed := s.shortcodeQuery()
 		_, cmd := target.Update(msg)
+		if s.shortcodeQuery() != typed {
+			s.suggestion = 0
+		}
+
 		return s, cmd
 	}
 
