@@ -143,8 +143,9 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			switch msg.String() {
 			case "q":
-				// while composing, q is more likely a slip than a wish to quit, which would lose the draft. ctrl+c still quits.
-				if w.model.Composing() {
+				// with typed text on screen, q is more likely a slip than a wish to quit, which would lose it. ctrl+c still
+				// quits.
+				if w.model.Unsaved() {
 					return w, nil
 				}
 
@@ -298,7 +299,7 @@ func (w VimWrapper) helpView() string {
 	}
 
 	everywhere = append(everywhere, keyHelp)
-	if !w.model.Composing() {
+	if !w.model.Unsaved() {
 		everywhere = append(everywhere, keyQuit)
 	}
 
