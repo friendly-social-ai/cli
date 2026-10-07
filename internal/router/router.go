@@ -129,6 +129,12 @@ func (r Router) Keys() []key.Binding {
 	return r.screens[r.current].Keys()
 }
 
+// Composing reports whether the current screen has a composer open. A screen with a Composing method can have one.
+func (r Router) Composing() bool {
+	composer, ok := r.screens[r.current].(interface{ Composing() bool })
+	return ok && composer.Composing()
+}
+
 // OnTab reports whether the current screen is one of tabs, which digit keys switch.
 func (r Router) OnTab() bool {
 	for _, tab := range tabs {

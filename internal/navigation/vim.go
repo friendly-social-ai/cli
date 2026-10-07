@@ -142,7 +142,14 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			switch msg.String() {
-			case "q", "ctrl+c":
+			case "q":
+				// while composing, q is more likely a slip than a wish to quit, which would lose the draft. ctrl+c still quits.
+				if w.model.Composing() {
+					return w, nil
+				}
+
+				return w, tea.Quit
+			case "ctrl+c":
 				return w, tea.Quit
 			case "?":
 				w.help = true
@@ -290,7 +297,11 @@ func (w VimWrapper) helpView() string {
 		everywhere = append(everywhere, ui.Key("1-4", "switch tabs"))
 	}
 
-	everywhere = append(everywhere, keyHelp, keyQuit)
+	everywhere = append(everywhere, keyHelp)
+	if !w.model.Composing() {
+		everywhere = append(everywhere, keyQuit)
+	}
+
 	return helpSection("this screen", w.keys()) + "\n\n" + helpSection("everywhere", everywhere)
 }
 
