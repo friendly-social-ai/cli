@@ -173,7 +173,7 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	actions = append(actions, ui.Action{Key: ui.Key("n", "reply"), Msg: composeMsg{}})
-	if post := s.details.Post; s.owns(post) && !post.Deleted() {
+	if post, ok := s.cursorPost(); ok && s.owns(post) && !post.Deleted() {
 		actions = append(actions,
 			ui.Action{Key: ui.Key("e", "edit"), Msg: editMsg{}},
 			ui.Action{Key: ui.Key("d", "delete"), Msg: deleteMsg{}})
@@ -208,7 +208,7 @@ func (s Screen) submitLabel() string {
 	switch {
 	case s.mode == modeList:
 		return "post"
-	case s.editing:
+	case s.editing != nil:
 		return "save"
 	}
 
@@ -379,7 +379,7 @@ func (s Screen) composer() string {
 
 	title, placeholder := "new post", "Write a post"
 	switch {
-	case s.editing:
+	case s.editing != nil:
 		title, placeholder = "edit post", "Edit your post"
 	case s.mode == modePost:
 		author, _ := metaParts(s.details.Post)

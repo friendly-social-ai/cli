@@ -76,8 +76,8 @@ type (
 	doneMsg struct{ posted *sdk.CommunityPostDescriptor }
 	// openedMsg reports that an image was opened in the image viewer.
 	openedMsg struct{}
-	// deletedMsg reports that the opened post was deleted.
-	deletedMsg struct{}
+	// deletedMsg reports that post id was deleted.
+	deletedMsg struct{ id sdk.CommunityPostId }
 	// attachedMsg carries URL of uploaded image for embedding into the post.
 	attachedMsg struct{ url string }
 	imageMsg    struct {
@@ -129,9 +129,9 @@ type Screen struct {
 	pictures map[string]*picture
 	rendered map[string]string
 
-	// composing shows the text field above the list, and editing makes it edit the opened post
+	// composing shows the text field above the list. editing is the post it edits, nil for a new post or reply.
 	composing bool
-	editing   bool
+	editing   *sdk.CommunityPostId
 	// previewing shows the draft rendered as markdown in place of the text field
 	previewing bool
 	// confirmDiscard asks to press the key again before the draft is gone
@@ -252,24 +252,22 @@ func (s Screen) submit() tea.Cmd {
 		})
 	}
 
-	post := s.details.Post
-	if s.editing {
+	if id := s.editing; id != nil {
 		return s.request("saving...", func() (tea.Msg, error) {
-			return doneMsg{}, s.service.edit(s.user, post.Id, text)
+			return doneMsg{}, s.service.edit(s.user, *id, text)
 		})
 	}
 
-	replyTo := post.Descriptor()
+	replyTo := s.details.Post.Descriptor()
 	return s.request("replying...", func() (tea.Msg, error) {
 		posted, err := s.service.post(s.user, text, &replyTo)
 		return doneMsg{posted: posted}, err
 	})
 }
 
-func (s Screen) delete() tea.Cmd {
-	id := s.details.Post.Id
+func (s Screen) delete(id sdk.CommunityPostId) tea.Cmd {
 	return s.request("deleting...", func() (tea.Msg, error) {
-		return deletedMsg{}, s.service.delete(s.user, id)
+		return deletedMsg{id: id}, s.service.delete(s.user, id)
 	})
 }
 
@@ -596,8 +594,8 @@ func (s *Screen) closeComposer() {
 
 	s.composing, s.previewing, s.confirmDiscard = false, false, false
 	s.content.field.Update(ui.UnfocusMsg{})
-	if s.editing {
-		s.editing = false
+	if s.editing != nil {
+		s.editing = nil
 		s.content.field.Raw().SetValue("")
 	}
 }
@@ -761,8 +759,9 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			screen.Send(router.TargetMsg{Type: screen.TypeUser, Inner: user.OpenMsg{Person: msg.owner, From: screen.TypeCommunity}}),
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeUser}))
 	case editMsg:
-		s.editing = true
-		s.content.field.Raw().SetValue(s.details.Post.Text.Value())
+		post, _ := s.cursorPost()
+		s.editing = &post.Id
+		s.content.field.Raw().SetValue(post.Text.Value())
 		return s, s.openComposer()
 	case closeMsg:
 		s.closeComposer()
@@ -797,7 +796,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case deleteMsg:
 		if s.confirmDelete {
-			return s, s.delete()
+			post, _ := s.cursorPost()
+			return s, s.delete(post.Id)
 		}
 
 		s.confirmDelete = true
@@ -926,7 +926,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.reload())
 	case deletedMsg:
 		s.confirmDelete = false
-		if len(s.replies) > 0 {
+		// a deleted reply or parent stays in the thread marked as deleted, and so does a deleted post with replies
+		if msg.id != s.details.Post.Id || len(s.replies) > 0 {
 			return s, s.reload()
 		}
 
@@ -962,6 +963,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		_, cmd := target.Update(msg)
 		return s, cmd
+	}
+
+	// moving to another post cancels the delete confirmation, which is for the selected post
+	if ui.Moves(msg) {
+		s.confirmDelete = false
 	}
 
 	_, cmd := s.content.list.Update(msg)
