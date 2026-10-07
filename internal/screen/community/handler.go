@@ -157,7 +157,7 @@ type Screen struct {
 	stack []postView
 
 	content struct {
-		status *ui.Label
+		status *ui.Status
 		filter *ui.Filter
 		field  *ui.TextArea
 		prompt *ui.Field
@@ -184,7 +184,7 @@ func New(service *Service, graphics *ui.Graphics) Screen {
 	input.CharLimit = 4096
 	input.SetHeight(3)
 
-	result.content.status = ui.NewLabel("")
+	result.content.status = ui.NewStatus()
 	result.content.filter = ui.NewFilter()
 	result.content.field = ui.NewTextArea(input)
 
@@ -211,7 +211,7 @@ func (s Screen) request(status string, fn func() (tea.Msg, error)) tea.Cmd {
 		return nil
 	}
 
-	s.content.status.Set(ui.MutedStyle.Render(status))
+	s.content.status.Busy(status)
 	return func() tea.Msg {
 		msg, err := fn()
 		if err != nil {
@@ -223,14 +223,14 @@ func (s Screen) request(status string, fn func() (tea.Msg, error)) tea.Cmd {
 }
 
 func (s Screen) loadList(cursor *sdk.CursorId) tea.Cmd {
-	return s.request("loading posts...", func() (tea.Msg, error) {
+	return s.request("loading posts", func() (tea.Msg, error) {
 		page, err := s.service.list(s.user, cursor)
 		return listMsg{page: page, append: cursor != nil}, err
 	})
 }
 
 func (s Screen) loadDetails(post sdk.CommunityPostDescriptor) tea.Cmd {
-	return s.request("loading post...", func() (tea.Msg, error) {
+	return s.request("loading post", func() (tea.Msg, error) {
 		details, err := s.service.details(s.user, post)
 		return detailsMsg{details: details}, err
 	})
@@ -238,7 +238,7 @@ func (s Screen) loadDetails(post sdk.CommunityPostDescriptor) tea.Cmd {
 
 func (s Screen) loadReplies() tea.Cmd {
 	post, cursor := s.details.Post.Descriptor(), s.repliesNext
-	return s.request("loading replies...", func() (tea.Msg, error) {
+	return s.request("loading replies", func() (tea.Msg, error) {
 		page, err := s.service.replies(s.user, post, cursor)
 		return repliesMsg{page: page}, err
 	})
@@ -248,27 +248,27 @@ func (s Screen) submit() tea.Cmd {
 	text := s.content.field.Value()
 
 	if s.mode == modeList {
-		return s.request("posting...", func() (tea.Msg, error) {
+		return s.request("posting", func() (tea.Msg, error) {
 			posted, err := s.service.post(s.user, text, nil)
 			return doneMsg{posted: posted}, err
 		})
 	}
 
 	if id := s.editing; id != nil {
-		return s.request("saving...", func() (tea.Msg, error) {
+		return s.request("saving", func() (tea.Msg, error) {
 			return doneMsg{}, s.service.edit(s.user, *id, text)
 		})
 	}
 
 	replyTo := s.details.Post.Descriptor()
-	return s.request("replying...", func() (tea.Msg, error) {
+	return s.request("replying", func() (tea.Msg, error) {
 		posted, err := s.service.post(s.user, text, &replyTo)
 		return doneMsg{posted: posted}, err
 	})
 }
 
 func (s Screen) delete(id sdk.CommunityPostId) tea.Cmd {
-	return s.request("deleting...", func() (tea.Msg, error) {
+	return s.request("deleting", func() (tea.Msg, error) {
 		return deletedMsg{id: id}, s.service.delete(s.user, id)
 	})
 }
@@ -721,7 +721,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		})
 	case openImageMsg:
 		s.stopPicking()
-		return s, s.request("opening image...", func() (tea.Msg, error) {
+		return s, s.request("opening image", func() (tea.Msg, error) {
 			path, err := s.service.saveImage(msg.url)
 			if err == nil {
 				err = browser.OpenFile(path)
@@ -820,7 +820,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case attachDoneMsg:
 		path := s.content.prompt.Value()
 		s.stopAttaching()
-		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.request("uploading image...", func() (tea.Msg, error) {
+		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.request("uploading image", func() (tea.Msg, error) {
 			url, err := s.service.upload(s.user, path)
 			return attachedMsg{url: url}, err
 		}))

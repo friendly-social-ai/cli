@@ -37,7 +37,7 @@ type Screen struct {
 
 	content struct {
 		list   *ui.List
-		status *ui.Label
+		status *ui.Status
 
 		fields []*ui.Field
 		field  struct {
@@ -72,7 +72,7 @@ func New(service *Service) Screen {
 		result.content.field.code,
 	}
 
-	result.content.status = ui.NewLabel("")
+	result.content.status = ui.NewStatus()
 	result.content.list = ui.NewList(
 		result.content.field.email,
 		result.content.field.code)
@@ -125,7 +125,7 @@ func (s Screen) Keys() []key.Binding {
 
 func (s Screen) send() tea.Cmd {
 	email := s.content.field.email.Value()
-	s.content.status.Set(ui.MutedStyle.Render("sending code..."))
+	s.content.status.Busy("sending code")
 	return func() tea.Msg {
 		if err := s.service.send(email); err != nil {
 			return screen.ErrorMsg{Value: err}
@@ -138,7 +138,7 @@ func (s Screen) send() tea.Cmd {
 
 func (s Screen) confirm() tea.Cmd {
 	email, code := s.content.field.email.Value(), s.content.field.code.Value()
-	s.content.status.Set(ui.MutedStyle.Render("authenticating..."))
+	s.content.status.Busy("authenticating")
 	return func() tea.Msg {
 		user, err := s.service.confirm(email, code)
 		if err != nil {
@@ -206,8 +206,8 @@ func (s Screen) Unsaved() bool {
 	return ui.Filled(s.content.fields)
 }
 
-func (s Screen) Status() string {
-	return s.content.status.View()
+func (s Screen) Status() *ui.Status {
+	return s.content.status
 }
 
 func (s Screen) View() string {

@@ -50,7 +50,7 @@ type Screen struct {
 	showEmail bool
 
 	content struct {
-		status *ui.Label
+		status *ui.Status
 
 		list   *ui.List
 		fields []*ui.Field
@@ -83,7 +83,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.status = ui.NewLabel("")
+	result.content.status = ui.NewStatus()
 
 	result.content.field.nickname = field("nickname", 256)
 	result.content.field.description = field("description", 1024)
@@ -252,7 +252,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case auth.LoginMsg:
 		s.user, s.self, s.showEmail, s.editing = msg.User, nil, false, false
-		s.content.status.Set(ui.MutedStyle.Render("loading..."))
+		s.content.status.Busy("loading")
 		return s, func() tea.Msg {
 			self, err := s.service.get(msg.User)
 			return router.TargetMsg{Type: screen.TypeProfile, Inner: loadedMsg{self: self, err: err}}
@@ -282,7 +282,7 @@ func (s Screen) save() tea.Cmd {
 	nickname, description := s.content.field.nickname.Value(), s.content.field.description.Value()
 	interests, social := s.content.field.interests.Value(), s.content.field.social.Value()
 
-	s.content.status.Set(ui.MutedStyle.Render("saving..."))
+	s.content.status.Busy("saving")
 	return func() tea.Msg {
 		if err := s.service.edit(user, self, nickname, description, interests, social); err != nil {
 			return router.TargetMsg{Type: screen.TypeProfile, Inner: savedMsg{err: err}}
@@ -322,8 +322,8 @@ func (s Screen) Unsaved() bool {
 	return s.editing
 }
 
-func (s Screen) Status() string {
-	return s.content.status.View()
+func (s Screen) Status() *ui.Status {
+	return s.content.status
 }
 
 func (s Screen) View() string {

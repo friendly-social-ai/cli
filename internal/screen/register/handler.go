@@ -24,7 +24,7 @@ type Screen struct {
 
 	content struct {
 		list   *ui.List
-		status *ui.Label
+		status *ui.Status
 
 		fields []*ui.Field
 		field  struct {
@@ -65,7 +65,7 @@ func New(service *Service) Screen {
 		result.content.field.social,
 	}
 
-	result.content.status = ui.NewLabel("")
+	result.content.status = ui.NewStatus()
 	result.content.list = ui.NewList(
 		result.content.field.nickname,
 		result.content.field.description,
@@ -109,7 +109,7 @@ func (s Screen) submit() tea.Cmd {
 	interests := s.content.field.interests.Value()
 	social := s.content.field.social.Value()
 
-	s.content.status.Set(ui.MutedStyle.Render("authenticating..."))
+	s.content.status.Busy("authenticating")
 	return func() tea.Msg {
 		user, err := s.service.register(nickname, description, interests, social)
 		if err != nil {
@@ -162,8 +162,8 @@ func (s Screen) Unsaved() bool {
 	return ui.Filled(s.content.fields)
 }
 
-func (s Screen) Status() string {
-	return s.content.status.View()
+func (s Screen) Status() *ui.Status {
+	return s.content.status
 }
 
 func (s Screen) View() string {

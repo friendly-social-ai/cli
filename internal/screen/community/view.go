@@ -224,8 +224,8 @@ func (s Screen) Unsaved() bool {
 	return s.composing
 }
 
-func (s Screen) Status() string {
-	return s.content.status.View()
+func (s Screen) Status() *ui.Status {
+	return s.content.status
 }
 
 func (s Screen) textWidth() int {

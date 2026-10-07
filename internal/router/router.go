@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -29,6 +30,10 @@ type Router struct {
 	current screen.Type
 	screens map[screen.Type]screen.Model
 
+	// spinner animates a busy status of the current screen, and spinning tells that its frames are ticking
+	spinner  spinner.Model
+	spinning bool
+
 	width  int
 	height int
 }
@@ -43,6 +48,7 @@ func NewRouter(models []screen.Model) Router {
 	return Router{
 		current: models[0].ID(),
 		screens: screens,
+		spinner: spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(ui.AccentStyle)),
 	}
 }
 
@@ -81,6 +87,47 @@ func (r Router) broadcast(msg tea.Msg) (Router, tea.Cmd) {
 }
 
 func (r Router) Update(msg tea.Msg) (Router, tea.Cmd) {
+	// the spinner stops by dropping its next frame once the current screen has nothing in progress
+	if tick, ok := msg.(spinner.TickMsg); ok {
+		if !r.loading() {
+			r.spinning = false
+			return r, nil
+		}
+
+		var cmd tea.Cmd
+		r.spinner, cmd = r.spinner.Update(tick)
+		return r, cmd
+	}
+
+	r, cmd := r.update(msg)
+	if r.loading() && !r.spinning {
+		r.spinning = true
+		cmd = tea.Batch(cmd, r.spinner.Tick)
+	}
+
+	return r, cmd
+}
+
+// loading reports whether the current screen has work in progress.
+func (r Router) loading() bool {
+	status := r.screens[r.current].Status()
+	return status != nil && status.Loading()
+}
+
+// status renders the status of the current screen, with the spinner while it is busy.
+func (r Router) status() string {
+	status := r.screens[r.current].Status()
+	switch {
+	case status == nil || status.Value() == "":
+		return ""
+	case status.Loading():
+		return r.spinner.View() + " " + ui.MutedStyle.Render(status.Value())
+	}
+
+	return status.Value()
+}
+
+func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		r.width = msg.Width
@@ -209,7 +256,7 @@ func (r Router) Header() string {
 	// the title is cut to one line. The status goes to the right end, cut to the room the title leaves.
 	inner := r.width - 2
 	title := ansi.Truncate(r.title(), max(inner, 0), "…")
-	if status := r.screens[r.current].Status(); status != "" && inner-lipgloss.Width(title)-2 > 0 {
+	if status := r.status(); status != "" && inner-lipgloss.Width(title)-2 > 0 {
 		status = ansi.Truncate(status, inner-lipgloss.Width(title)-2, "…")
 		title += strings.Repeat(" ", inner-lipgloss.Width(title)-lipgloss.Width(status)) + status
 	}
@@ -225,7 +272,14 @@ func (r Router) Header() string {
 func (r Router) View() string {
 	header := r.Header()
 
+	// a screen with nothing to show yet shows its busy status in the middle instead of staying blank
+	height := r.height - lipgloss.Height(header)
+	content := r.screens[r.current].View()
+	if content == "" && r.loading() {
+		content = lipgloss.Place(r.width, height, lipgloss.Center, lipgloss.Center, r.status())
+	}
+
 	// clip screens taller than the window instead of pushing the header out
-	content := ui.Clip(r.screens[r.current].View(), r.width, r.height-lipgloss.Height(header))
+	content = ui.Clip(content, r.width, height)
 	return header + "\n" + content
 }

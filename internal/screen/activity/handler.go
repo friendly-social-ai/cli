@@ -41,7 +41,7 @@ type Screen struct {
 	loadingMore bool
 
 	content struct {
-		status *ui.Label
+		status *ui.Status
 		list   *ui.List
 	}
 
@@ -55,7 +55,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.status = ui.NewLabel("")
+	result.content.status = ui.NewStatus()
 	result.content.list = ui.NewList()
 	result.content.list.SetGap(1)
 
@@ -91,8 +91,8 @@ func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
 }
 
-func (s Screen) Status() string {
-	return s.content.status.View()
+func (s Screen) Status() *ui.Status {
+	return s.content.status
 }
 
 func (s Screen) load(cursor *sdk.CursorId) tea.Cmd {
@@ -101,7 +101,7 @@ func (s Screen) load(cursor *sdk.CursorId) tea.Cmd {
 	}
 
 	if cursor == nil {
-		s.content.status.Set(ui.MutedStyle.Render("loading..."))
+		s.content.status.Busy("loading")
 	}
 
 	user := s.user
@@ -309,7 +309,7 @@ func (s Screen) View() string {
 	switch {
 	case s.user == nil:
 		return ui.MutedStyle.Render("log in to see activity")
-	case len(s.activities) == 0 && s.Status() == "":
+	case len(s.activities) == 0 && s.content.status.Value() == "":
 		return ui.MutedStyle.Render("nothing here yet")
 	}
 

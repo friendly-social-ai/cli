@@ -47,7 +47,7 @@ type Screen struct {
 	entries []sdk.FeedEntry
 
 	content struct {
-		status *ui.Label
+		status *ui.Status
 		filter *ui.Filter
 		list   *ui.List
 	}
@@ -62,7 +62,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.status = ui.NewLabel("")
+	result.content.status = ui.NewStatus()
 	result.content.filter = ui.NewFilter()
 
 	result.content.list = ui.NewList()
@@ -87,7 +87,7 @@ func (s Screen) load() tea.Cmd {
 		return nil
 	}
 
-	s.content.status.Set(ui.MutedStyle.Render("loading..."))
+	s.content.status.Busy("loading")
 	return func() tea.Msg {
 		entries, err := s.service.get(s.user)
 		return router.TargetMsg{Type: screen.TypePeople, Inner: loadedMsg{entries: entries, err: err}}
@@ -158,8 +158,8 @@ func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
 }
 
-func (s Screen) Status() string {
-	return s.content.status.View()
+func (s Screen) Status() *ui.Status {
+	return s.content.status
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
@@ -250,7 +250,7 @@ func (s Screen) View() string {
 	switch {
 	case s.user == nil:
 		return ui.MutedStyle.Render("log in to see people")
-	case len(s.entries) == 0 && s.Status() == "":
+	case len(s.entries) == 0 && s.content.status.Value() == "":
 		return ui.MutedStyle.Render("you are all caught up")
 	}
 

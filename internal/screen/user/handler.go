@@ -48,7 +48,7 @@ type Screen struct {
 	confirmRemove bool
 
 	content struct {
-		status *ui.Label
+		status *ui.Status
 	}
 
 	width int
@@ -60,7 +60,7 @@ func New(service *Service) Screen {
 		service: service,
 	}
 
-	result.content.status = ui.NewLabel("")
+	result.content.status = ui.NewStatus()
 	return result
 }
 
@@ -109,7 +109,7 @@ func (s Screen) Keys() []key.Binding {
 
 func (s Screen) load() tea.Cmd {
 	user, person := s.user, s.person
-	s.content.status.Set(ui.MutedStyle.Render("loading..."))
+	s.content.status.Busy("loading")
 	return func() tea.Msg {
 		profile, err := s.service.get(user, person)
 		return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{profile: profile, err: err}}
@@ -119,7 +119,7 @@ func (s Screen) load() tea.Cmd {
 // request runs fn for the shown person, then reloads the profile to show the new friendship.
 func (s Screen) request(status string, fn func(*sdk.Authorization, sdk.UserDetails) error) tea.Cmd {
 	user, person := s.user, s.person
-	s.content.status.Set(ui.MutedStyle.Render(status))
+	s.content.status.Busy(status)
 	return func() tea.Msg {
 		if err := fn(user, person); err != nil {
 			return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{err: err}}
@@ -161,7 +161,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.profile = msg.profile
 		s.content.status.Set("")
 	case connectMsg:
-		return s, s.request("sending request...", s.service.connect)
+		return s, s.request("sending request", s.service.connect)
 	case removeMsg:
 		if !s.confirmRemove {
 			s.confirmRemove = true
@@ -169,7 +169,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.confirmRemove = false
-		return s, s.request("removing...", s.service.remove)
+		return s, s.request("removing", s.service.remove)
 	case cancelRemoveMsg:
 		s.confirmRemove = false
 	case openSocialMsg:
@@ -188,8 +188,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	return s, nil
 }
 
-func (s Screen) Status() string {
-	return s.content.status.View()
+func (s Screen) Status() *ui.Status {
+	return s.content.status
 }
 
 func (s Screen) View() string {
