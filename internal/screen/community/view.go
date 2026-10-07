@@ -113,7 +113,10 @@ func (s Screen) actions() []ui.Action {
 				ui.Action{Key: ui.Key("x", "discard"), Msg: discardMsg{}})
 		}
 
-		return append(actions, ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}}, closing)
+		return append(actions,
+			ui.Action{Key: ui.Key("e", "editor", "ctrl+o"), Msg: editorMsg{}},
+			ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}},
+			closing)
 	}
 
 	var actions []ui.Action

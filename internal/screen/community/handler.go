@@ -1,9 +1,13 @@
 package community
 
 import (
+	"fmt"
 	"image"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
@@ -51,6 +55,7 @@ type (
 	composeMsg       struct{}
 	closeMsg         struct{}
 	previewMsg       struct{}
+	editorMsg        struct{}
 	discardMsg       struct{}
 	cancelDiscardMsg struct{}
 	filterMsg        struct{}
@@ -77,6 +82,11 @@ type (
 	doneMsg struct{ posted *sdk.CommunityPostDescriptor }
 	// openedMsg reports that an image was opened in the image viewer.
 	openedMsg struct{}
+	// editedMsg reports that the external editor exited. path is the file holding the draft.
+	editedMsg struct {
+		path string
+		err  error
+	}
 	// deletedMsg reports that post id was deleted.
 	deletedMsg struct{ id sdk.CommunityPostId }
 	// attachedMsg carries URL of uploaded image for embedding into the post.
@@ -623,6 +633,43 @@ func (s *Screen) openComposer() tea.Cmd {
 	return screen.Send(ui.InsertMsg{})
 }
 
+// openEditor writes the draft to a file and opens it in $VISUAL or $EDITOR, falling back to vi.
+func (s Screen) openEditor() tea.Cmd {
+	f, err := os.CreateTemp("", "friendly-*.md")
+	if err != nil {
+		return screen.Send(failedMsg{err: fmt.Errorf("failed to create draft file: %w", err)})
+	}
+
+	_, err = f.WriteString(s.content.field.Value())
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+
+	if err != nil {
+		_ = os.Remove(f.Name())
+		return screen.Send(failedMsg{err: fmt.Errorf("failed to write draft file: %w", err)})
+	}
+
+	editor := os.Getenv("VISUAL")
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+
+	if editor == "" {
+		editor = "vi"
+	}
+
+	// the shell splits editors with arguments, like code --wait
+	cmd := exec.Command("sh", "-c", editor+` "$1"`, "sh", f.Name())
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		if err != nil {
+			err = fmt.Errorf("editor %q failed: %w", editor, err)
+		}
+
+		return router.TargetMsg{Type: screen.TypeCommunity, Inner: editedMsg{path: f.Name(), err: err}}
+	})
+}
+
 // closeComposer hides the composer. Its draft stays for the next one, except for an edit.
 func (s *Screen) closeComposer() {
 	s.stopAttaching()
@@ -813,6 +860,31 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case clearFilterMsg:
 		s.content.filter.Clear()
 		s.content.list.Reset(s.items()...)
+		return s, nil
+	case editorMsg:
+		return s, s.openEditor()
+	case editedMsg:
+		data, err := os.ReadFile(msg.path)
+		_ = os.Remove(msg.path)
+		if msg.err != nil {
+			err = msg.err
+		}
+
+		text := strings.TrimSuffix(string(data), "\n")
+		if n, limit := utf8.RuneCountInString(text), s.content.field.Raw().CharLimit; err == nil && n > limit {
+			err = fmt.Errorf("draft too long, %d / %d", n, limit)
+		}
+
+		if err != nil {
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(err)))
+			return s, nil
+		}
+
+		// an emptied file keeps the draft, x discards it
+		if text != "" {
+			s.content.field.Raw().SetValue(text)
+		}
+
 		return s, nil
 	case discardMsg:
 		if s.confirmDiscard {
