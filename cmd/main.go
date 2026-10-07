@@ -61,7 +61,7 @@ func main() {
 		user.New(user.NewService(client)),
 	}
 
-	wrapper := navigation.NewVimWrapper(router.NewRouter(screens))
+	wrapper := navigation.NewWrapper(router.NewRouter(screens))
 
 	p = tea.NewProgram(wrapper, options()...)
 	// tmux draws emoji at their grapheme width, which is how lipgloss measures them. It doesn't answer the query for

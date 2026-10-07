@@ -11,7 +11,7 @@ import (
 	"github.com/friendly-social/cli/internal/ui"
 )
 
-// Keys handled by VimWrapper itself, shown around the keys of the wrapped model.
+// Keys handled by Wrapper itself, shown around the keys of the wrapped model.
 var (
 	keyMove  = ui.Key("j/k", "move")
 	keyQuit  = ui.Key("q", "quit")
@@ -19,9 +19,9 @@ var (
 	keyClose = ui.Key("any key", "close")
 )
 
-// VimWrapper translates key presses into UI messages for the router with Vim-style motions. While the current screen
-// is typing, keys go to it as text, except keys bound to its actions that can't be text.
-type VimWrapper struct {
+// Wrapper translates key presses and mouse input into UI messages for the router. While the current screen is typing,
+// keys go to it as text, except keys bound to its actions that can't be text.
+type Wrapper struct {
 	model router.Router
 
 	// typing follows Typing of the router, so that the field gets focus when typing starts and loses it when it stops
@@ -37,24 +37,24 @@ type VimWrapper struct {
 	height int
 }
 
-// NewVimWrapper creates new VimWrapper around router.
-func NewVimWrapper(model router.Router) VimWrapper {
-	return VimWrapper{
+// NewWrapper creates new Wrapper around router.
+func NewWrapper(model router.Router) Wrapper {
+	return Wrapper{
 		model: model,
 	}
 }
 
-func (w VimWrapper) Init() tea.Cmd {
+func (w Wrapper) Init() tea.Cmd {
 	return w.model.Init()
 }
 
-func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (w Wrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	w, cmd := w.update(msg)
 	return w.follow(cmd)
 }
 
 // follow focuses the field of the current screen when it starts typing, and unfocuses it when it stops.
-func (w VimWrapper) follow(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+func (w Wrapper) follow(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	typing := w.model.Typing()
 	if typing == w.typing {
 		return w, cmd
@@ -71,7 +71,7 @@ func (w VimWrapper) follow(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	})
 }
 
-func (w VimWrapper) update(msg tea.Msg) (VimWrapper, tea.Cmd) {
+func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		w.width = msg.Width
@@ -218,7 +218,7 @@ func (w VimWrapper) update(msg tea.Msg) (VimWrapper, tea.Cmd) {
 }
 
 // keys returns key bindings currently offered by the router.
-func (w VimWrapper) keys() []key.Binding {
+func (w Wrapper) keys() []key.Binding {
 	return w.model.Keys()
 }
 
@@ -257,7 +257,7 @@ func renderKeys(bindings []key.Binding) string {
 var keySeparator = ui.MutedStyle.Render(" · ")
 
 // helpView lists keys of the current screen, then the ones that work on every screen.
-func (w VimWrapper) helpView() string {
+func (w Wrapper) helpView() string {
 	everywhere := []key.Binding{keyMove, ui.Key("h/l", "back/open"), ui.Key("gg/G", "first/last item"),
 		ui.Key("ctrl+d/u", "half page")}
 	if w.model.OnTab() {
@@ -290,7 +290,7 @@ func helpSection(title string, bindings []key.Binding) string {
 	return strings.Join(lines, "\n")
 }
 
-func (w VimWrapper) footer() string {
+func (w Wrapper) footer() string {
 	// tail stays visible when the rest of hints is cut to the width
 	var hints, tail string
 	switch {
@@ -334,7 +334,7 @@ func (w VimWrapper) footer() string {
 		Render(hints)
 }
 
-func (w VimWrapper) View() tea.View {
+func (w Wrapper) View() tea.View {
 	footer := w.footer()
 
 	content := w.model.View()
