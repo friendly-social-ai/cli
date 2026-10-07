@@ -1,0 +1,33 @@
+[package]
+name = "friendly"
+description = "Friendly TUI client"
+homepage = "https://github.com/friendly-social-ai/cli"
+
+[version]
+from = "git-branch"
+repo = "https://github.com/friendly-social-ai/cli"
+branch = "main"
+
+[host]
+git = { command = "git", apt = "git", dnf = "git", pacman = "git", when = { os = "linux" } }
+
+[build]
+needs = ["git"]
+deps = [{ ref = "./.oku/go.toml", version = "~1.26" }]
+source = { git = "https://github.com/friendly-social-ai/cli", tag = "{{tag}}" }
+
+[[build.step]]
+vendor = "go"
+
+[[build.step]]
+run = """
+set -eu
+go build -mod=vendor -trimpath -ldflags="-s -w" -o friendly ./cmd
+"""
+shell = "sh"
+env = { CGO_ENABLED = "0", GOFLAGS = "-buildvcs=false" }
+
+[[build.step]]
+install = { bin = ["friendly"] }
+
+
