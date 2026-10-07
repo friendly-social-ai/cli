@@ -401,7 +401,7 @@ func (s Screen) composer() string {
 	field := s.content.field.View()
 	if s.previewing {
 		title += " · preview"
-		field = s.body(text)
+		field = s.preview(text)
 	}
 
 	parts := []string{ui.MutedStyle.Render(title), field}
@@ -410,6 +410,26 @@ func (s Screen) composer() string {
 	}
 
 	return strings.Join(parts, "\n")
+}
+
+// previewRows returns the number of lines the preview shows at once, half of the screen like a clipped post.
+func (s Screen) previewRows() int {
+	return max(s.height/2, 5)
+}
+
+// preview renders text as the post will look, from line previewOffset. It cuts a longer draft to previewRows lines and
+// adds a position indicator.
+func (s Screen) preview(text string) string {
+	body := s.body(text)
+	lines := strings.Split(body, "\n")
+	rows := s.previewRows()
+	if len(lines) <= rows {
+		return body
+	}
+
+	start := min(s.previewOffset, len(lines)-rows)
+	indicator := ui.MutedStyle.Render(fmt.Sprintf("lines %d-%d of %d · j/k scroll", start+1, start+rows, len(lines)))
+	return strings.Join(lines[start:start+rows], "\n") + "\n" + indicator
 }
 
 func (s Screen) View() string {

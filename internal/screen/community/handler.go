@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/friendly-social/cli/internal/browser"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -134,8 +135,9 @@ type Screen struct {
 	// composing shows the text field above the list. editing is the post it edits, nil for a new post or reply.
 	composing bool
 	editing   *sdk.CommunityPostId
-	// previewing shows the draft rendered as markdown in place of the text field
-	previewing bool
+	// previewing shows the draft rendered as markdown in place of the text field, from line previewOffset
+	previewing    bool
+	previewOffset int
 	// confirmDiscard asks to press the key again before the draft is gone
 	confirmDiscard bool
 	// composeOffset is the list scroll before the composer took room from it, restored when it closes
@@ -588,6 +590,32 @@ func (s *Screen) leave() tea.Cmd {
 	return raw(freed)
 }
 
+// scrollPreview moves the preview by msg, a move, scroll, jump or wheel turn. It reports whether msg was one of them.
+func (s *Screen) scrollPreview(msg tea.Msg) bool {
+	last := max(lipgloss.Height(s.body(s.content.field.Value()))-s.previewRows(), 0)
+	var direction ui.Direction
+	step := 1
+	switch msg := msg.(type) {
+	case ui.MoveMsg:
+		direction = msg.Direction
+	case ui.WheelMsg:
+		direction = msg.Direction
+	case ui.ScrollMsg:
+		direction, step = msg.Direction, max(s.previewRows()/2, 1)
+	case ui.JumpMsg:
+		direction, step = msg.Direction, last
+	default:
+		return false
+	}
+
+	if direction == ui.DirectionUp {
+		step = -step
+	}
+
+	s.previewOffset = max(min(s.previewOffset+step, last), 0)
+	return true
+}
+
 // openComposer shows the composer and starts typing in it.
 func (s *Screen) openComposer() tea.Cmd {
 	s.composing = true
@@ -799,7 +827,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.confirmDiscard = false
 		return s, nil
 	case previewMsg:
-		s.previewing = !s.previewing
+		s.previewing, s.previewOffset = !s.previewing, 0
 		if s.previewing {
 			return s, s.loadImages(s.content.field.Value())
 		}
@@ -971,6 +999,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 	// the open composer takes typing and focus, and the list stays where it is
 	if s.composing {
+		// the preview has no field to type in, so moves and scrolls scroll a long draft
+		if s.previewing && s.scrollPreview(msg) {
+			return s, nil
+		}
+
 		target := ui.Component(s.content.field)
 		if s.attaching {
 			target = s.content.prompt
