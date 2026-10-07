@@ -36,7 +36,8 @@ type VimWrapper struct {
 
 	// help shows all keys in place of the screen until the next key press
 	help bool
-	// pendingG is set after g, which waits for a second g to jump to the first item
+	// pendingG is set after g, which waits for a second g to jump to the first item. Any other key or mouse input
+	// cancels it.
 	pendingG bool
 
 	width  int
@@ -76,6 +77,7 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return ui.UnfocusMsg{}
 		}
 	case tea.MouseWheelMsg:
+		w.pendingG = false
 		// the wheel scrolls the list. It does nothing while typing, since the cursor could follow the scroll off the field.
 		if w.mode == VimModeNormal && !w.help {
 			switch msg.Button {
@@ -92,6 +94,7 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return w, nil
 	case tea.MouseClickMsg:
+		w.pendingG = false
 		if msg.Button != tea.MouseLeft || msg.Y >= w.height-lipgloss.Height(w.footer()) {
 			return w, nil
 		}
@@ -340,6 +343,10 @@ func (w VimWrapper) footer() string {
 	switch {
 	case w.help:
 		hints = renderKeys([]key.Binding{keyClose})
+	case w.pendingG:
+		// a pending g has no timeout, as in vim, so the footer shows what the next g does
+		hints = ui.AccentStyle.Render("g") + ui.MutedStyle.Render(" pending") + keySeparator +
+			renderKeys([]key.Binding{ui.Key("g", "first item")})
 	case w.mode == VimModeNormal:
 		var bindings []key.Binding
 		for _, binding := range w.keys() {
