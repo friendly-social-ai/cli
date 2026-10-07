@@ -325,7 +325,8 @@ func metaParts(post sdk.CommunityPost) (string, string) {
 	return post.Owner.Nickname.Value(), strings.Join(parts, " · ")
 }
 
-// FirstLine returns the first line of post text for previews. It shows images as [image] and removes markdown marks.
+// FirstLine returns the first line of post text for previews. It shows images as [image], removes markdown marks and
+// turns shortcodes into emoji.
 func FirstLine(post sdk.CommunityPost) string {
 	if post.Deleted() {
 		return "this post was deleted"
@@ -334,7 +335,7 @@ func FirstLine(post sdk.CommunityPost) string {
 	text := imagePattern.ReplaceAllString(post.Text.Value(), "[image]")
 	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
 	line = blockMarkPattern.ReplaceAllString(line, "")
-	return inlineMarks.Replace(inlineLinkPattern.ReplaceAllString(line, "$1"))
+	return ui.Emojize(inlineMarks.Replace(inlineLinkPattern.ReplaceAllString(line, "$1")))
 }
 
 // Ago returns short relative time of t, like "5m ago", or its date when older than a day.

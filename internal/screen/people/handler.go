@@ -302,7 +302,7 @@ func (s Screen) card(entry sdk.FeedEntry) string {
 		tags = append(tags, fmt.Sprintf("%d common friends", n))
 	}
 
-	lines := []string{details.Description.Value()}
+	lines := []string{ui.Emojize(details.Description.Value())}
 	if fields := ui.Fields(
 		"interests", strings.Join(interests, ", "),
 		"social link", details.SocialLink.Value()); fields != "" {
