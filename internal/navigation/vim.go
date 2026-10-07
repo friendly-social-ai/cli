@@ -294,7 +294,7 @@ var keySeparator = ui.MutedStyle.Render(" · ")
 
 // helpView lists keys of the current screen, then the ones that work on every screen.
 func (w VimWrapper) helpView() string {
-	everywhere := []key.Binding{keyMove, ui.Key("gg/G", "first/last item"), ui.Key("ctrl+d/u", "scroll a long item"),
+	everywhere := []key.Binding{keyMove, ui.Key("gg/G", "first/last item"), ui.Key("ctrl+d/u", "half page"),
 		ui.Key("esc", "stop typing")}
 	if w.model.OnTab() {
 		everywhere = append(everywhere, ui.Key("1-4", "switch tabs"))

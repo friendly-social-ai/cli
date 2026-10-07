@@ -22,7 +22,7 @@ type JumpMsg struct {
 	Direction Direction
 }
 
-// ScrollMsg shows that user wants to scroll content of the selected component.
+// ScrollMsg shows that user wants to scroll the selected item while it is clipped, or else the list by half a page.
 type ScrollMsg struct {
 	Direction Direction
 }
@@ -66,7 +66,7 @@ type ClickedMsg struct {
 // Moves reports whether msg moves the cursor between items.
 func Moves(msg tea.Msg) bool {
 	switch msg.(type) {
-	case MoveMsg, JumpMsg, ClickMsg, WheelMsg:
+	case MoveMsg, JumpMsg, ScrollMsg, ClickMsg, WheelMsg:
 		return true
 	}
 

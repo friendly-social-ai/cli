@@ -138,16 +138,8 @@ func (l *List) wheel(direction Direction) tea.Cmd {
 		return nil
 	}
 
-	if l.Scrollable() {
-		last := lipgloss.Height(l.items[l.cursor].View()) - l.clip()
-		switch {
-		case direction == DirectionDown && l.inner < last:
-			l.inner++
-			return nil
-		case direction == DirectionUp && l.inner > 0:
-			l.inner--
-			return nil
-		}
+	if l.scrollItem(direction, 1) {
+		return nil
 	}
 
 	if direction == DirectionDown {
@@ -171,6 +163,65 @@ func (l *List) wheel(direction Direction) tea.Cmd {
 	}
 
 	return l.move(cursor)
+}
+
+// page scrolls the selected item by half of the clipping height while it is clipped. Once the item shows its end, page
+// moves the list and the cursor together by the items that fill half of the list height, like CTRL-D in vim.
+func (l *List) page(direction Direction) tea.Cmd {
+	if l.height <= 0 {
+		return nil
+	}
+
+	if l.scrollItem(direction, max(l.clip()/2, 1)) {
+		return nil
+	}
+
+	// count items from the cursor until they fill half of the height
+	d := 1
+	if direction == DirectionUp {
+		d = -1
+	}
+
+	n, lines := 0, 0
+	for i := l.cursor + d; i >= 0 && i < len(l.items) && lines < l.height/2; i += d {
+		lines += l.span(i, i+1)
+		n++
+	}
+
+	if direction == DirectionUp {
+		l.offset = max(l.offset-n, 0)
+		return l.move(l.cursor - n)
+	}
+
+	for range n {
+		if l.AtEnd() {
+			break
+		}
+
+		l.offset++
+	}
+
+	return l.move(l.cursor + n)
+}
+
+// scrollItem scrolls the selected item by step lines while it is clipped and has lines left in direction. It reports
+// whether it scrolled.
+func (l *List) scrollItem(direction Direction, step int) bool {
+	if !l.Scrollable() {
+		return false
+	}
+
+	last := lipgloss.Height(l.items[l.cursor].View()) - l.clip()
+	switch {
+	case direction == DirectionDown && l.inner < last:
+		l.inner = min(l.inner+step, last)
+	case direction == DirectionUp && l.inner > 0:
+		l.inner = max(l.inner-step, 0)
+	default:
+		return false
+	}
+
+	return true
 }
 
 // span returns the number of lines that items from first up to end take in View, with the gaps after them.
@@ -233,16 +284,7 @@ func (l *List) Update(msg tea.Msg) (Component, tea.Cmd) {
 
 		return l, l.move(len(l.items) - 1)
 	case ScrollMsg:
-		if l.Scrollable() {
-			step := max(l.clip()/2, 1)
-			if msg.Direction == DirectionUp {
-				step = -step
-			}
-
-			l.inner = max(min(l.inner+step, lipgloss.Height(l.items[l.cursor].View())-l.clip()), 0)
-		}
-
-		return l, nil
+		return l, l.page(msg.Direction)
 	case ClickMsg:
 		y := msg.Y - l.top
 		if y < 0 || y >= len(l.rows) || l.rows[y] < 0 {
