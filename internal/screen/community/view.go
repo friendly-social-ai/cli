@@ -100,7 +100,7 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if s.composing {
-		post := ui.Action{Key: ui.Key("p", s.submitLabel(), "alt+enter"), Msg: submitMsg{}}
+		post := ui.Action{Key: ui.Key("alt+enter", s.submitLabel()), Msg: submitMsg{}}
 		closing := ui.Action{Key: ui.Key("esc", "close"), Msg: closeMsg{}}
 		if s.previewing {
 			return []ui.Action{{Key: ui.Key("v", "edit"), Msg: previewMsg{}}, post, closing}
