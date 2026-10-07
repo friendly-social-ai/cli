@@ -5,6 +5,8 @@ import (
 	"image"
 	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -45,6 +47,8 @@ type (
 	openImageMsg     struct{ url string }
 	attachDoneMsg    struct{}
 	cancelAttachMsg  struct{}
+	completePathMsg  struct{}
+	pasteImageMsg    struct{}
 	cancelDeleteMsg  struct{}
 	submitMsg        struct{}
 	refreshMsg       struct{}
@@ -96,9 +100,14 @@ type (
 	}
 	// deletedMsg reports that post id was deleted.
 	deletedMsg struct{ id sdk.CommunityPostId }
-	// attachedMsg carries URL of uploaded image for embedding into the post.
-	attachedMsg struct{ url string }
-	imageMsg    struct {
+	// attachedMsg reports the upload of image n of the draft. prompt marks an upload started from the path prompt.
+	attachedMsg struct {
+		n      int
+		url    string
+		err    error
+		prompt bool
+	}
+	imageMsg struct {
 		url        string
 		img        image.Image
 		id         uint32
@@ -163,9 +172,19 @@ type Screen struct {
 	confirmDiscard bool
 	// composeOffset is the list scroll before the composer took room from it, restored when it closes
 	composeOffset int
-	// suggestion is the chosen shortcode suggestion. hidden is the shortcode esc hid suggestions for.
+	// suggestion is the chosen shortcode suggestion or path completion. hidden is the shortcode esc hid suggestions for.
 	suggestion int
 	hidden     string
+	// images holds markdown of draft images by the number of their [image N] token, "" while uploading. nextImage
+	// numbers the next one, and uploads counts uploads in flight.
+	images    map[int]string
+	nextImage int
+	uploads   int
+	// files are completions of the path typed into the attach prompt, and fileInfo describes the file it points to.
+	// The prompt starts in attachDir, the directory of the last attached file.
+	files     []string
+	fileInfo  string
+	attachDir string
 
 	confirmDelete bool
 	loadingMore   bool
@@ -197,11 +216,13 @@ type Screen struct {
 // New creates new Screen from Service. It draws images with graphics when it is not nil, and with half-blocks otherwise.
 func New(service *Service, graphics *ui.Graphics) Screen {
 	result := Screen{
-		service:  service,
-		graphics: graphics,
-		markdown: ui.NewMarkdown(),
-		pictures: make(map[string]*picture),
-		rendered: make(map[string]string),
+		service:   service,
+		graphics:  graphics,
+		markdown:  ui.NewMarkdown(),
+		pictures:  make(map[string]*picture),
+		rendered:  make(map[string]string),
+		images:    make(map[int]string),
+		attachDir: "~/",
 	}
 
 	input := textarea.New()
@@ -271,7 +292,7 @@ func (s Screen) loadReplies() tea.Cmd {
 }
 
 func (s Screen) submit() tea.Cmd {
-	text := s.content.field.Value()
+	text := s.draft()
 
 	if s.mode == modeList {
 		return s.request("posting", func() (tea.Msg, error) {
@@ -545,6 +566,129 @@ func (s *Screen) stopAttaching() tea.Cmd {
 	return cmd
 }
 
+// attach puts an [image N] token at the cursor and runs upload, which returns the URL of the image. The token stands
+// for the image until the upload ends, and goes away if it fails. prompt keeps the path prompt open until it succeeds.
+func (s *Screen) attach(prompt bool, upload func() (string, error)) tea.Cmd {
+	if s.user == nil {
+		return nil
+	}
+
+	field := s.content.field.Raw()
+	// numbering starts over once the draft has no images
+	if s.uploads == 0 && !tokenPattern.MatchString(field.Value()) {
+		clear(s.images)
+		s.nextImage = 0
+	}
+
+	s.nextImage++
+	n := s.nextImage
+	token := fmt.Sprintf("[image %d]\n", n)
+	if field.Column() > 0 {
+		token = "\n" + token
+	}
+
+	if field.Length()+utf8.RuneCountInString(token) > field.CharLimit {
+		return screen.Send(failedMsg{err: fmt.Errorf("draft too long for another image")})
+	}
+
+	field.InsertString(token)
+	s.images[n] = ""
+	s.uploads++
+	return s.request("uploading image", func() (tea.Msg, error) {
+		url, err := upload()
+		return attachedMsg{n: n, url: url, err: err, prompt: prompt}, nil
+	})
+}
+
+// removeToken removes the token of image n from the draft, with the line break after it, keeping the cursor in place.
+func (s *Screen) removeToken(n int) {
+	field := s.content.field.Raw()
+	text := []rune(field.Value())
+	cursor := field.Column()
+	for _, line := range strings.Split(field.Value(), "\n")[:field.Line()] {
+		cursor += utf8.RuneCountInString(line) + 1
+	}
+
+	pattern := regexp.MustCompile(fmt.Sprintf(`\[image %d\]\n?`, n))
+	if !pattern.MatchString(field.Value()) {
+		return
+	}
+
+	before, after := string(text[:cursor]), string(text[cursor:])
+	// with the cursor inside the token, it ends up at the end
+	if !pattern.MatchString(before) && !pattern.MatchString(after) {
+		field.SetValue(pattern.ReplaceAllString(field.Value(), ""))
+		return
+	}
+
+	field.SetValue(pattern.ReplaceAllString(after, ""))
+	field.MoveToBegin()
+	field.InsertString(pattern.ReplaceAllString(before, ""))
+}
+
+// draft returns the text of the draft with image tokens replaced by their markdown. Tokens of uploads in flight stay.
+func (s Screen) draft() string {
+	return tokenPattern.ReplaceAllStringFunc(s.content.field.Value(), func(token string) string {
+		n, _ := strconv.Atoi(tokenPattern.FindStringSubmatch(token)[1])
+		if markdown := s.images[n]; markdown != "" {
+			return markdown
+		}
+
+		return token
+	})
+}
+
+// setDraft fills the text field with text, showing its images as tokens.
+func (s *Screen) setDraft(text string) {
+	if s.uploads == 0 {
+		clear(s.images)
+		s.nextImage = 0
+	}
+
+	s.content.field.Raw().SetValue(imagePattern.ReplaceAllStringFunc(text, func(markdown string) string {
+		s.nextImage++
+		s.images[s.nextImage] = markdown
+		return fmt.Sprintf("[image %d]", s.nextImage)
+	}))
+}
+
+// promptPath returns the chosen completion of the attach prompt, or the typed path when there are no completions.
+func (s Screen) promptPath() string {
+	typed := s.content.prompt.Value()
+	if len(s.files) == 0 {
+		return typed
+	}
+
+	return typed[:strings.LastIndex(typed, "/")+1] + s.files[min(s.suggestion, len(s.files)-1)]
+}
+
+// completePath puts the chosen completion into the attach prompt.
+func (s *Screen) completePath() {
+	prompt := s.content.prompt.Raw()
+	prompt.SetValue(s.promptPath())
+	prompt.CursorEnd()
+	s.refreshFiles()
+}
+
+// refreshFiles completes the path typed into the attach prompt and describes the file it points to.
+func (s *Screen) refreshFiles() {
+	s.files, s.suggestion = completions(s.content.prompt.Value()), 0
+	s.describeFile()
+}
+
+// describeFile describes the file the attach prompt points to, or why it can't be attached.
+func (s *Screen) describeFile() {
+	info, err := describe(s.promptPath())
+	switch {
+	case err != nil:
+		s.fileInfo = ui.DangerStyle.Render(err.Error())
+	case info != "":
+		s.fileInfo = ui.MutedStyle.Render(info)
+	default:
+		s.fileInfo = ""
+	}
+}
+
 // up opens parent i of the opened post. If the user came from that parent, it returns from the stack at its saved
 // position. Otherwise it opens with the next post down the thread selected.
 func (s *Screen) up(i int) tea.Cmd {
@@ -618,7 +762,7 @@ func (s *Screen) leave() tea.Cmd {
 
 // scrollPreview moves the preview by msg, a move, scroll, jump or wheel turn. It reports whether msg was one of them.
 func (s *Screen) scrollPreview(msg tea.Msg) bool {
-	last := max(lipgloss.Height(s.body(s.content.field.Value()))-s.previewRows(), 0)
+	last := max(lipgloss.Height(s.body(s.draft()))-s.previewRows(), 0)
 	var direction ui.Direction
 	step := 1
 	switch msg := msg.(type) {
@@ -655,7 +799,7 @@ func (s Screen) openEditor() tea.Cmd {
 		return screen.Send(failedMsg{err: fmt.Errorf("failed to create draft file: %w", err)})
 	}
 
-	_, err = f.WriteString(s.content.field.Value())
+	_, err = f.WriteString(s.draft())
 	if closeErr := f.Close(); err == nil {
 		err = closeErr
 	}
@@ -871,7 +1015,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case editMsg:
 		post, _ := s.cursorPost()
 		s.editing = &post.Id
-		s.content.field.Raw().SetValue(post.Text.Value())
+		s.setDraft(post.Text.Value())
 		s.openComposer()
 		return s, nil
 	case closeMsg:
@@ -904,6 +1048,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.suggestion = 0
 		return s, nil
 	case chooseMsg:
+		if s.attaching {
+			n := len(s.files)
+			s.suggestion = (s.suggestion + msg.step + n) % n
+			s.describeFile()
+			return s, nil
+		}
+
 		n := len(s.suggestions())
 		s.suggestion = (s.suggestion + msg.step + n) % n
 		return s, nil
@@ -931,7 +1082,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		// an empty file leaves the draft as it was. The menu discards it with x.
 		if text != "" {
-			s.content.field.Raw().SetValue(text)
+			s.setDraft(text)
 		}
 
 		return s, nil
@@ -950,7 +1101,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case previewMsg:
 		s.previewing, s.previewOffset = !s.previewing, 0
 		if s.previewing {
-			return s, s.loadImages(s.content.field.Value())
+			return s, s.loadImages(s.draft())
 		}
 
 		return s, nil
@@ -964,18 +1115,60 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case attachMsg:
 		s.attaching = true
-		s.content.prompt.Raw().SetValue("")
+		prompt := s.content.prompt.Raw()
+		prompt.SetValue(s.attachDir)
+		prompt.CursorEnd()
+		s.refreshFiles()
 		s.content.field.Update(ui.UnfocusMsg{})
 		_, cmd := s.content.prompt.Update(ui.FocusMsg{})
 		return s, cmd
+	case completePathMsg:
+		s.completePath()
+		return s, nil
 	case attachDoneMsg:
-		path := s.content.prompt.Value()
-		return s, tea.Batch(s.stopAttaching(), s.request("uploading image", func() (tea.Msg, error) {
-			url, err := s.service.upload(s.user, path)
-			return attachedMsg{url: url}, err
-		}))
+		// enter on a directory opens it
+		path := s.promptPath()
+		if strings.HasSuffix(path, "/") {
+			s.completePath()
+			return s, nil
+		}
+
+		if dir := path[:strings.LastIndex(path, "/")+1]; dir != "" {
+			s.attachDir = dir
+		}
+
+		return s, s.attach(true, func() (string, error) {
+			return s.service.upload(s.user, path)
+		})
 	case cancelAttachMsg:
 		return s, s.stopAttaching()
+	case pasteImageMsg:
+		return s, s.attach(false, func() (string, error) {
+			return s.service.uploadClipboard(s.user)
+		})
+	case tea.PasteMsg:
+		// image files dropped onto the composer upload in place of pasting their paths
+		if !s.composing || s.previewing {
+			break
+		}
+
+		paths := droppedImages(msg.Content)
+		if paths == nil {
+			break
+		}
+
+		var cmds []tea.Cmd
+		if s.attaching {
+			cmds = append(cmds, s.stopAttaching())
+		}
+
+		for _, path := range paths {
+			cmds = append(cmds, s.attach(false, func() (string, error) {
+				return s.service.upload(s.user, path)
+			}))
+		}
+
+		return s, tea.Batch(cmds...)
 	case ui.ClickMsg:
 		// while the composer is open, a click keeps typing in it instead of selecting a post
 		if s.composing {
@@ -988,18 +1181,33 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 	case attachedMsg:
-		text := s.content.field.Value()
-		if text != "" && !strings.HasSuffix(text, "\n") {
-			text += "\n"
+		s.uploads--
+		if s.uploads == 0 {
+			s.content.status.Set("")
 		}
 
-		s.content.field.Raw().SetValue(text + "![](" + msg.url + ")\n")
-		s.content.status.Set("")
+		// a failed upload leaves the prompt open with its path, to fix it or try again
+		if msg.err != nil {
+			s.removeToken(msg.n)
+			delete(s.images, msg.n)
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
+			return s, nil
+		}
+
+		s.images[msg.n] = "![](" + msg.url + ")"
+		if msg.prompt && s.attaching {
+			return s, s.stopAttaching()
+		}
+
 		return s, nil
 	case cancelDeleteMsg:
 		s.confirmDelete = false
 		return s, nil
 	case submitMsg:
+		if s.uploads > 0 {
+			return s, s.notice("wait for images to upload")
+		}
+
 		return s, s.submit()
 	case listMsg:
 		s.loadingMore = false
@@ -1128,14 +1336,19 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
-		target := ui.Component(s.content.field)
 		if s.attaching {
-			target = s.content.prompt
+			typed := s.content.prompt.Value()
+			_, cmd := s.content.prompt.Update(msg)
+			if s.content.prompt.Value() != typed {
+				s.refreshFiles()
+			}
+
+			return s, cmd
 		}
 
 		// typing a different shortcode chooses its first suggestion again
 		typed := s.shortcodeQuery()
-		_, cmd := target.Update(msg)
+		_, cmd := s.content.field.Update(msg)
 		if s.shortcodeQuery() != typed {
 			s.suggestion = 0
 		}

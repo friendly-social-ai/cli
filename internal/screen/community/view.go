@@ -28,6 +28,8 @@ var (
 	// shortcodeQueryPattern matches a shortcode being typed at the end of text and captures its name. The colon starts
 	// a word, so times like 10:30 and links don't count.
 	shortcodeQueryPattern = regexp.MustCompile(`(?:^|\s):([A-Za-z0-9_+-]{2,})$`)
+	// tokenPattern matches the [image N] token that stands for an image in the draft and captures its number.
+	tokenPattern = regexp.MustCompile(`\[image (\d+)\]`)
 )
 
 // suggestionLimit is the number of shortcodes the composer suggests at once.
@@ -82,10 +84,25 @@ func (s Screen) items() []ui.Component {
 // actions builds keys available in the current state. While typing, only the keys that can't be text work.
 func (s Screen) actions() []ui.Action {
 	if s.attaching {
-		return []ui.Action{
-			{Key: ui.Key("enter", "attach"), Msg: attachDoneMsg{}},
-			{Key: ui.Key("esc", "cancel"), Msg: cancelAttachMsg{}},
+		var actions []ui.Action
+		// enter is hidden while an upload runs
+		if s.uploads == 0 {
+			desc := "attach"
+			if strings.HasSuffix(s.promptPath(), "/") {
+				desc = "open"
+			}
+
+			actions = append(actions, ui.Action{Key: ui.Key("enter", desc), Msg: attachDoneMsg{}})
 		}
+
+		if len(s.files) > 0 {
+			actions = append(actions,
+				ui.Action{Key: ui.Key("tab", "complete"), Msg: completePathMsg{}},
+				ui.Action{Key: ui.Key("down", "next", "ctrl+n"), Msg: chooseMsg{step: 1}},
+				ui.Action{Key: ui.Key("up", "previous", "ctrl+p"), Msg: chooseMsg{step: -1}})
+		}
+
+		return append(actions, ui.Action{Key: ui.Key("esc", "cancel"), Msg: cancelAttachMsg{}})
 	}
 
 	if s.picking {
@@ -250,7 +267,9 @@ func (s Screen) menuActions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("p", "preview"), Msg: previewMsg{}})
 	}
 
-	actions = append(actions, ui.Action{Key: ui.Key("a", "attach image"), Msg: attachMsg{}})
+	actions = append(actions,
+		ui.Action{Key: ui.Key("a", "attach image"), Msg: attachMsg{}},
+		ui.Action{Key: ui.Key("v", "paste image"), Msg: pasteImageMsg{}})
 	if s.content.field.Value() != "" {
 		actions = append(actions, ui.Action{Key: ui.Key("x", "discard draft"), Msg: discardMsg{}})
 	}
@@ -459,7 +478,7 @@ func (s Screen) composer() string {
 	}
 
 	// the length shows past 4000 characters, as on the web
-	text := s.content.field.Value()
+	text := s.draft()
 	if n := utf8.RuneCountInString(text); n > 4000 {
 		title += fmt.Sprintf(" · %d / %d", n, s.content.field.Raw().CharLimit)
 	}
@@ -475,6 +494,13 @@ func (s Screen) composer() string {
 	switch {
 	case s.attaching:
 		parts = append(parts, s.content.prompt.View())
+		if s.fileInfo != "" {
+			parts = append(parts, s.fileInfo)
+		}
+
+		if len(s.files) > 0 {
+			parts = append(parts, s.filesView())
+		}
 	case s.menu:
 		parts = append(parts, s.menuView())
 	}
@@ -511,6 +537,28 @@ func (s Screen) suggestions() []ui.Shortcode {
 	}
 
 	return ui.SuggestShortcodes(query, suggestionLimit)
+}
+
+// filesView lists path completions with the chosen one marked, up to suggestionLimit around it.
+func (s Screen) filesView() string {
+	chosen := min(s.suggestion, len(s.files)-1)
+	first := max(chosen-suggestionLimit+1, 0)
+	last := min(first+suggestionLimit, len(s.files))
+	var lines []string
+	for i, name := range s.files[first:last] {
+		name = ansi.Truncate(name, s.textWidth()-2, "…")
+		if first+i == chosen {
+			lines = append(lines, ui.AccentStyle.Render("› "+name))
+		} else {
+			lines = append(lines, ui.MutedStyle.Render("  "+name))
+		}
+	}
+
+	if more := len(s.files) - last + first; more > 0 {
+		lines = append(lines, ui.MutedStyle.Render(fmt.Sprintf("  %d more", more)))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // suggestionsView lists found shortcodes with the chosen one marked. Emoji go last on their lines, so one that the
