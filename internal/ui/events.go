@@ -34,12 +34,6 @@ type FocusMsg struct{}
 // UnfocusMsg shows that user no longer wants to focus on current component.
 type UnfocusMsg struct{}
 
-// InsertMsg asks navigation to start typing into the selected component.
-type InsertMsg struct{}
-
-// NormalMsg asks navigation to stop typing.
-type NormalMsg struct{}
-
 // SelectMsg shows that user wants to select some component to focus on it later.
 type SelectMsg struct{}
 

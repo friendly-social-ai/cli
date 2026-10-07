@@ -44,6 +44,7 @@ type (
 	openLinkMsg      struct{ url string }
 	openImageMsg     struct{ url string }
 	attachDoneMsg    struct{}
+	cancelAttachMsg  struct{}
 	cancelDeleteMsg  struct{}
 	submitMsg        struct{}
 	refreshMsg       struct{}
@@ -56,6 +57,8 @@ type (
 	closeMsg         struct{}
 	previewMsg       struct{}
 	editorMsg        struct{}
+	menuMsg          struct{}
+	closeMenuMsg     struct{}
 	discardMsg       struct{}
 	cancelDiscardMsg struct{}
 	filterMsg        struct{}
@@ -148,6 +151,8 @@ type Screen struct {
 	// previewing shows the draft rendered as markdown in place of the text field, from line previewOffset
 	previewing    bool
 	previewOffset int
+	// menu shows the composer actions with single keys in place of typing
+	menu bool
 	// confirmDiscard asks to press the key again before the draft is gone
 	confirmDiscard bool
 	// composeOffset is the list scroll before the composer took room from it, restored when it closes
@@ -523,10 +528,12 @@ func (s *Screen) stopPicking() {
 	s.content.list.Select(s.openedIndex())
 }
 
-// stopAttaching hides path prompt.
-func (s *Screen) stopAttaching() {
+// stopAttaching hides path prompt and moves typing back to the text field.
+func (s *Screen) stopAttaching() tea.Cmd {
 	s.attaching = false
 	s.content.prompt.Update(ui.UnfocusMsg{})
+	_, cmd := s.content.field.Update(ui.FocusMsg{})
+	return cmd
 }
 
 // up opens parent i of the opened post. If the user came from that parent, it returns from the stack at its saved
@@ -626,14 +633,13 @@ func (s *Screen) scrollPreview(msg tea.Msg) bool {
 	return true
 }
 
-// openComposer shows the composer and starts typing in it.
-func (s *Screen) openComposer() tea.Cmd {
+// openComposer shows the composer, and typing goes to its text field.
+func (s *Screen) openComposer() {
 	s.composing = true
 	_, s.composeOffset = s.content.list.Position()
-	return screen.Send(ui.InsertMsg{})
 }
 
-// openEditor writes the draft to a file and opens it in $VISUAL or $EDITOR, falling back to vi.
+// openEditor writes the draft to a file and opens it in $VISUAL or $EDITOR, or in vi when neither is set.
 func (s Screen) openEditor() tea.Cmd {
 	f, err := os.CreateTemp("", "friendly-*.md")
 	if err != nil {
@@ -646,7 +652,7 @@ func (s Screen) openEditor() tea.Cmd {
 	}
 
 	if err != nil {
-		_ = os.Remove(f.Name())
+		os.Remove(f.Name()) //nolint:errcheck
 		return screen.Send(failedMsg{err: fmt.Errorf("failed to write draft file: %w", err)})
 	}
 
@@ -678,7 +684,7 @@ func (s *Screen) closeComposer() {
 		s.content.list.SetPosition(cursor, s.composeOffset)
 	}
 
-	s.composing, s.previewing, s.confirmDiscard = false, false, false
+	s.composing, s.previewing, s.menu, s.confirmDiscard = false, false, false, false
 	s.content.field.Update(ui.UnfocusMsg{})
 	if s.editing != nil {
 		s.editing = nil
@@ -707,6 +713,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
+		// a chosen action closes the menu
+		s.menu = false
 		return s, screen.Send(action)
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
@@ -835,7 +843,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.stack = nil
 		return s, s.leave()
 	case composeMsg:
-		return s, s.openComposer()
+		s.openComposer()
+		return s, nil
 	case upMsg:
 		return s, s.up(msg.index)
 	case copyMsg:
@@ -848,24 +857,32 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		post, _ := s.cursorPost()
 		s.editing = &post.Id
 		s.content.field.Raw().SetValue(post.Text.Value())
-		return s, s.openComposer()
+		s.openComposer()
+		return s, nil
 	case closeMsg:
 		s.closeComposer()
 		return s, nil
 	case filterMsg:
 		s.content.filter.Start()
-		return s, screen.Send(ui.InsertMsg{})
+		return s, nil
 	case filterDoneMsg:
-		return s, screen.Send(ui.NormalMsg{})
+		s.content.filter.Stop()
+		return s, nil
 	case clearFilterMsg:
 		s.content.filter.Clear()
 		s.content.list.Reset(s.items()...)
+		return s, nil
+	case menuMsg:
+		s.menu = true
+		return s, nil
+	case closeMenuMsg:
+		// the action already closed the menu
 		return s, nil
 	case editorMsg:
 		return s, s.openEditor()
 	case editedMsg:
 		data, err := os.ReadFile(msg.path)
-		_ = os.Remove(msg.path)
+		os.Remove(msg.path) //nolint:errcheck
 		if msg.err != nil {
 			err = msg.err
 		}
@@ -880,7 +897,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
-		// an emptied file keeps the draft, x discards it
+		// an empty file leaves the draft as it was. The menu discards it with x.
 		if text != "" {
 			s.content.field.Raw().SetValue(text)
 		}
@@ -916,21 +933,24 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case attachMsg:
 		s.attaching = true
 		s.content.prompt.Raw().SetValue("")
-		return s, screen.Send(ui.InsertMsg{})
+		s.content.field.Update(ui.UnfocusMsg{})
+		_, cmd := s.content.prompt.Update(ui.FocusMsg{})
+		return s, cmd
 	case attachDoneMsg:
 		path := s.content.prompt.Value()
-		s.stopAttaching()
-		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.request("uploading image", func() (tea.Msg, error) {
+		return s, tea.Batch(s.stopAttaching(), s.request("uploading image", func() (tea.Msg, error) {
 			url, err := s.service.upload(s.user, path)
 			return attachedMsg{url: url}, err
 		}))
+	case cancelAttachMsg:
+		return s, s.stopAttaching()
 	case ui.ClickMsg:
-		// while the composer is open, a click starts typing in it instead of selecting a post
-		if s.composing && !s.previewing {
-			return s, screen.Send(ui.InsertMsg{})
+		// while the composer is open, a click keeps typing in it instead of selecting a post
+		if s.composing {
+			return s, nil
 		}
 	case ui.UnfocusMsg:
-		// esc while typing the path cancels attaching
+		// a click while typing the path cancels attaching
 		if s.attaching {
 			s.stopAttaching()
 			return s, nil
@@ -1038,7 +1058,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			s.pending = &msg.posted.Id
 		}
 
-		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.reload())
+		return s, s.reload()
 	case deletedMsg:
 		s.confirmDelete = false
 		// a deleted reply or parent stays in the thread marked as deleted, and so does a deleted post with replies

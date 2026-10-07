@@ -21,9 +21,10 @@ type (
 	toggleEmailMsg  struct{}
 	editMsg         struct{}
 	cancelEditMsg   struct{}
-	saveMsg         struct{}
 	// nextMsg moves to the next field of the form, and saves from the last one
 	nextMsg struct{}
+	// fieldMsg moves typing by step fields, down for a positive step and up for a negative one.
+	fieldMsg struct{ step int }
 	// loadedMsg carries profile of the logged in user. The request wraps it into router.TargetMsg so it reaches this screen.
 	loadedMsg struct {
 		self *sdk.UserDetails
@@ -117,9 +118,9 @@ func (s Screen) actions() []ui.Action {
 		}
 
 		return []ui.Action{
-			{Key: ui.Key("i", "type")},
 			next,
-			{Key: ui.Key("s", "save"), Msg: saveMsg{}},
+			{Key: ui.Key("tab", "next field", "down"), Msg: fieldMsg{step: 1}},
+			{Key: ui.Key("shift+tab", "previous field", "up"), Msg: fieldMsg{step: -1}},
 			{Key: ui.Key("esc", "cancel"), Msg: cancelEditMsg{}},
 		}
 	case s.confirmLogout:
@@ -226,7 +227,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.list.Reset(items...)
 		return s, nil
 	case cancelEditMsg:
-		s.editing = false
+		s.stopEditing()
 		s.content.status.Set("")
 		return s, nil
 	case nextMsg:
@@ -234,16 +235,17 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, s.content.list.SelectFocused(cursor + 1)
 		}
 
-		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.save())
-	case saveMsg:
 		return s, s.save()
+	case fieldMsg:
+		return s, s.content.list.SelectFocused(s.content.list.Cursor() + msg.step)
 	case savedMsg:
 		if msg.err != nil {
 			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
 			return s, nil
 		}
 
-		s.self, s.editing = msg.self, false
+		s.self = msg.self
+		s.stopEditing()
 		s.content.status.Set("")
 		return s, nil
 	case auth.LogoutMsg:
@@ -274,6 +276,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	}
 
 	return s, nil
+}
+
+// stopEditing hides the edit form and unfocuses its field.
+func (s *Screen) stopEditing() {
+	s.editing = false
+	s.content.list.Update(ui.UnfocusMsg{})
 }
 
 // save edits the profile with the form, then reloads it.
@@ -319,6 +327,11 @@ func (s Screen) profile() string {
 
 // Unsaved reports whether the profile is being edited.
 func (s Screen) Unsaved() bool {
+	return s.editing
+}
+
+// Typing reports whether the edit form takes typed text.
+func (s Screen) Typing() bool {
 	return s.editing
 }
 

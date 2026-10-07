@@ -125,7 +125,7 @@ func (s Screen) listed() []int {
 
 func (s Screen) actions() []ui.Action {
 	if s.content.filter.Typing() {
-		return []ui.Action{{Key: ui.Key("enter", "done"), Msg: filterDoneMsg{}}}
+		return []ui.Action{{Key: ui.Key("enter", "done", "esc"), Msg: filterDoneMsg{}}}
 	}
 
 	var actions []ui.Action
@@ -156,6 +156,11 @@ func (s Screen) actions() []ui.Action {
 
 func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
+}
+
+// Typing reports whether the filter takes typed text.
+func (s Screen) Typing() bool {
+	return s.content.filter.Typing()
 }
 
 func (s Screen) Status() *ui.Status {
@@ -196,9 +201,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.load()
 	case filterMsg:
 		s.content.filter.Start()
-		return s, screen.Send(ui.InsertMsg{})
+		return s, nil
 	case filterDoneMsg:
-		return s, screen.Send(ui.NormalMsg{})
+		s.content.filter.Stop()
+		return s, nil
 	case clearFilterMsg:
 		s.content.filter.Clear()
 		s.content.list.Reset(s.items()...)

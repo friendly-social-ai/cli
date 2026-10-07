@@ -73,10 +73,13 @@ func (s Screen) items() []ui.Component {
 	return items
 }
 
-// actions builds keys available in the current state. The composer takes all keys while it is open.
+// actions builds keys available in the current state. While typing, only the keys that can't be text work.
 func (s Screen) actions() []ui.Action {
 	if s.attaching {
-		return []ui.Action{{Key: ui.Key("enter", "attach"), Msg: attachDoneMsg{}}}
+		return []ui.Action{
+			{Key: ui.Key("enter", "attach"), Msg: attachDoneMsg{}},
+			{Key: ui.Key("esc", "cancel"), Msg: cancelAttachMsg{}},
+		}
 	}
 
 	if s.picking {
@@ -89,7 +92,7 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if s.content.filter.Typing() {
-		return []ui.Action{{Key: ui.Key("enter", "done"), Msg: filterDoneMsg{}}}
+		return []ui.Action{{Key: ui.Key("enter", "done", "esc"), Msg: filterDoneMsg{}}}
 	}
 
 	if s.composing && s.confirmDiscard {
@@ -99,24 +102,24 @@ func (s Screen) actions() []ui.Action {
 		}
 	}
 
+	if s.composing && s.menu {
+		return s.menuActions()
+	}
+
 	if s.composing {
 		post := ui.Action{Key: ui.Key("alt+enter", s.submitLabel()), Msg: submitMsg{}}
-		closing := ui.Action{Key: ui.Key("esc", "close"), Msg: closeMsg{}}
 		if s.previewing {
-			return []ui.Action{{Key: ui.Key("v", "edit"), Msg: previewMsg{}}, post, closing}
+			return []ui.Action{{Key: ui.Key("esc", "edit", "p"), Msg: previewMsg{}}, post}
 		}
 
-		actions := []ui.Action{{Key: ui.Key("i", "write")}}
+		var actions []ui.Action
 		if s.content.field.Value() != "" {
-			actions = append(actions, post,
-				ui.Action{Key: ui.Key("v", "preview"), Msg: previewMsg{}},
-				ui.Action{Key: ui.Key("x", "discard"), Msg: discardMsg{}})
+			actions = append(actions, post)
 		}
 
 		return append(actions,
-			ui.Action{Key: ui.Key("e", "editor", "ctrl+o"), Msg: editorMsg{}},
-			ui.Action{Key: ui.Key("a", "attach"), Msg: attachMsg{}},
-			closing)
+			ui.Action{Key: ui.Key("ctrl+o", "menu"), Msg: menuMsg{}},
+			ui.Action{Key: ui.Key("esc", "close"), Msg: closeMsg{}})
 	}
 
 	var actions []ui.Action
@@ -220,6 +223,48 @@ func (s Screen) submitLabel() string {
 
 func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
+}
+
+// menuActions builds keys of the composer menu. Preview and discard need a draft.
+func (s Screen) menuActions() []ui.Action {
+	actions := []ui.Action{{Key: ui.Key("e", "editor"), Msg: editorMsg{}}}
+	if s.content.field.Value() != "" {
+		actions = append(actions, ui.Action{Key: ui.Key("p", "preview"), Msg: previewMsg{}})
+	}
+
+	actions = append(actions, ui.Action{Key: ui.Key("a", "attach image"), Msg: attachMsg{}})
+	if s.content.field.Value() != "" {
+		actions = append(actions, ui.Action{Key: ui.Key("x", "discard draft"), Msg: discardMsg{}})
+	}
+
+	return append(actions, ui.Action{Key: ui.Key("esc", "back", "ctrl+o"), Msg: closeMenuMsg{}})
+}
+
+// menuView renders the composer menu as a box of its keys.
+func (s Screen) menuView() string {
+	actions := s.menuActions()
+	width := 0
+	for _, action := range actions {
+		width = max(width, lipgloss.Width(action.Key.Help().Key))
+	}
+
+	var lines []string
+	for _, action := range actions {
+		k := action.Key.Help().Key
+		lines = append(lines, ui.AccentStyle.Render(k)+strings.Repeat(" ", width-lipgloss.Width(k)+2)+action.Key.Help().Desc)
+	}
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ui.ColorPrimary).
+		Padding(0, 1).
+		Render(strings.Join(lines, "\n"))
+}
+
+// Typing reports whether the composer or the filter takes typed text. The menu, the preview and the discard
+// confirmation don't.
+func (s Screen) Typing() bool {
+	return s.composing && !s.previewing && !s.confirmDiscard && !s.menu || s.content.filter.Typing()
 }
 
 // Unsaved reports whether the composer is open.
@@ -378,7 +423,7 @@ func (s Screen) picture(url string) string {
 	return drawing
 }
 
-// composer renders the text field pinned above the list, and the path prompt below it while attaching.
+// composer renders the text field pinned above the list, and the path prompt or the menu below it.
 func (s Screen) composer() string {
 	// leave room for input border and padding
 	s.content.field.Raw().SetWidth(s.textWidth() - 4)
@@ -408,8 +453,11 @@ func (s Screen) composer() string {
 	}
 
 	parts := []string{ui.MutedStyle.Render(title), field}
-	if s.attaching {
+	switch {
+	case s.attaching:
 		parts = append(parts, s.content.prompt.View())
+	case s.menu:
+		parts = append(parts, s.menuView())
 	}
 
 	return strings.Join(parts, "\n")

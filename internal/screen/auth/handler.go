@@ -25,10 +25,10 @@ type LogoutMsg struct {
 
 // Messages produced by key actions of the screen.
 type (
-	sendMsg    struct{}
-	confirmMsg struct{}
 	// nextMsg sends the code and moves to the code field from the e-mail field. From the code field it confirms.
 	nextMsg struct{}
+	// fieldMsg moves typing by step fields, down for a positive step and up for a negative one.
+	fieldMsg struct{ step int }
 )
 
 // Screen is a model of e-mail login screen.
@@ -111,12 +111,16 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	return []ui.Action{
-		{Key: ui.Key("i", "type")},
 		next,
-		{Key: ui.Key("s", "send code"), Msg: sendMsg{}},
-		{Key: ui.Key("c", "confirm"), Msg: confirmMsg{}},
-		{Key: ui.Key("h", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
+		{Key: ui.Key("tab", "next field", "down"), Msg: fieldMsg{step: 1}},
+		{Key: ui.Key("shift+tab", "previous field", "up"), Msg: fieldMsg{step: -1}},
+		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
 	}
+}
+
+// Typing reports that the screen always takes typed text.
+func (Screen) Typing() bool {
+	return true
 }
 
 func (s Screen) Keys() []key.Binding {
@@ -155,16 +159,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		if action := ui.Dispatch(s.actions(), msg); action != nil {
 			return s, screen.Send(action)
 		}
-	case sendMsg:
-		return s, s.send()
-	case confirmMsg:
-		return s, s.confirm()
 	case nextMsg:
 		if s.content.list.Cursor() == 0 {
 			return s, tea.Batch(s.send(), s.content.list.SelectFocused(1))
 		}
 
-		return s, tea.Batch(screen.Send(ui.NormalMsg{}), s.confirm())
+		return s, s.confirm()
+	case fieldMsg:
+		return s, s.content.list.SelectFocused(s.content.list.Cursor() + msg.step)
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
@@ -185,7 +187,6 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		return s, tea.Batch(
-			screen.Send(ui.NormalMsg{}),
 			screen.Send(router.BroadcastMsg{Inner: LogoutMsg{Expired: true}}),
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeAuth}))
 	case LoginMsg:

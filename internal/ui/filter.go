@@ -8,7 +8,7 @@ import (
 )
 
 // Filter narrows a list to items whose text contains its query, ignoring case. It receives typed keys from Start until
-// the next UnfocusMsg, and keeps the query after that.
+// Stop or the next UnfocusMsg, and keeps the query after that.
 type Filter struct {
 	field  *Field
 	typing bool
@@ -25,6 +25,12 @@ func NewFilter() *Filter {
 // Start lets the next messages type into the query.
 func (f *Filter) Start() {
 	f.typing = true
+}
+
+// Stop ends typing and keeps the query.
+func (f *Filter) Stop() {
+	f.typing = false
+	f.field.Update(UnfocusMsg{})
 }
 
 // Typing reports whether messages go to the query.

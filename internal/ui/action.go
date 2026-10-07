@@ -5,8 +5,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// ActionMsg is a key pressed in normal mode that navigation didn't handle, meant for screen actions.
-// Text inputs never see it. They receive raw tea.KeyPressMsg only in insert mode.
+// ActionMsg is a key press that navigation didn't handle, meant for screen actions. While the screen is typing, only
+// keys that can't be text and match its actions come as ActionMsg. Text inputs never see it. They receive raw
+// tea.KeyPressMsg.
 type ActionMsg struct {
 	Key tea.KeyPressMsg
 }
@@ -16,7 +17,7 @@ func (m ActionMsg) String() string {
 }
 
 // Action binds a key to a message for the screen. Actions without message only describe keys handled
-// by navigation, like enter or i, so that they show up in the footer.
+// by navigation, like enter or l, so that they show up in the footer.
 type Action struct {
 	Key key.Binding
 	Msg tea.Msg

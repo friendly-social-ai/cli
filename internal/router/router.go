@@ -183,6 +183,12 @@ func (r Router) Unsaved() bool {
 	return ok && holder.Unsaved()
 }
 
+// Typing reports whether the current screen takes typed text. Only screens with a Typing method can.
+func (r Router) Typing() bool {
+	holder, ok := r.screens[r.current].(interface{ Typing() bool })
+	return ok && holder.Typing()
+}
+
 // OnTab reports whether the current screen is one of tabs, which digit keys switch.
 func (r Router) OnTab() bool {
 	for _, tab := range tabs {
