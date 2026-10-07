@@ -317,7 +317,7 @@ func (s Screen) profile() string {
 		"social link", s.self.SocialLink.Value()))
 }
 
-// Unsaved reports whether the profile is being edited, so that q doesn't quit and lose it.
+// Unsaved reports whether the profile is being edited.
 func (s Screen) Unsaved() bool {
 	return s.editing
 }

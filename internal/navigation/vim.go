@@ -143,8 +143,7 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			switch msg.String() {
 			case "q":
-				// with typed text on screen, q is more likely a slip than a wish to quit, which would lose it. ctrl+c still
-				// quits.
+				// q is likely a slip while the screen has typed text. ctrl+c still quits.
 				if w.model.Unsaved() {
 					return w, nil
 				}

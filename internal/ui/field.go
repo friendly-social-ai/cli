@@ -46,6 +46,11 @@ func (f *Field) Value() string {
 	return f.input.Value()
 }
 
+// Raw returns underlying textinput.Model.
+func (f *Field) Raw() *textinput.Model {
+	return f.input
+}
+
 // Filled reports whether any of fields has text.
 func Filled(fields []*Field) bool {
 	for _, field := range fields {
@@ -55,9 +60,4 @@ func Filled(fields []*Field) bool {
 	}
 
 	return false
-}
-
-// Raw returns underlying textinput.Model.
-func (f *Field) Raw() *textinput.Model {
-	return f.input
 }

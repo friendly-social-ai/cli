@@ -201,7 +201,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	return s, cmd
 }
 
-// Unsaved reports whether any field has text, so that q doesn't quit and lose it.
+// Unsaved reports whether any field has text.
 func (s Screen) Unsaved() bool {
 	return ui.Filled(s.content.fields)
 }

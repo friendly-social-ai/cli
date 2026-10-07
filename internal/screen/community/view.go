@@ -215,7 +215,7 @@ func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
 }
 
-// Unsaved reports whether the composer is open, so that q doesn't quit and lose the draft.
+// Unsaved reports whether the composer is open.
 func (s Screen) Unsaved() bool {
 	return s.composing
 }

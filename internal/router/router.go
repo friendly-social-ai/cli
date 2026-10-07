@@ -129,8 +129,8 @@ func (r Router) Keys() []key.Binding {
 	return r.screens[r.current].Keys()
 }
 
-// Unsaved reports whether the current screen holds typed text that quitting would lose. A screen with an Unsaved
-// method can hold some.
+// Unsaved reports whether the current screen has typed text that quitting would lose. Only screens with an Unsaved
+// method can have any.
 func (r Router) Unsaved() bool {
 	holder, ok := r.screens[r.current].(interface{ Unsaved() bool })
 	return ok && holder.Unsaved()
