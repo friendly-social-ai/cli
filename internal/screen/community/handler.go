@@ -44,6 +44,7 @@ type (
 	refreshMsg       struct{}
 	moreMsg          struct{}
 	backMsg          struct{}
+	topMsg           struct{}
 	editMsg          struct{}
 	deleteMsg        struct{}
 	composeMsg       struct{}
@@ -558,6 +559,26 @@ func (s *Screen) restore() tea.Cmd {
 	return tea.Batch(raw(freed), s.loadPictures(view.details.Post), s.loadDetails(view.details.Post.Descriptor()))
 }
 
+// leave closes the opened post and goes back to where its thread was opened from, the list or another screen.
+func (s *Screen) leave() tea.Cmd {
+	s.mode = modeList
+	s.picking = false
+	s.details = nil
+	freed := s.dropPictures(nil)
+	s.closeComposer()
+	s.content.field.Raw().SetValue("")
+	s.content.status.Set("")
+	s.content.list.Reset(s.items()...)
+	s.content.list.SetPosition(s.listCursor, s.listOffset)
+	if s.from != "" {
+		from := s.from
+		s.from = ""
+		return tea.Batch(raw(freed), screen.Send(screen.ChangeMsg{NewType: from}))
+	}
+
+	return raw(freed)
+}
+
 // openComposer shows the composer and starts typing in it.
 func (s *Screen) openComposer() tea.Cmd {
 	s.composing = true
@@ -712,7 +733,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
-		// esc goes up the thread. Until details arrive the parent is unknown, so the post the user came from is used.
+		// h goes up the thread. Until details arrive the parent is unknown, so h returns to the post the user came from.
 		if n := len(s.details.Upstream); n > 0 {
 			return s, s.up(n - 1)
 		}
@@ -721,23 +742,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, s.restore()
 		}
 
-		// a top-level post goes back to where it was opened from
-		s.mode = modeList
-		s.picking = false
-		s.details = nil
-		freed := s.dropPictures(nil)
-		s.closeComposer()
-		s.content.field.Raw().SetValue("")
-		s.content.status.Set("")
-		s.content.list.Reset(s.items()...)
-		s.content.list.SetPosition(s.listCursor, s.listOffset)
-		if s.from != "" {
-			from := s.from
-			s.from = ""
-			return s, tea.Batch(raw(freed), screen.Send(screen.ChangeMsg{NewType: from}))
+		return s, s.leave()
+	case topMsg:
+		if s.mode == modeList {
+			return s, nil
 		}
 
-		return s, raw(freed)
+		s.stack = nil
+		return s, s.leave()
 	case composeMsg:
 		return s, s.openComposer()
 	case upMsg:
