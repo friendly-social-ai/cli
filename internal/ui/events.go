@@ -48,6 +48,11 @@ type SelectMsg struct{}
 // UnselectMsg shows that user no longer wants current component to be selected.
 type UnselectMsg struct{}
 
+// WheelMsg shows that user turned the mouse wheel to scroll the list in some direction.
+type WheelMsg struct {
+	Direction Direction
+}
+
 // ClickMsg is a left click at cell X, Y, counted from the top left corner of the component that receives it.
 type ClickMsg struct {
 	X, Y int
@@ -61,7 +66,7 @@ type ClickedMsg struct {
 // Moves reports whether msg moves the cursor between items.
 func Moves(msg tea.Msg) bool {
 	switch msg.(type) {
-	case MoveMsg, JumpMsg, ClickMsg:
+	case MoveMsg, JumpMsg, ClickMsg, WheelMsg:
 		return true
 	}
 

@@ -131,6 +131,66 @@ func (l *List) itemView(i int) string {
 	return strings.Join(all[start:start+c], "\n") + "\n" + indicator
 }
 
+// wheel scrolls lines of the selected item while it is clipped, then the list by one item. The cursor follows only
+// to stay on screen.
+func (l *List) wheel(direction Direction) tea.Cmd {
+	if l.height <= 0 {
+		return nil
+	}
+
+	if l.Scrollable() {
+		last := lipgloss.Height(l.items[l.cursor].View()) - l.clip()
+		switch {
+		case direction == DirectionDown && l.inner < last:
+			l.inner++
+			return nil
+		case direction == DirectionUp && l.inner > 0:
+			l.inner--
+			return nil
+		}
+	}
+
+	if direction == DirectionDown {
+		if l.AtEnd() {
+			return nil
+		}
+
+		l.offset++
+		return l.move(max(l.cursor, l.offset))
+	}
+
+	if l.offset == 0 {
+		return nil
+	}
+
+	// the cursor item has to fit below the new offset, as View requires
+	l.offset--
+	cursor := l.cursor
+	for cursor > l.offset && l.span(l.offset, cursor+1) > l.height {
+		cursor--
+	}
+
+	return l.move(cursor)
+}
+
+// span returns the number of lines that items from first up to end take in View, with the gaps after them.
+func (l *List) span(first, end int) int {
+	total := 0
+	for i := first; i < end; i++ {
+		total += lipgloss.Height(l.itemView(i))
+		if i < len(l.items)-1 {
+			total += l.gap
+		}
+	}
+
+	return total
+}
+
+// AtEnd reports whether the last item is on screen, so the list can't scroll further down.
+func (l *List) AtEnd() bool {
+	return l.height <= 0 || l.span(l.offset, len(l.items)) <= l.height
+}
+
 // Len returns number of items.
 func (l *List) Len() int {
 	return len(l.items)
@@ -194,6 +254,8 @@ func (l *List) Update(msg tea.Msg) (Component, tea.Cmd) {
 		return l, tea.Batch(l.move(i), func() tea.Msg {
 			return ClickedMsg{Again: again}
 		})
+	case WheelMsg:
+		return l, l.wheel(msg.Direction)
 	}
 
 	var cmd tea.Cmd

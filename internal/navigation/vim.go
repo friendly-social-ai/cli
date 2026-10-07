@@ -76,16 +76,16 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return ui.UnfocusMsg{}
 		}
 	case tea.MouseWheelMsg:
-		// the wheel moves like j and k. It does nothing while typing, since moving would leave the field.
+		// the wheel scrolls the list. It does nothing while typing, since the cursor could follow the scroll off the field.
 		if w.mode == VimModeNormal && !w.help {
 			switch msg.Button {
 			case tea.MouseWheelDown:
 				return w, func() tea.Msg {
-					return ui.MoveMsg{Direction: ui.DirectionDown}
+					return ui.WheelMsg{Direction: ui.DirectionDown}
 				}
 			case tea.MouseWheelUp:
 				return w, func() tea.Msg {
-					return ui.MoveMsg{Direction: ui.DirectionUp}
+					return ui.WheelMsg{Direction: ui.DirectionUp}
 				}
 			}
 		}

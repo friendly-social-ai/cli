@@ -949,8 +949,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 	_, cmd := s.content.list.Update(msg)
 
-	// load the next page when the cursor gets close to the end
-	if ui.Moves(msg) && s.content.list.Cursor() >= s.content.list.Len()-3 {
+	// load the next page when the cursor gets close to the end, or the wheel scrolls the end on screen
+	if ui.Moves(msg) && (s.content.list.Cursor() >= s.content.list.Len()-3 || s.content.list.AtEnd()) {
 		model, more := s.Update(moreMsg{})
 		return model, tea.Batch(cmd, more)
 	}
