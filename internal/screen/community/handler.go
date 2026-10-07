@@ -301,6 +301,11 @@ func (s Screen) shown() ([]sdk.CommunityPost, int) {
 
 // listed returns posts of the list that match the filter by author or text.
 func (s Screen) listed() []sdk.CommunityPost {
+	// every post matches an empty query, and matching runs regexes over each post
+	if s.content.filter.Query() == "" {
+		return s.posts
+	}
+
 	var posts []sdk.CommunityPost
 	for _, post := range s.posts {
 		author, _ := metaParts(post)

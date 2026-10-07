@@ -353,9 +353,11 @@ func (w VimWrapper) footer() string {
 			renderKeys([]key.Binding{ui.Key("g", "first item")})
 	case w.mode == VimModeNormal:
 		var bindings []key.Binding
-		for _, binding := range w.keys() {
+		keys := w.keys()
+		typing := typable(keys)
+		for _, binding := range keys {
 			// where enter starts typing, its bindings work only while typing
-			if !typable(w.keys()) || !slices.Contains(binding.Keys(), "enter") {
+			if !typing || !slices.Contains(binding.Keys(), "enter") {
 				bindings = append(bindings, binding)
 			}
 		}
