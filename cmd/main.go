@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social/cli/internal/navigation"
 	"github.com/friendly-social/cli/internal/router"
 	"github.com/friendly-social/cli/internal/screen"
@@ -63,6 +64,13 @@ func main() {
 	wrapper := navigation.NewVimWrapper(router.NewRouter(screens))
 
 	p = tea.NewProgram(wrapper, options()...)
+	// tmux draws emoji at their grapheme width, which is how lipgloss measures them. It doesn't answer the query for
+	// mode 2027, so the renderer would measure with wcwidth and draw updates one cell off after an emoji with a
+	// variation selector or a skin tone. This message switches the renderer to grapheme width.
+	if os.Getenv("TMUX") != "" {
+		go p.Send(tea.ModeReportMsg{Mode: ansi.ModeUnicodeCore, Value: ansi.ModeSet})
+	}
+
 	_, err := p.Run()
 	if graphics != nil {
 		graphics.Close(os.Stdout)
