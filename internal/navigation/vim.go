@@ -165,10 +165,9 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return w, nil
 			case "enter":
 				return w.enter()
-			case "h", "left":
-				return w, func() tea.Msg {
-					return ui.MoveMsg{Direction: ui.DirectionLeft}
-				}
+			case "left":
+				// left works like h. Both reach the screen as an action below, and screens bind h to go back.
+				msg = tea.KeyPressMsg{Code: 'h', Text: "h"}
 			case "j", "down":
 				return w, func() tea.Msg {
 					return ui.MoveMsg{Direction: ui.DirectionDown}
@@ -178,8 +177,13 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return ui.MoveMsg{Direction: ui.DirectionUp}
 				}
 			case "l", "right":
+				// l opens the selected item like enter, but never starts typing
+				if typable(w.keys()) {
+					return w, nil
+				}
+
 				return w, func() tea.Msg {
-					return ui.MoveMsg{Direction: ui.DirectionRight}
+					return ui.InteractMsg{}
 				}
 			case "g":
 				w.pendingG = true
@@ -294,8 +298,8 @@ var keySeparator = ui.MutedStyle.Render(" · ")
 
 // helpView lists keys of the current screen, then the ones that work on every screen.
 func (w VimWrapper) helpView() string {
-	everywhere := []key.Binding{keyMove, ui.Key("gg/G", "first/last item"), ui.Key("ctrl+d/u", "half page"),
-		ui.Key("esc", "stop typing")}
+	everywhere := []key.Binding{keyMove, ui.Key("h/l", "back/open"), ui.Key("gg/G", "first/last item"),
+		ui.Key("ctrl+d/u", "half page"), ui.Key("esc", "stop typing")}
 	if w.model.OnTab() {
 		everywhere = append(everywhere, ui.Key("1-4", "switch tabs"))
 	}

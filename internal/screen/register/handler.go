@@ -95,7 +95,7 @@ func (s Screen) actions() []ui.Action {
 		{Key: ui.Key("i", "type")},
 		next,
 		{Key: ui.Key("s", "submit"), Msg: submitMsg{}},
-		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
+		{Key: ui.Key("h", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
 	}
 }
 

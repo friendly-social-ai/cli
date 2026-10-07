@@ -82,7 +82,7 @@ func (s Screen) actions() []ui.Action {
 	if s.picking {
 		l := links(s.details.Post.Text.Value())[s.content.list.Cursor()]
 		return []ui.Action{
-			{Key: ui.Key("enter", "open")},
+			{Key: ui.Key("l", "open", "enter")},
 			{Key: ui.Key("y", "copy link"), Msg: copyMsg{text: l.url, what: "link"}},
 			{Key: ui.Key("esc", "cancel"), Msg: cancelPickMsg{}},
 		}
@@ -123,7 +123,7 @@ func (s Screen) actions() []ui.Action {
 
 	switch cursor := s.content.list.Cursor(); {
 	case s.mode == modePost && cursor < s.openedIndex():
-		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
+		actions = append(actions, ui.Action{Key: ui.Key("l", "open", "enter")})
 	case s.mode == modePost && cursor == s.openedIndex():
 		if s.details.Post.Deleted() {
 			break
@@ -143,7 +143,7 @@ func (s Screen) actions() []ui.Action {
 			actions = append(actions, ui.Action{Key: ui.Key("o", "links"), Msg: pickMsg{}})
 		}
 	case s.content.list.Len() > 0:
-		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
+		actions = append(actions, ui.Action{Key: ui.Key("l", "open", "enter")})
 	}
 
 	if post, ok := s.cursorPost(); ok && !post.Deleted() {
@@ -179,7 +179,7 @@ func (s Screen) actions() []ui.Action {
 			ui.Action{Key: ui.Key("d", "delete"), Msg: deleteMsg{}})
 	}
 
-	// the esc label names where going up leads
+	// the h label names where going up leads
 	up := "to list"
 	switch {
 	case len(s.details.Upstream) > 0 || len(s.stack) > 0:
@@ -188,7 +188,7 @@ func (s Screen) actions() []ui.Action {
 		up = "to " + string(s.from)
 	}
 
-	return append(actions, refresh, ui.Action{Key: ui.Key("esc", up), Msg: backMsg{}})
+	return append(actions, refresh, ui.Action{Key: ui.Key("h", up), Msg: backMsg{}})
 }
 
 // openLinkAction returns the message that opens l. Images open in the image viewer, other links in the browser.

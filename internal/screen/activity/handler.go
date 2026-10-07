@@ -77,7 +77,7 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if len(s.activities) > 0 {
-		actions = append(actions, ui.Action{Key: ui.Key("enter", "open")})
+		actions = append(actions, ui.Action{Key: ui.Key("l", "open", "enter")})
 	}
 
 	if s.unreadCount() > 0 {

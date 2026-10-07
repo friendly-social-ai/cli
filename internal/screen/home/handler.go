@@ -43,7 +43,7 @@ func (s Screen) Keys() []key.Binding {
 		return nil
 	}
 
-	return []key.Binding{ui.Key("enter", "open")}
+	return []key.Binding{ui.Key("l", "open", "enter")}
 }
 
 func (s Screen) Init() tea.Cmd {

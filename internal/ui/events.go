@@ -6,9 +6,7 @@ import tea "charm.land/bubbletea/v2"
 type Direction int
 
 const (
-	DirectionLeft Direction = iota
-	DirectionRight
-	DirectionDown
+	DirectionDown Direction = iota
 	DirectionUp
 )
 
