@@ -7,11 +7,11 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/friendly-social/cli/internal/router"
-	"github.com/friendly-social/cli/internal/screen"
-	"github.com/friendly-social/cli/internal/screen/auth"
-	"github.com/friendly-social/cli/internal/ui"
-	sdk "github.com/friendly-social/golang-sdk"
+	"github.com/friendly-social-ai/cli/internal/router"
+	"github.com/friendly-social-ai/cli/internal/screen"
+	"github.com/friendly-social-ai/cli/internal/screen/auth"
+	"github.com/friendly-social-ai/cli/internal/ui"
+	sdk "github.com/friendly-social-ai/golang-sdk"
 )
 
 // Messages produced by key actions of the screen.

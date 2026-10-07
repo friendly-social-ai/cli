@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	sdk "github.com/friendly-social/golang-sdk"
+	sdk "github.com/friendly-social-ai/golang-sdk"
 )
 
 // locale is the language of login e-mail. Backend accepts either "en" or "ru".

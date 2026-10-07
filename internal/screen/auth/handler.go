@@ -7,10 +7,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/friendly-social/cli/internal/router"
-	"github.com/friendly-social/cli/internal/screen"
-	"github.com/friendly-social/cli/internal/ui"
-	sdk "github.com/friendly-social/golang-sdk"
+	"github.com/friendly-social-ai/cli/internal/router"
+	"github.com/friendly-social-ai/cli/internal/screen"
+	"github.com/friendly-social-ai/cli/internal/ui"
+	sdk "github.com/friendly-social-ai/golang-sdk"
 )
 
 // LoginMsg signals that user logged in with new credentials.

@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/friendly-social/cli/internal/router"
-	"github.com/friendly-social/cli/internal/ui"
+	"github.com/friendly-social-ai/cli/internal/router"
+	"github.com/friendly-social-ai/cli/internal/ui"
 )
 
 // Keys handled by Wrapper itself, shown around the keys of the wrapped model.

@@ -1,4 +1,4 @@
-module github.com/friendly-social/cli
+module github.com/friendly-social-ai/cli
 
 go 1.26.0
 
@@ -9,7 +9,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.8
-	github.com/friendly-social/golang-sdk v0.4.0
+	github.com/friendly-social-ai/golang-sdk v0.0.0-20261007143324-81f5abcb4d14
 	github.com/yuin/goldmark-emoji v1.0.5
 )
 
@@ -38,5 +38,3 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 )
-
-replace github.com/friendly-social/golang-sdk => github.com/y3owk1n/golang-sdk v0.1.1-0.20261006170733-b01c297a2cde

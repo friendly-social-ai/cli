@@ -4,10 +4,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/friendly-social/cli/internal/router"
-	"github.com/friendly-social/cli/internal/screen"
-	"github.com/friendly-social/cli/internal/screen/auth"
-	"github.com/friendly-social/cli/internal/ui"
+	"github.com/friendly-social-ai/cli/internal/router"
+	"github.com/friendly-social-ai/cli/internal/screen"
+	"github.com/friendly-social-ai/cli/internal/screen/auth"
+	"github.com/friendly-social-ai/cli/internal/ui"
 )
 
 // Messages produced by key actions of the screen.

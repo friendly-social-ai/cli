@@ -3,7 +3,7 @@ package user
 import (
 	"context"
 
-	sdk "github.com/friendly-social/golang-sdk"
+	sdk "github.com/friendly-social-ai/golang-sdk"
 )
 
 // Service provides logic of other users' profiles.

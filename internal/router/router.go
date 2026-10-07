@@ -9,8 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/friendly-social/cli/internal/screen"
-	"github.com/friendly-social/cli/internal/ui"
+	"github.com/friendly-social-ai/cli/internal/screen"
+	"github.com/friendly-social-ai/cli/internal/ui"
 )
 
 // tabs are the screens of a logged in user, shown in the header and switched with their keys.

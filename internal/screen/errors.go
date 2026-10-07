@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 
-	sdk "github.com/friendly-social/golang-sdk"
+	sdk "github.com/friendly-social-ai/golang-sdk"
 )
 
 // ErrorText returns a short message about err for the status, and logs err in full.

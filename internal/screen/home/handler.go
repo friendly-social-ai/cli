@@ -3,10 +3,10 @@ package home
 import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"github.com/friendly-social/cli/internal/router"
-	"github.com/friendly-social/cli/internal/screen"
-	"github.com/friendly-social/cli/internal/screen/auth"
-	"github.com/friendly-social/cli/internal/ui"
+	"github.com/friendly-social-ai/cli/internal/router"
+	"github.com/friendly-social-ai/cli/internal/screen"
+	"github.com/friendly-social-ai/cli/internal/screen/auth"
+	"github.com/friendly-social-ai/cli/internal/ui"
 )
 
 // Screen is a model of home screen, the menu of a logged out user. After login the tabs replace it.

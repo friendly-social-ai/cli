@@ -3,7 +3,7 @@ package screen
 import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"github.com/friendly-social/cli/internal/ui"
+	"github.com/friendly-social-ai/cli/internal/ui"
 )
 
 // Type identifies a screen.
