@@ -86,6 +86,8 @@ type (
 		id         uint32
 		cols, rows int
 		upload     string
+		// drawing is the half-block drawing of img when there are no terminal graphics, kept in rendered under key
+		drawing, key string
 	}
 	failedMsg struct{ err error }
 	// clearNoticeMsg clears the status when it still shows notice text
@@ -424,9 +426,13 @@ func (s Screen) loadImages(text string) tea.Cmd {
 		cmds = append(cmds, func() tea.Msg {
 			msg := imageMsg{url: url}
 			msg.img, _ = s.service.image(url)
-			if msg.img != nil && s.graphics != nil {
+			// draw or upload the image here, off the update loop, since both take milliseconds
+			switch {
+			case msg.img != nil && s.graphics != nil:
 				msg.cols, msg.rows = ui.Fit(msg.img, width, rows)
 				msg.id, msg.upload, _ = s.graphics.Upload(msg.img, msg.cols, msg.rows)
+			case msg.img != nil:
+				msg.drawing, msg.key = ui.RenderImage(msg.img, width, rows), renderedKey(url, width, rows)
 			}
 
 			return router.TargetMsg{Type: screen.TypeCommunity, Inner: msg}
@@ -910,6 +916,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		p := &picture{img: msg.img, done: true, id: msg.id, cols: msg.cols, rows: msg.rows}
 		s.pictures[msg.url] = p
+		if msg.drawing != "" {
+			s.rendered[msg.key] = msg.drawing
+		}
+
 		// rebuild items so the opened post shows the picture
 		s.content.list.Set(s.items()...)
 		return s, raw(msg.upload + s.place(p))

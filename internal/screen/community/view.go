@@ -348,6 +348,11 @@ func (s Screen) body(text string) string {
 	return strings.Join(parts, "\n")
 }
 
+// renderedKey returns the key of the half-block drawing of url that fits width x rows cells.
+func renderedKey(url string, width, rows int) string {
+	return fmt.Sprintf("%s@%dx%d", url, width, rows)
+}
+
 func (s Screen) picture(url string) string {
 	p, ok := s.pictures[url]
 	switch {
@@ -360,7 +365,7 @@ func (s Screen) picture(url string) string {
 	}
 
 	rows := s.imageRows()
-	key := fmt.Sprintf("%s@%dx%d", url, s.textWidth(), rows)
+	key := renderedKey(url, s.textWidth(), rows)
 	if drawing, ok := s.rendered[key]; ok {
 		return drawing
 	}
