@@ -318,6 +318,6 @@ func (s Screen) card(entry sdk.FeedEntry) string {
 		width = max(s.width-6, 20)
 	}
 
-	body := lipgloss.NewStyle().PaddingLeft(2).Width(width).Render(strings.Join(lines, "\n"))
+	body := lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
 	return ui.BoldStyle.Render(details.Nickname.Value()) + "\n" + body
 }

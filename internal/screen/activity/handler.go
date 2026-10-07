@@ -276,7 +276,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	return s, cmd
 }
 
-// items builds list of activities, unread ones marked with a dot.
+// items builds list of activities, unread ones marked with a trailing dot.
 func (s Screen) items() []ui.Component {
 	width := 74
 	if s.width > 0 {
@@ -290,16 +290,16 @@ func (s Screen) items() []ui.Component {
 			continue
 		}
 
-		dot := "  "
-		if !activity.IsRead {
-			dot = ui.AccentStyle.Render("● ")
+		title := "Reply from " + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value()) +
+			ui.MutedStyle.Render(" · "+community.Ago(activity.Instant))
+		if activity.IsRead {
+			title = ansi.Truncate(title, width, "…")
+		} else {
+			title = ansi.Truncate(title, width-2, "…") + ui.AccentStyle.Render(" ●")
 		}
 
-		title := dot + "Reply from " + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value()) +
-			ui.MutedStyle.Render(" · "+community.Ago(activity.Instant))
-		line := "  " + community.FirstLine(*activity.Post)
-		items[i] = ui.NewButton(ansi.Truncate(title, width, "…")+"\n"+ansi.Truncate(line, width, "…"),
-			screen.Send(openMsg{index: i}))
+		line := ansi.Truncate(community.FirstLine(*activity.Post), width, "…")
+		items[i] = ui.NewButton(title+"\n"+line, screen.Send(openMsg{index: i}))
 	}
 
 	return items
