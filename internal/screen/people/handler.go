@@ -265,11 +265,14 @@ func (s Screen) View() string {
 
 	if len(top) == 0 {
 		s.content.list.SetHeight(s.height)
+		s.content.list.SetTop(0)
 		return s.content.list.View()
 	}
 
 	header := strings.Join(top, "\n\n")
 	s.content.list.SetHeight(max(s.height-lipgloss.Height(header)-1, 3))
+	// the list starts below the header and the blank line after it
+	s.content.list.SetTop(lipgloss.Height(header) + 1)
 	return lipgloss.JoinVertical(lipgloss.Left, header, "", s.content.list.View())
 }
 

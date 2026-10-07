@@ -48,10 +48,20 @@ type SelectMsg struct{}
 // UnselectMsg shows that user no longer wants current component to be selected.
 type UnselectMsg struct{}
 
+// ClickMsg is a left click at cell X, Y, counted from the top left corner of the component that receives it.
+type ClickMsg struct {
+	X, Y int
+}
+
+// ClickedMsg reports that a click landed on a List item. Again is true when the item was already selected.
+type ClickedMsg struct {
+	Again bool
+}
+
 // Moves reports whether msg moves the cursor between items.
 func Moves(msg tea.Msg) bool {
 	switch msg.(type) {
-	case MoveMsg, JumpMsg:
+	case MoveMsg, JumpMsg, ClickMsg:
 		return true
 	}
 

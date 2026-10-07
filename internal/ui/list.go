@@ -22,6 +22,11 @@ type List struct {
 
 	// gap is the number of blank lines between items.
 	gap int
+
+	// top is the line of the screen where the list starts. rows holds the index of the item drawn on each line of the
+	// last View, or -1 for a gap line. ClickMsg uses both to find the clicked item.
+	top  int
+	rows []int
 }
 
 // NewList creates new List based on the list of items.
@@ -141,6 +146,11 @@ func (l *List) SetHeight(height int) {
 	l.height = height
 }
 
+// SetTop sets the line of the screen where List starts, so that ClickMsg finds the item under the click.
+func (l *List) SetTop(top int) {
+	l.top = top
+}
+
 func (l *List) Update(msg tea.Msg) (Component, tea.Cmd) {
 	if len(l.items) == 0 {
 		return l, nil
@@ -173,6 +183,17 @@ func (l *List) Update(msg tea.Msg) (Component, tea.Cmd) {
 		}
 
 		return l, nil
+	case ClickMsg:
+		y := msg.Y - l.top
+		if y < 0 || y >= len(l.rows) || l.rows[y] < 0 {
+			return l, nil
+		}
+
+		i := l.rows[y]
+		again := i == l.cursor
+		return l, tea.Batch(l.move(i), func() tea.Msg {
+			return ClickedMsg{Again: again}
+		})
 	}
 
 	var cmd tea.Cmd
@@ -181,6 +202,7 @@ func (l *List) Update(msg tea.Msg) (Component, tea.Cmd) {
 }
 
 func (l *List) View() string {
+	l.rows = l.rows[:0]
 	if len(l.items) == 0 {
 		return ""
 	}
@@ -204,6 +226,7 @@ func (l *List) View() string {
 	}
 
 	if l.height <= 0 {
+		l.record(views, 0)
 		return lipgloss.JoinVertical(lipgloss.Left, views...)
 	}
 
@@ -221,7 +244,28 @@ func (l *List) View() string {
 		}
 	}
 
+	l.record(views, l.offset)
+	l.rows = l.rows[:min(len(l.rows), l.height)]
 	return strings.Join(result[:min(len(result), l.height)], "\n")
+}
+
+// record appends the item index of each line of views to rows, starting at item first. Gap lines get -1.
+func (l *List) record(views []string, first int) {
+	for i := first; i < len(views); i++ {
+		n := lipgloss.Height(views[i])
+		gap := 0
+		if i < len(views)-1 {
+			gap = l.gap
+		}
+
+		for range n - gap {
+			l.rows = append(l.rows, i)
+		}
+
+		for range gap {
+			l.rows = append(l.rows, -1)
+		}
+	}
 }
 
 func lines(views []string) int {

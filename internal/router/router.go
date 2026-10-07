@@ -98,6 +98,18 @@ func (r Router) Update(msg tea.Msg) (Router, tea.Cmd) {
 	case screen.MinuteMsg:
 		r, cmd := r.broadcast(msg)
 		return r, tea.Batch(cmd, minute())
+	case ui.ClickMsg:
+		header := lipgloss.Height(r.Header())
+		if msg.Y >= header {
+			msg.Y -= header
+			return r.target(r.current, msg)
+		}
+
+		if tab, ok := r.tabAt(msg.X); ok && msg.Y == 0 {
+			r.current = tab
+		}
+
+		return r, nil
 	case ui.ActionMsg:
 		if r.OnTab() {
 			for _, tab := range tabs {
@@ -128,15 +140,47 @@ func (r Router) OnTab() bool {
 	return false
 }
 
-// title names the current screen, or lists tabs with the current one highlighted. A screen with a Badge method
-// shows its badge next to its tab.
+// brand starts the title line, and tabSeparator goes between its parts.
+const (
+	brand        = "friendly"
+	tabSeparator = "  "
+)
+
+// title names the current screen, or lists tabs with the current one highlighted.
 func (r Router) title() string {
-	brand := ui.AccentStyle.Render("friendly")
+	head := ui.AccentStyle.Render(brand)
 	if !r.OnTab() {
-		return brand + ui.MutedStyle.Render(" · "+string(r.current))
+		return head + ui.MutedStyle.Render(" · "+string(r.current))
 	}
 
-	parts := []string{brand}
+	return strings.Join(append([]string{head}, r.tabLabels()...), tabSeparator)
+}
+
+// tabAt returns the tab drawn at column x of the title line.
+func (r Router) tabAt(x int) (screen.Type, bool) {
+	if !r.OnTab() {
+		return "", false
+	}
+
+	// one column of header padding comes before the brand
+	start := 1 + len(brand)
+	for i, label := range r.tabLabels() {
+		start += len(tabSeparator)
+		end := start + lipgloss.Width(label)
+		if x >= start && x < end {
+			return tabs[i].screen, true
+		}
+
+		start = end
+	}
+
+	return "", false
+}
+
+// tabLabels renders a label for each of tabs with the current one highlighted. A screen with a Badge method shows
+// its badge next to its tab.
+func (r Router) tabLabels() []string {
+	var labels []string
 	for _, tab := range tabs {
 		label := ui.MutedStyle.Render("[" + tab.key + "] " + tab.title)
 		if tab.screen == r.current {
@@ -147,10 +191,10 @@ func (r Router) title() string {
 			label += " " + ui.AccentStyle.Render(badged.Badge())
 		}
 
-		parts = append(parts, label)
+		labels = append(labels, label)
 	}
 
-	return strings.Join(parts, "  ")
+	return labels
 }
 
 // Header renders the title line over screens, with the status of the current screen.

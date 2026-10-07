@@ -91,6 +91,33 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return w, nil
+	case tea.MouseClickMsg:
+		if msg.Button != tea.MouseLeft || msg.Y >= w.height-lipgloss.Height(w.footer()) {
+			return w, nil
+		}
+
+		if w.help {
+			w.help = false
+			return w, nil
+		}
+
+		// a click stops typing first, so that the click reaches the list and not the field
+		var unfocus tea.Cmd
+		if w.mode == VimModeInsert {
+			w.mode = VimModeNormal
+			w.model, unfocus = w.model.Update(ui.UnfocusMsg{})
+		}
+
+		var cmd tea.Cmd
+		w.model, cmd = w.model.Update(ui.ClickMsg{X: msg.X, Y: msg.Y})
+		return w, tea.Batch(unfocus, cmd)
+	case ui.ClickedMsg:
+		// a click on a field starts typing, and a click on the selected item works like enter
+		if typable(w.keys()) || msg.Again {
+			return w.enter()
+		}
+
+		return w, nil
 	case tea.MouseMsg:
 		return w, nil
 	case tea.KeyPressMsg:
@@ -120,22 +147,14 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "?":
 				w.help = true
 				return w, nil
-			case "i", "enter":
-				// i and enter start typing only where the model offers it, so the footer matches. Elsewhere enter interacts.
+			case "i":
 				if typable(w.keys()) {
-					w.mode = VimModeInsert
-					return w, func() tea.Msg {
-						return ui.FocusMsg{}
-					}
-				}
-
-				if msg.String() == "enter" {
-					return w, func() tea.Msg {
-						return ui.InteractMsg{}
-					}
+					return w.enter()
 				}
 
 				return w, nil
+			case "enter":
+				return w.enter()
 			case "h", "left":
 				return w, func() tea.Msg {
 					return ui.MoveMsg{Direction: ui.DirectionLeft}
@@ -193,6 +212,21 @@ func (w VimWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	w.model, cmd = w.model.Update(msg)
 	return w, cmd
+}
+
+// enter starts typing where the model offers i, so the footer matches. Elsewhere it sends InteractMsg to the
+// selected item.
+func (w VimWrapper) enter() (tea.Model, tea.Cmd) {
+	if typable(w.keys()) {
+		w.mode = VimModeInsert
+		return w, func() tea.Msg {
+			return ui.FocusMsg{}
+		}
+	}
+
+	return w, func() tea.Msg {
+		return ui.InteractMsg{}
+	}
 }
 
 // keys returns key bindings currently offered by the router.
