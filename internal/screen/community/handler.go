@@ -146,8 +146,10 @@ type Screen struct {
 	rendered map[string]string
 
 	// composing shows the text field above the list. editing is the post it edits, nil for a new post or reply.
+	// replyTo is the post a reply goes to in post mode.
 	composing bool
 	editing   *sdk.CommunityPostId
+	replyTo   sdk.CommunityPost
 	// previewing shows the draft rendered as markdown in place of the text field, from line previewOffset
 	previewing    bool
 	previewOffset int
@@ -277,7 +279,7 @@ func (s Screen) submit() tea.Cmd {
 		})
 	}
 
-	replyTo := s.details.Post.Descriptor()
+	replyTo := s.replyTo.Descriptor()
 	return s.request("replying", func() (tea.Msg, error) {
 		posted, err := s.service.post(s.user, text, &replyTo)
 		return doneMsg{posted: posted}, err
@@ -843,6 +845,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.stack = nil
 		return s, s.leave()
 	case composeMsg:
+		// a reply goes to the selected post. Every item of a thread is a post, so the cursor is always on one.
+		if s.mode == modePost {
+			s.replyTo, _ = s.cursorPost()
+		}
+
 		s.openComposer()
 		return s, nil
 	case upMsg:

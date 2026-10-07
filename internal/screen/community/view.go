@@ -435,7 +435,7 @@ func (s Screen) composer() string {
 	case s.editing != nil:
 		title, placeholder = "edit post", "Edit your post"
 	case s.mode == modePost:
-		author, _ := metaParts(s.details.Post)
+		author, _ := metaParts(s.replyTo)
 		title, placeholder = "reply to "+author, "Write a reply"
 	}
 
