@@ -801,6 +801,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			url, err := s.service.upload(s.user, path)
 			return attachedMsg{url: url}, err
 		}))
+	case ui.ClickMsg:
+		// while the composer is open, a click starts typing in it instead of selecting a post
+		if s.composing && !s.previewing {
+			return s, screen.Send(ui.InsertMsg{})
+		}
 	case ui.UnfocusMsg:
 		// esc while typing the path cancels attaching
 		if s.attaching {
