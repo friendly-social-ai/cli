@@ -156,7 +156,7 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 		}
 
 		if tab, ok := r.tabAt(msg.X); ok && msg.Y == 0 {
-			r.current = tab
+			return r.pick(tab)
 		}
 
 		return r, nil
@@ -164,8 +164,7 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 		if r.OnTab() {
 			for _, tab := range tabs {
 				if msg.Key.String() == tab.key {
-					r.current = tab.screen
-					return r, nil
+					return r.pick(tab.screen)
 				}
 			}
 		}
@@ -174,9 +173,27 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 	return r.target(r.current, msg)
 }
 
-// Keys returns key bindings of the current screen.
+// Keys returns key bindings of the current screen. A tab screen with a Reselect method also gets its tab key,
+// labeled with what Reselect says picking the tab again does. An empty Reselect hides it.
 func (r Router) Keys() []key.Binding {
-	return r.screens[r.current].Keys()
+	keys := r.screens[r.current].Keys()
+	holder, ok := r.screens[r.current].(interface{ Reselect() string })
+	if !ok {
+		return keys
+	}
+
+	desc := holder.Reselect()
+	if desc == "" {
+		return keys
+	}
+
+	for _, tab := range tabs {
+		if tab.screen == r.current {
+			return append(keys, ui.Key(tab.key, desc))
+		}
+	}
+
+	return keys
 }
 
 // Unsaved reports whether the current screen has typed text that quitting would lose. Only screens with an Unsaved
@@ -201,6 +218,16 @@ func (r Router) Position() (int, int) {
 	}
 
 	return holder.Position()
+}
+
+// pick switches to tab. Picking the current tab again sends it screen.ReselectMsg.
+func (r Router) pick(tab screen.Type) (Router, tea.Cmd) {
+	if tab == r.current {
+		return r.target(tab, screen.ReselectMsg{})
+	}
+
+	r.current = tab
+	return r, nil
 }
 
 // OnTab reports whether the current screen is one of tabs, which digit keys switch.

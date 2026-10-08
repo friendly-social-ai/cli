@@ -24,3 +24,6 @@ type TickMsg struct{}
 
 // MinuteMsg reaches every screen once a minute, to redraw relative times and check for new activity.
 type MinuteMsg struct{}
+
+// ReselectMsg reaches a tab screen when the user picks its tab while already on it, to go back to its first view.
+type ReselectMsg struct{}

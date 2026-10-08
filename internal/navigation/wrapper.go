@@ -277,7 +277,7 @@ func (w Wrapper) helpView() string {
 	everywhere := []key.Binding{keyMove, ui.Key("h/l", "back/open"), ui.Key("gg/G", "first/last item"),
 		ui.Key("ctrl+d/u", "half page")}
 	if w.model.OnTab() {
-		everywhere = append(everywhere, ui.Key("1-4", "switch tabs"))
+		everywhere = append(everywhere, ui.Key("1-4", "switch tabs, press again for the first view"))
 	}
 
 	everywhere = append(everywhere, keyHelp)

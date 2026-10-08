@@ -997,6 +997,13 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		return s, s.leave()
+	case screen.ReselectMsg:
+		// like h to the list, it never leaves an open composer
+		if s.mode == modeList || s.composing {
+			return s, nil
+		}
+
+		return s, s.leave()
 	case rootMsg:
 		if s.mode == modeList {
 			return s, nil

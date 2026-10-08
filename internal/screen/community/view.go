@@ -229,6 +229,16 @@ func (s Screen) actions() []ui.Action {
 	return append(actions, ui.Action{Key: ui.Key("h", "to list", "esc"), Msg: backMsg{}})
 }
 
+// Reselect describes what picking the community tab again does, for the router to show with the tab key. It is
+// empty in the list, with the composer open, and where h already goes to the list.
+func (s Screen) Reselect() string {
+	if s.mode == modeList || s.composing || len(s.details.Upstream) == 0 && len(s.stack) == 0 {
+		return ""
+	}
+
+	return "to list"
+}
+
 // openLinkAction returns the message that opens l. Images open in the image viewer, other links in the browser.
 func openLinkAction(l link) tea.Msg {
 	if l.image {
