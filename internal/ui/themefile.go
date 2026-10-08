@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"regexp"
@@ -31,6 +32,7 @@ func LoadTheme(path string, dark func() bool) error {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		SetTheme(dark())
+		slog.Info("theme", "path", path, "found", false, "dark", palette.dark)
 		return nil
 	}
 
@@ -67,6 +69,7 @@ func LoadTheme(path string, dark func() bool) error {
 		apply(false, onLight)
 	}
 
+	slog.Info("theme", "path", path, "found", true, "mode", file.Mode, "dark", palette.dark)
 	return nil
 }
 

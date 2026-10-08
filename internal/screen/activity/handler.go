@@ -1,7 +1,7 @@
 package activity
 
 import (
-	"log"
+	"log/slog"
 	"strconv"
 
 	"charm.land/bubbles/v2/key"
@@ -131,7 +131,7 @@ func (s Screen) poll() tea.Cmd {
 	return func() tea.Msg {
 		page, err := s.service.list(user, nil)
 		if err != nil {
-			log.Printf("error: %v", err)
+			slog.Error("failed to poll activity", "err", err)
 			return nil
 		}
 

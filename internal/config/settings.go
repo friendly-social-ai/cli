@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -31,6 +32,7 @@ const minRefresh = 30 * time.Second
 func Load(path string) (Settings, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
+		slog.Info("settings", "path", path, "found", false)
 		return Defaults, nil
 	}
 
@@ -79,5 +81,6 @@ func Load(path string) (Settings, error) {
 		return Defaults, fmt.Errorf("config: %s:\n  %s", path, strings.Join(problems, "\n  "))
 	}
 
+	slog.Info("settings", "path", path, "found", true, "images", settings.Images, "refresh", settings.Refresh)
 	return settings, nil
 }

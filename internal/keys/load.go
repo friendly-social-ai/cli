@@ -3,6 +3,7 @@ package keys
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 func Load(path string) error {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
+		slog.Info("keymap", "path", path, "found", false)
 		return nil
 	}
 
@@ -74,6 +76,7 @@ func Load(path string) error {
 		a.keys = keys
 	}
 
+	slog.Info("keymap", "path", path, "found", true, "changed", len(chosen))
 	return nil
 }
 

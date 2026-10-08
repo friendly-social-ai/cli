@@ -3,7 +3,7 @@ package community
 import (
 	"fmt"
 	"image"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"regexp"
@@ -291,7 +291,7 @@ func (s Screen) poll() tea.Cmd {
 	return func() tea.Msg {
 		page, err := s.service.list(user, nil)
 		if err != nil {
-			log.Printf("error: %v", err)
+			slog.Error("failed to poll posts", "err", err)
 			return nil
 		}
 

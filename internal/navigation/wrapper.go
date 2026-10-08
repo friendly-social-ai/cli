@@ -1,14 +1,18 @@
 package navigation
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social-ai/cli/internal/keys"
+	"github.com/friendly-social-ai/cli/internal/logging"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/ui"
 )
@@ -48,8 +52,41 @@ func (w Wrapper) Init() tea.Cmd {
 }
 
 func (w Wrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	defer logging.Recover()
+	w.trace(msg)
 	w, cmd := w.update(msg)
 	return w.follow(cmd)
+}
+
+// trace logs msg at the debug level by its type, and a message for one screen by the type it carries. A key logs its
+// name, except one typed as text while the screen is typing, so drafts, emails and codes stay out of the log.
+func (w Wrapper) trace(msg tea.Msg) {
+	if !slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+
+	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		// the spinner ticks many times a second while loading
+	case tea.KeyPressMsg:
+		k := msg.String()
+		if w.typing && (!untypable(k) || k == "space") {
+			k = "typed"
+		}
+
+		slog.Debug("key", "key", k, "typing", w.typing)
+	case tea.PasteMsg:
+		slog.Debug("paste", "length", len(msg.Content))
+	case router.TargetMsg:
+		slog.Debug("msg", "type", fmt.Sprintf("%T", msg.Inner), "screen", msg.Type)
+	case router.BroadcastMsg:
+		slog.Debug("msg", "type", fmt.Sprintf("%T", msg.Inner), "screen", "all")
+	default:
+		// the cursor of a text field blinks twice a second
+		if name := fmt.Sprintf("%T", msg); !strings.HasPrefix(name, "cursor.") {
+			slog.Debug("msg", "type", name)
+		}
+	}
 }
 
 // follow focuses the field of the current screen when it starts typing, and unfocuses it when it stops.
@@ -496,6 +533,7 @@ func (w Wrapper) footer() string {
 }
 
 func (w Wrapper) View() tea.View {
+	defer logging.Recover()
 	view := tea.NewView(w.content())
 	view.AltScreen = true
 	view.MouseMode = tea.MouseModeCellMotion

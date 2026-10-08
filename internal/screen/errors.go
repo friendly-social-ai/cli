@@ -3,7 +3,7 @@ package screen
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 
@@ -12,7 +12,7 @@ import (
 
 // ErrorText returns a short message about err for the status, and logs err in full.
 func ErrorText(err error) string {
-	log.Printf("error: %v", err)
+	slog.Error("error", "err", err)
 
 	var apiErr sdk.APIError
 	var netErr net.Error

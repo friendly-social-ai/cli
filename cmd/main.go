@@ -3,8 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/friendly-social-ai/cli/internal/config"
 	"github.com/friendly-social-ai/cli/internal/keys"
+	"github.com/friendly-social-ai/cli/internal/logging"
 	"github.com/friendly-social-ai/cli/internal/navigation"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
@@ -31,25 +31,47 @@ import (
 )
 
 func main() {
-	// standard log goes to debug.log only when DEBUG is set, since the program draws over stdout
-	if os.Getenv("DEBUG") != "" {
-		f, err := tea.LogToFile("debug.log", "debug")
+	os.Exit(run())
+}
+
+// run starts the app and returns its exit code. With FRIENDLY_DEBUG set, it prints the path of the debug log when it
+// returns, so a bug report can attach the log.
+func run() int {
+	level, err := logging.Level()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	// the program draws over stdout, so logs go to a file and only while debugging
+	logging.Off()
+	if level > 0 {
+		path, err := logging.Path()
 		if err != nil {
-			log.Fatal(err)
+			fmt.Fprintln(os.Stderr, err)
+			return 1
 		}
+
+		f, err := logging.Start(level, path)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+
 		defer f.Close() //nolint:errcheck
-	} else {
-		log.SetOutput(io.Discard)
+		defer fmt.Fprintln(os.Stderr, "debug log:", path)
 	}
 
 	// config files with mistakes stop the app before it draws, so the user sees every mistake at once
 	settings, err := loadConfig()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		slog.Error("config", "err", err)
+		return 1
 	}
 
 	graphics := newGraphics(settings.Images)
+	slog.Info("images", "setting", settings.Images, "graphics", graphics != nil)
 
 	// the transport reports a rejected session to the program, which is assigned below before any request runs
 	var p *tea.Program
@@ -87,8 +109,12 @@ func main() {
 
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to run app router:", err)
-		os.Exit(1)
+		slog.Error("run", "err", err)
+		return 1
 	}
+
+	slog.Info("quit")
+	return 0
 }
 
 // loadConfig loads the user settings, keymap and theme, and reports the mistakes of all three. The theme asks the

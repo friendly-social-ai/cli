@@ -2,7 +2,7 @@ package auth
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
@@ -91,7 +91,7 @@ func (s Screen) Init() tea.Cmd {
 			// screens show nothing until one of these messages arrives. A save that fails to load counts as logged out.
 			user, err := Load()
 			if err != nil {
-				log.Printf("error: %v", err)
+				slog.Error("failed to load saved session", "err", err)
 			}
 
 			if user == nil {
@@ -184,7 +184,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case ExpiredMsg:
 		if err := Clear(); err != nil {
-			log.Printf("error: %v", err)
+			slog.Error("failed to clear expired session", "err", err)
 		}
 
 		return s, tea.Batch(
