@@ -31,8 +31,7 @@ const (
 	modePost
 )
 
-// OpenMsg asks community screen to open post. From is the screen to return to when leaving the post, empty for
-// the community list.
+// OpenMsg asks community screen to open post. From is the screen that asked, empty for the community screen itself.
 type OpenMsg struct {
 	Post sdk.CommunityPostDescriptor
 	From screen.Type
@@ -190,9 +189,6 @@ type Screen struct {
 	loadingMore   bool
 	attaching     bool
 	picking       bool
-
-	// from is the screen to return to when leaving the opened post
-	from screen.Type
 
 	// listCursor and listOffset keep the list position while a post is open
 	listCursor, listOffset int
@@ -743,8 +739,13 @@ func (s *Screen) restore() tea.Cmd {
 	return tea.Batch(raw(freed), s.loadPictures(view.details.Post), s.loadDetails(view.details.Post.Descriptor()))
 }
 
-// leave closes the opened post and goes back to where its thread was opened from, the list or another screen.
+// leave closes the opened post and goes back to the list. It selects the root of the thread if the list has it.
 func (s *Screen) leave() tea.Cmd {
+	root := s.details.Post.Id
+	if len(s.details.Upstream) > 0 {
+		root = s.details.Upstream[0].Id
+	}
+
 	s.mode = modeList
 	s.picking = false
 	s.details = nil
@@ -754,12 +755,8 @@ func (s *Screen) leave() tea.Cmd {
 	s.content.status.Set("")
 	s.content.list.Reset(s.items()...)
 	s.content.list.SetPosition(s.listCursor, s.listOffset)
-	if s.from != "" {
-		from := s.from
-		s.from = ""
-		return tea.Batch(raw(freed), screen.Send(screen.ChangeMsg{NewType: from}))
-	}
-
+	s.pending = &root
+	s.selectPending()
 	return raw(freed)
 }
 
@@ -887,7 +884,6 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		freed := s.dropPictures(nil)
 		s.user = nil
 		s.mode = modeList
-		s.from = ""
 		s.stack = nil
 		s.picking = false
 		s.posts, s.next = nil, nil
@@ -921,16 +917,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		return s, s.loadList(s.next)
 	case OpenMsg:
-		// a post opened from inside another post keeps the origin of the first one
-		if s.mode == modeList || msg.From != "" {
-			s.from = msg.From
-		}
-
 		switch {
 		case s.mode == modeList:
 			s.listCursor, s.listOffset = s.content.list.Position()
 			s.stack = nil
 		case msg.From != "":
+			// a post opened from another screen starts a new thread
 			s.stack = nil
 		default:
 			cursor, offset := s.content.list.Position()

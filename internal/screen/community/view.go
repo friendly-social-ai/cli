@@ -220,20 +220,16 @@ func (s Screen) actions() []ui.Action {
 			ui.Action{Key: ui.Key("d", "delete"), Msg: deleteMsg{}})
 	}
 
-	// h goes up one level. Deeper in a thread, H goes straight to where the thread was opened from.
-	top := "to list"
-	if s.from != "" {
-		top = "to " + string(s.from)
-	}
-
+	// h goes up one level. From the top of the thread it goes to the list. Deeper in a thread, H goes straight to
+	// the list.
 	actions = append(actions, refresh)
 	if len(s.details.Upstream) > 0 || len(s.stack) > 0 {
 		return append(actions,
 			ui.Action{Key: ui.Key("h", "to parent"), Msg: backMsg{}},
-			ui.Action{Key: ui.Key("H", top), Msg: topMsg{}})
+			ui.Action{Key: ui.Key("H", "to list"), Msg: topMsg{}})
 	}
 
-	return append(actions, ui.Action{Key: ui.Key("h", top), Msg: backMsg{}})
+	return append(actions, ui.Action{Key: ui.Key("h", "to list"), Msg: backMsg{}})
 }
 
 // openLinkAction returns the message that opens l. Images open in the image viewer, other links in the browser.
