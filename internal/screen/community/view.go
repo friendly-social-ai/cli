@@ -611,6 +611,10 @@ func (s Screen) View() string {
 		return ui.MutedStyle.Render("log in to see community")
 	}
 
+	if s.mode == modeList && len(s.posts) == 0 && s.content.status.Value() == "" && !s.composing {
+		return ui.Empty(s.width, s.height, "no posts yet", "n", "to write the first one")
+	}
+
 	var top []string
 	if header := s.header(); header != "" {
 		top = append(top, header)

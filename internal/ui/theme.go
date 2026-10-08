@@ -89,6 +89,14 @@ func Fields(pairs ...string) string {
 	return strings.Join(lines, "\n")
 }
 
+// Empty centers title in a width by height area, with key k and desc below it as a hint. Screens show it when they
+// have nothing to list.
+func Empty(width, height int, title, k, desc string) string {
+	hint := AccentStyle.Render(k) + MutedStyle.Render(" "+desc)
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center,
+		lipgloss.JoinVertical(lipgloss.Center, BoldStyle.Render(title), "", hint))
+}
+
 func inputView(view string, focused bool) string {
 	if focused {
 		return inputFocusedStyle.Render(view)

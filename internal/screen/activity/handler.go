@@ -315,7 +315,7 @@ func (s Screen) View() string {
 	case s.user == nil:
 		return ui.MutedStyle.Render("log in to see activity")
 	case len(s.activities) == 0 && s.content.status.Value() == "":
-		return ui.MutedStyle.Render("nothing here yet")
+		return ui.Empty(s.width, s.height, "no activity yet", "r", "to refresh")
 	}
 
 	s.content.list.SetHeight(s.height)

@@ -262,7 +262,7 @@ func (s Screen) View() string {
 	case s.user == nil:
 		return ui.MutedStyle.Render("log in to see people")
 	case len(s.entries) == 0 && s.content.status.Value() == "":
-		return ui.MutedStyle.Render("you are all caught up")
+		return ui.Empty(s.width, s.height, "you're all caught up", "r", "to check again")
 	}
 
 	var top []string
