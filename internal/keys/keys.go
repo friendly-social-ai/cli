@@ -141,7 +141,7 @@ var Common = struct {
 	Complete:           define("common", "complete", "tab"),
 	NextSuggestion:     define("common", "next_suggestion", "down", "ctrl+n"),
 	PreviousSuggestion: define("common", "previous_suggestion", "up", "ctrl+p"),
-	Refresh:            define("common", "refresh", "r"),
+	Refresh:            define("common", "refresh", "R"),
 	Filter:             define("common", "filter", "/"),
 }
 
@@ -151,7 +151,7 @@ var Community = struct {
 	Menu, Post, Editor, Preview, Attach, PasteImage, Discard                          *Action
 }{
 	NewPost:       define("community", "new_post", "n"),
-	Reply:         define("community", "reply", "n"),
+	Reply:         define("community", "reply", "r"),
 	Links:         define("community", "links", "o"),
 	Copy:          define("community", "copy", "y"),
 	Author:        define("community", "author", "@"),

@@ -27,13 +27,13 @@ previous_field      = ["shift+tab", "up"]
 complete            = "tab"
 next_suggestion     = ["down", "ctrl+n"]
 previous_suggestion = ["up", "ctrl+p"]
-refresh             = "r"
+refresh             = "R"
 filter              = "/"
 
 # Community has the post list, a post, the composer and its menu.
 [community]
 new_post            = "n"
-reply               = "n"
+reply               = "r"
 links               = "o"
 copy                = "y"
 author              = "@"

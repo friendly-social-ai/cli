@@ -37,8 +37,8 @@ func TestLoadMissingFileKeepsDefaults(t *testing.T) {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
 
-	if got := Community.Reply.Key(); got != "n" {
-		t.Errorf("Community.Reply.Key() = %q, want n", got)
+	if got := Community.Reply.Key(); got != "r" {
+		t.Errorf("Community.Reply.Key() = %q, want r", got)
 	}
 }
 
@@ -64,8 +64,8 @@ read_all = "z a"
 		t.Fatalf("Load() = %v, want nil", err)
 	}
 
-	if Community.Reply.Matches("n") || !Community.Reply.Matches("m") {
-		t.Errorf("Community.Reply matches n %v, m %v, want only m", Community.Reply.Matches("n"), Community.Reply.Matches("m"))
+	if Community.Reply.Matches("r") || !Community.Reply.Matches("m") {
+		t.Errorf("Community.Reply matches r %v, m %v, want only m", Community.Reply.Matches("r"), Community.Reply.Matches("m"))
 	}
 
 	if !Navigation.Down.Matches("ctrl+j") || Navigation.Down.Matches("down") {
@@ -129,7 +129,7 @@ func TestLoadRejectsMistakes(t *testing.T) {
 		{"prefix in navigation", "[navigation]\nfirst = \"g\"\nlast = \"g t\"\n",
 			`navigation: "g" of navigation.first never fires, "g t" of navigation.last starts with it`},
 		{"same sequence", "[community]\nreply = \"g g\"\n", `"g g" of community.reply is taken by navigation.first`},
-		{"same scope", "[community]\nreply = \"r\"\n", `community post: "r" is bound to both`},
+		{"same scope", "[community]\nreply = \"R\"\n", `community post: "R" is bound to both`},
 		{"taken by navigation", "[community]\ncopy = \"j\"\n", `"j" of community.copy is taken by navigation.down`},
 		{"back taken by navigation", "[navigation]\nback = \"q\"\n", `"q" of navigation.back is taken by navigation.quit`},
 		{"typed text", "[community]\npost = \"s\"\n", `composer: "s" of community.post types text`},
@@ -149,7 +149,7 @@ func TestLoadRejectsMistakes(t *testing.T) {
 func TestLoadWithMistakesChangesNothing(t *testing.T) {
 	err := load(t, `
 [community]
-reply = "r"
+reply = "R"
 fly = "f"
 
 [navigation]
@@ -160,14 +160,14 @@ quit = ""
 	}
 
 	for _, want := range []string{"unknown action community.fly", "navigation.quit: needs at least one key",
-		`community post: "r" is bound to both`} {
+		`community post: "R" is bound to both`} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("Load() = %v, want it to list %q", err, want)
 		}
 	}
 
-	if got := Community.Reply.Key(); got != "n" {
-		t.Errorf("Community.Reply.Key() = %q, want n", got)
+	if got := Community.Reply.Key(); got != "r" {
+		t.Errorf("Community.Reply.Key() = %q, want r", got)
 	}
 }
 

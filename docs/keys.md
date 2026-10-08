@@ -56,10 +56,10 @@ screen, or a screen key that a navigation key would take first. Nothing from the
 | | `complete` | `tab` |
 | | `next_suggestion` | `down`, `ctrl+n` |
 | | `previous_suggestion` | `up`, `ctrl+p` |
-| | `refresh` | `r` |
+| | `refresh` | `R` |
 | | `filter` | `/` |
 | `community` | `new_post` | `n` |
-| | `reply` | `n` |
+| | `reply` | `r` |
 | | `links` | `o` |
 | | `copy` | `y` |
 | | `author` | `@` |
