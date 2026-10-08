@@ -27,6 +27,9 @@ type (
 	clearFilterMsg struct{}
 )
 
+// tookMsg reports a finished request for a person. notice says what it did.
+type tookMsg struct{ notice string }
+
 // failedMsg brings back the person at index whose request failed.
 type failedMsg struct {
 	index int
@@ -215,9 +218,16 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.list.Reset(s.items()...)
 		return s, nil
 	case connectMsg:
-		return s.take(s.service.connect)
+		notice := "request sent to %s"
+		if s.entries[s.listed()[s.content.list.Cursor()]].IsRequest {
+			notice = "accepted %s"
+		}
+
+		return s.take(s.service.connect, notice)
 	case skipMsg:
-		return s.take(s.service.skip)
+		return s.take(s.service.skip, "skipped %s")
+	case tookMsg:
+		return s, s.content.status.Notice(msg.notice)
 	case failedMsg:
 		s.entries = slices.Insert(s.entries, min(msg.index, len(s.entries)), msg.entry)
 		s.content.list.Set(s.items()...)
@@ -239,8 +249,9 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	return s, cmd
 }
 
-// take removes the selected person right away and sends request for them. A failed request brings them back.
-func (s Screen) take(request func(*sdk.Authorization, sdk.UserDetails) error) (screen.Model, tea.Cmd) {
+// take removes the selected person right away and sends request for them. A failed request brings them back. A
+// finished one shows notice, with their nickname in place of %s.
+func (s Screen) take(request func(*sdk.Authorization, sdk.UserDetails) error, notice string) (screen.Model, tea.Cmd) {
 	index := s.listed()[s.content.list.Cursor()]
 	entry := s.entries[index]
 	s.entries = slices.Delete(s.entries, index, index+1)
@@ -253,7 +264,7 @@ func (s Screen) take(request func(*sdk.Authorization, sdk.UserDetails) error) (s
 			return router.TargetMsg{Type: screen.TypePeople, Inner: failedMsg{index: index, entry: entry, err: err}}
 		}
 
-		return nil
+		return router.TargetMsg{Type: screen.TypePeople, Inner: tookMsg{notice: fmt.Sprintf(notice, entry.Details.Nickname.Value())}}
 	}
 }
 

@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"charm.land/bubbles/v2/textarea"
@@ -119,8 +118,6 @@ type (
 		drawing, key string
 	}
 	failedMsg struct{ err error }
-	// clearNoticeMsg clears the status when it still shows notice text
-	clearNoticeMsg struct{ text string }
 )
 
 // picture is an image of a post. img is nil when the download failed. A non-zero id means terminal graphics holds
@@ -549,14 +546,6 @@ func (s Screen) dropPictures(text *sdk.CommunityPostText) string {
 	return freed.String()
 }
 
-// notice shows text in the status for a few seconds.
-func (s Screen) notice(text string) tea.Cmd {
-	s.content.status.Set(ui.MutedStyle.Render(text))
-	return tea.Tick(4*time.Second, func(time.Time) tea.Msg {
-		return router.TargetMsg{Type: screen.TypeCommunity, Inner: clearNoticeMsg{text: text}}
-	})
-}
-
 // raw returns command writing seq to the terminal, nil when there is nothing to write.
 func raw(seq string) tea.Cmd {
 	if seq == "" {
@@ -974,7 +963,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case openLinkMsg:
 		s.stopPicking()
-		return s, tea.Batch(s.notice("opened "+msg.url), func() tea.Msg {
+		return s, tea.Batch(s.content.status.Notice("opened "+msg.url), func() tea.Msg {
 			if err := browser.Open(msg.url); err != nil {
 				return router.TargetMsg{Type: screen.TypeCommunity, Inner: failedMsg{err: err}}
 			}
@@ -992,13 +981,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return openedMsg{}, err
 		})
 	case openedMsg:
-		return s, s.notice("opened image")
-	case clearNoticeMsg:
-		if s.content.status.Value() == ui.MutedStyle.Render(msg.text) {
-			s.content.status.Set("")
-		}
-
-		return s, nil
+		return s, s.content.status.Notice("opened image")
 	case backMsg:
 		if s.mode == modeList {
 			return s, nil
@@ -1030,7 +1013,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.openComposer()
 		return s, nil
 	case copyMsg:
-		return s, tea.Batch(tea.SetClipboard(msg.text), s.notice("copied "+msg.what))
+		return s, tea.Batch(tea.SetClipboard(msg.text), s.content.status.Notice("copied "+msg.what))
 	case authorMsg:
 		return s, tea.Batch(
 			screen.Send(router.TargetMsg{Type: screen.TypeUser, Inner: user.OpenMsg{Person: msg.owner, From: screen.TypeCommunity}}),
@@ -1228,7 +1211,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case submitMsg:
 		if s.uploads > 0 {
-			return s, s.notice("wait for images to upload")
+			return s, s.content.status.Notice("wait for images to upload")
 		}
 
 		return s, s.submit()

@@ -246,8 +246,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		s.self = msg.self
 		s.stopEditing()
-		s.content.status.Set("")
-		return s, nil
+		return s, s.content.status.Notice("profile saved")
 	case auth.LogoutMsg:
 		s.user, s.self, s.showEmail, s.editing = nil, nil, false, false
 		s.content.status.Set("")

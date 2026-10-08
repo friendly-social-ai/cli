@@ -145,6 +145,9 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 	case screen.MinuteMsg:
 		r, cmd := r.broadcast(msg)
 		return r, tea.Batch(cmd, minute())
+	case ui.ExpireMsg:
+		msg.Apply()
+		return r, nil
 	case ui.ClickMsg:
 		header := lipgloss.Height(r.Header())
 		if msg.Y >= header {

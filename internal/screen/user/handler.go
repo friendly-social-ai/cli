@@ -28,10 +28,11 @@ type (
 	openSocialMsg   struct{}
 	backMsg         struct{}
 	// loadedMsg carries the profile of the shown person. The request wraps it into router.TargetMsg so it reaches
-	// this screen.
+	// this screen. notice tells what a finished request did.
 	loadedMsg struct {
 		profile *sdk.UserProfile
 		err     error
+		notice  string
 	}
 )
 
@@ -116,8 +117,8 @@ func (s Screen) load() tea.Cmd {
 	}
 }
 
-// request runs fn for the shown person, then reloads the profile to show the new friendship.
-func (s Screen) request(status string, fn func(*sdk.Authorization, sdk.UserDetails) error) tea.Cmd {
+// request runs fn for the shown person, then reloads the profile to show the new friendship and shows notice.
+func (s Screen) request(status, notice string, fn func(*sdk.Authorization, sdk.UserDetails) error) tea.Cmd {
 	user, person := s.user, s.person
 	s.content.status.Busy(status)
 	return func() tea.Msg {
@@ -126,7 +127,7 @@ func (s Screen) request(status string, fn func(*sdk.Authorization, sdk.UserDetai
 		}
 
 		profile, err := s.service.get(user, person)
-		return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{profile: profile, err: err}}
+		return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{profile: profile, err: err, notice: notice}}
 	}
 }
 
@@ -160,8 +161,16 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		s.profile = msg.profile
 		s.content.status.Set("")
+		if msg.notice != "" {
+			return s, s.content.status.Notice(msg.notice)
+		}
 	case connectMsg:
-		return s, s.request("sending request", s.service.connect)
+		notice := "request sent"
+		if s.profile.User.Friendship == sdk.FriendshipIncomingRequest {
+			notice = "accepted"
+		}
+
+		return s, s.request("sending request", notice, s.service.connect)
 	case removeMsg:
 		if !s.confirmRemove {
 			s.confirmRemove = true
@@ -169,7 +178,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.confirmRemove = false
-		return s, s.request("removing", s.service.remove)
+		return s, s.request("removing", "removed from friends", s.service.remove)
 	case cancelRemoveMsg:
 		s.confirmRemove = false
 	case openSocialMsg:
