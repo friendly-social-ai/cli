@@ -48,4 +48,4 @@ make fmt   # gofmt
 make lint  # golangci-lint
 ```
 
-Set `DEBUG=1` to write logs to `debug.log`.
+Set `FRIENDLY_DEBUG=1` or `2` to write a debug log, see [docs/debug.md](docs/debug.md).
