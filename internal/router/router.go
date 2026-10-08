@@ -189,6 +189,17 @@ func (r Router) Typing() bool {
 	return ok && holder.Typing()
 }
 
+// Position returns the selected item and the number of items of the current screen. Only screens with a Position
+// method have items.
+func (r Router) Position() (int, int) {
+	holder, ok := r.screens[r.current].(interface{ Position() (int, int) })
+	if !ok {
+		return 0, 0
+	}
+
+	return holder.Position()
+}
+
 // OnTab reports whether the current screen is one of tabs, which digit keys switch.
 func (r Router) OnTab() bool {
 	for _, tab := range tabs {

@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -315,9 +316,19 @@ func (w Wrapper) footer() string {
 		tail = renderKeys([]key.Binding{keyHelp})
 	}
 
+	// the position in the list goes to the right end, like the status in the header
+	var position string
+	if i, n := w.model.Position(); n > 0 && !w.help {
+		position = ui.MutedStyle.Render(fmt.Sprintf("%d/%d", i, n))
+	}
+
 	room := w.width - 2
 	if tail != "" {
 		room -= lipgloss.Width(tail) + lipgloss.Width(keySeparator)
+	}
+
+	if position != "" {
+		room -= lipgloss.Width(position) + 2
 	}
 
 	hints = ansi.Truncate(hints, max(room, 0), "…")
@@ -325,6 +336,9 @@ func (w Wrapper) footer() string {
 		hints += keySeparator
 	}
 	hints += tail
+	if position != "" {
+		hints += strings.Repeat(" ", max(w.width-2-lipgloss.Width(hints)-lipgloss.Width(position), 2)) + position
+	}
 
 	return lipgloss.NewStyle().
 		Width(w.width).

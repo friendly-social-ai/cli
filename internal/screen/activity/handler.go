@@ -91,6 +91,11 @@ func (s Screen) Keys() []key.Binding {
 	return ui.Keys(s.actions())
 }
 
+// Position returns the selected item, counting from 1, and the number of items. The footer shows both.
+func (s Screen) Position() (int, int) {
+	return s.content.list.Cursor() + 1, s.content.list.Len()
+}
+
 func (s Screen) Status() *ui.Status {
 	return s.content.status
 }
