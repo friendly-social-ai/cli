@@ -28,8 +28,8 @@ type Wrapper struct {
 	// closes it and works as usual. helpOffset is the first help line shown when the lines don't fit.
 	help       bool
 	helpOffset int
-	// pending is the first key of a sequence of keys.Navigation.First, waiting for the key that completes it. Any other
-	// key or mouse input cancels it.
+	// pending holds the keys of a sequence so far, joined by spaces, while it waits for the next key. A key that doesn't
+	// continue it, or mouse input, cancels it.
 	pending string
 
 	width  int
@@ -174,20 +174,20 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 		if w.typing {
 			if isShortcut(msg, w.keys()) {
 				var cmd tea.Cmd
-				w.model, cmd = w.model.Update(ui.ActionMsg{Key: msg})
+				w.model, cmd = w.model.Update(ui.ActionMsg{Keys: k})
 				return w, cmd
 			}
 
 			break
 		}
 
-		if pending := w.pending; pending != "" {
-			w.pending = ""
-			if keys.Navigation.First.Matches(pending + " " + k) {
-				return w, func() tea.Msg {
-					return ui.JumpMsg{Direction: ui.DirectionUp}
-				}
-			}
+		if w.pending != "" {
+			k, w.pending = w.pending+" "+k, ""
+		}
+
+		if len(w.completions(k)) > 0 {
+			w.pending = k
+			return w, nil
 		}
 
 		switch {
@@ -217,9 +217,6 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 			return w, func() tea.Msg {
 				return ui.JumpMsg{Direction: ui.DirectionUp}
 			}
-		case keys.Navigation.First.Next(k) != "":
-			w.pending = k
-			return w, nil
 		case keys.Navigation.Last.Matches(k):
 			return w, func() tea.Msg {
 				return ui.JumpMsg{Direction: ui.DirectionDown}
@@ -236,7 +233,7 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 
 		// remaining keys are screen actions, like back. Raw keys reach the model only while typing.
 		var cmd tea.Cmd
-		w.model, cmd = w.model.Update(ui.ActionMsg{Key: msg})
+		w.model, cmd = w.model.Update(ui.ActionMsg{Keys: k})
 		return w, cmd
 	}
 
@@ -248,6 +245,37 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 // keys returns key bindings currently offered by the router.
 func (w Wrapper) keys() []key.Binding {
 	return w.model.Keys()
+}
+
+// navigationKeys returns bindings of the keys the wrapper handles, described for the footer.
+func (w Wrapper) navigationKeys() []key.Binding {
+	n := keys.Navigation
+	bindings := []key.Binding{keys.Bind("quit", n.Quit), keys.Bind("help", n.Help), keys.Bind("open", n.Open),
+		keys.Bind("down", n.Down), keys.Bind("up", n.Up), keys.Bind("first item", n.First),
+		keys.Bind("last item", n.Last), keys.Bind("half page down", n.HalfPageDown),
+		keys.Bind("half page up", n.HalfPageUp)}
+	if w.model.OnTab() {
+		for i, tab := range n.Tabs {
+			bindings = append(bindings, keys.Bind(fmt.Sprintf("tab %d", i+1), tab))
+		}
+	}
+
+	return bindings
+}
+
+// completions returns hints for the keys that complete a sequence starting with prefix, or nil when no sequence
+// does.
+func (w Wrapper) completions(prefix string) []key.Binding {
+	var hints []key.Binding
+	for _, binding := range append(w.navigationKeys(), w.keys()...) {
+		for _, k := range binding.Keys() {
+			if rest, ok := strings.CutPrefix(k, prefix+" "); ok {
+				hints = append(hints, keys.Hint(binding.Help().Desc, rest))
+			}
+		}
+	}
+
+	return hints
 }
 
 // untypable reports whether k can't be typed as text, like enter, esc or ctrl and alt combinations.
@@ -419,7 +447,7 @@ func (w Wrapper) footer() string {
 	case w.pending != "":
 		// a pending sequence has no timeout, as in vim, so the footer shows what completes it
 		hints = ui.AccentStyle.Render(w.pending) + ui.MutedStyle.Render(" pending") + keySeparator +
-			renderKeys([]key.Binding{keys.Hint("first item", keys.Navigation.First.Next(w.pending))})
+			renderKeys(w.completions(w.pending))
 	case w.typing:
 		// only keys that can't be text work while typing
 		var bindings []key.Binding

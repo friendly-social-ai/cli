@@ -30,20 +30,9 @@ func (a *Action) ID() string {
 	return a.context + "." + a.name
 }
 
-// Matches reports whether k is one of the keys of a. A sequence matches only as a whole, see Next.
+// Matches reports whether k is one of the keys of a. A sequence matches only as a whole.
 func (a *Action) Matches(k string) bool {
 	return slices.Contains(a.keys, k)
-}
-
-// Next returns the key that completes a sequence of a starting with first, or "" when there is none.
-func (a *Action) Next(first string) string {
-	for _, k := range a.keys {
-		if rest, ok := strings.CutPrefix(k, first+" "); ok {
-			return rest
-		}
-	}
-
-	return ""
 }
 
 // Key returns the first key of a for text that names it, or "" when the user keymap unbinds a.
@@ -107,6 +96,14 @@ func Pair(a, b *Action, sep string) []string {
 // Label returns the first label of Pair.
 func Label(a, b *Action, sep string) string {
 	return Pair(a, b, sep)[0]
+}
+
+// Handled returns the actions navigation handles before screens see a key. Navigation.Back is not one of them, since
+// screens decide where back goes.
+func Handled() []*Action {
+	n := Navigation
+	return append([]*Action{n.Quit, n.Help, n.Open, n.Down, n.Up, n.First, n.Last, n.HalfPageDown, n.HalfPageUp},
+		n.Tabs...)
 }
 
 // Navigation holds keys that navigation handles on every screen.

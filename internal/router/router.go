@@ -163,7 +163,7 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 	case ui.ActionMsg:
 		if r.OnTab() {
 			for i, tab := range tabs {
-				if keys.Navigation.Tabs[i].Matches(msg.Key.String()) {
+				if keys.Navigation.Tabs[i].Matches(msg.Keys) {
 					return r.pick(tab.screen)
 				}
 			}

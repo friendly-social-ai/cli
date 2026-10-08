@@ -56,6 +56,9 @@ reply = "m"
 [navigation]
 down = ["j", "ctrl+j"]
 first = "g"
+
+[activity]
+read_all = "z a"
 `)
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
@@ -71,6 +74,10 @@ first = "g"
 
 	if !Navigation.First.Matches("g") {
 		t.Errorf("Navigation.First = %v, want g", Navigation.First.keys)
+	}
+
+	if !Activity.ReadAll.Matches("z a") {
+		t.Errorf("Activity.ReadAll = %v, want z a", Activity.ReadAll.keys)
 	}
 
 	if got := Community.Edit.Key(); got != "e" {
@@ -92,6 +99,16 @@ func TestLoadUnbindsScreenAction(t *testing.T) {
 	}
 }
 
+func TestLoadSharesStartOfSequences(t *testing.T) {
+	if err := load(t, "[navigation]\nlast = \"g t\"\n\n[community]\nroot = \"g r\"\n"); err != nil {
+		t.Fatalf("Load() = %v, want nil", err)
+	}
+
+	if !Navigation.Last.Matches("g t") || !Community.Root.Matches("g r") {
+		t.Errorf("Navigation.Last = %v, Community.Root = %v, want g t and g r", Navigation.Last.keys, Community.Root.keys)
+	}
+}
+
 func TestLoadRejectsMistakes(t *testing.T) {
 	tests := []struct {
 		name, content, want string
@@ -104,7 +121,14 @@ func TestLoadRejectsMistakes(t *testing.T) {
 		{"dash modifier", "[navigation]\nhalf_page_down = \"ctrl-d\"\n", `"ctrl-d" is not a key`},
 		{"modifier order", "[community]\nreply = \"alt+ctrl+r\"\n", "needs its modifiers in the order"},
 		{"shifted character", "[community]\nreply = \"shift+n\"\n", `"shift+n" arrives as "N"`},
-		{"sequence", "[community]\nreply = \"z z\"\n", "only navigation.first takes one"},
+		{"sequence while typing", "[community]\npost = \"ctrl+x ctrl+s\"\n",
+			`composer: "ctrl+x ctrl+s" of community.post is a sequence, which doesn't work while typing`},
+		{"bad key in sequence", "[navigation]\nlast = \"g Tab\"\n", `"Tab" is not a key`},
+		{"prefix of navigation", "[community]\ncopy = \"g\"\n",
+			`"g" of community.copy never fires, "g g" of navigation.first starts with it`},
+		{"prefix in navigation", "[navigation]\nfirst = \"g\"\nlast = \"g t\"\n",
+			`navigation: "g" of navigation.first never fires, "g t" of navigation.last starts with it`},
+		{"same sequence", "[community]\nreply = \"g g\"\n", `"g g" of community.reply is taken by navigation.first`},
 		{"same scope", "[community]\nreply = \"r\"\n", `community post: "r" is bound to both`},
 		{"taken by navigation", "[community]\ncopy = \"j\"\n", `"j" of community.copy is taken by navigation.down`},
 		{"back taken by navigation", "[navigation]\nback = \"q\"\n", `"q" of navigation.back is taken by navigation.quit`},

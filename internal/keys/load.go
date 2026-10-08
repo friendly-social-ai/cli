@@ -122,12 +122,7 @@ func parse(a *Action, value any) ([]string, string) {
 	}
 
 	for _, k := range keys {
-		presses := strings.Split(k, " ")
-		if len(presses) > 1 && a != Navigation.First {
-			return nil, fmt.Sprintf("%q is a sequence, only navigation.first takes one", k)
-		}
-
-		for _, press := range presses {
+		for _, press := range strings.Split(k, " ") {
 			if problem := checkKey(press); problem != "" {
 				return nil, problem
 			}
@@ -180,18 +175,11 @@ func checkKey(k string) string {
 }
 
 // scope is a set of actions the app offers at the same time, so their keys must differ. A typing scope takes typed
-// text, so its keys must not be text, and navigation doesn't handle its keys.
+// text, so its keys must not be text or sequences, and navigation doesn't handle its keys.
 type scope struct {
 	name    string
 	typing  bool
 	actions []*Action
-}
-
-// handled returns the actions navigation handles before screens see a key.
-func handled() []*Action {
-	n := Navigation
-	return append([]*Action{n.Quit, n.Help, n.Open, n.Down, n.Up, n.First, n.Last, n.HalfPageDown, n.HalfPageUp},
-		n.Tabs...)
 }
 
 // scopes returns the sets of actions the screens offer together. They copy the actions methods of the screens, so a
@@ -199,7 +187,7 @@ func handled() []*Action {
 func scopes() []scope {
 	n, c, m := Navigation, Common, Community
 	return []scope{
-		{"navigation", false, handled()},
+		{"navigation", false, Handled()},
 		{"community list", false, []*Action{m.Copy, m.Author, m.NewPost, c.Filter, c.Refresh, c.Cancel}},
 		{"community post", false, []*Action{m.Links, m.NextReply, m.PreviousReply, m.Copy, m.Author, c.Refresh,
 			m.Reply, m.Edit, m.Delete, n.Back, c.Cancel, m.Root}},
@@ -217,45 +205,59 @@ func scopes() []scope {
 }
 
 // check returns the problems of the keys keysOf gives every action: a key bound twice in a scope, a key of a screen
-// that navigation takes first, and a key of a typing scope that types text.
+// that navigation takes first, a key that never fires because a longer key starts with it, and a key of a typing
+// scope that types text or is a sequence.
 func check(keysOf func(*Action) []string) []string {
-	// a sequence clashes by its first press, since navigation waits for the rest after it
-	presses := func(a *Action) []string {
-		var firsts []string
-		for _, k := range keysOf(a) {
-			first, _, _ := strings.Cut(k, " ")
-			firsts = append(firsts, first)
-		}
-
-		return firsts
-	}
-
-	taken := make(map[string]*Action)
-	nav := handled()
-	for _, a := range nav {
-		for _, k := range presses(a) {
-			taken[k] = a
-		}
-	}
-
+	nav := Handled()
 	var problems []string
 	for _, s := range scopes() {
+		// navigation handles its keys on every screen that isn't typing, so they count there too. Problems among
+		// navigation keys show only in the navigation scope.
+		actions := s.actions
+		if !s.typing && s.name != "navigation" {
+			actions = append(slices.Clone(nav), actions...)
+		}
+
+		inNav := func(a *Action) bool {
+			return s.name != "navigation" && slices.Contains(nav, a)
+		}
+
 		owners := make(map[string]*Action)
-		for _, a := range s.actions {
-			for _, k := range presses(a) {
-				if other, ok := owners[k]; ok && other != a {
+		for _, a := range actions {
+			for _, k := range keysOf(a) {
+				switch {
+				case s.typing && strings.Contains(k, " "):
+					problems = append(problems, fmt.Sprintf("%s: %q of %s is a sequence, which doesn't work while typing",
+						s.name, k, a.ID()))
+				case s.typing && (utf8.RuneCountInString(k) == 1 || k == "space"):
+					problems = append(problems,
+						fmt.Sprintf("%s: %q of %s types text, pick a key with ctrl or alt", s.name, k, a.ID()))
+				}
+
+				other, ok := owners[k]
+				switch {
+				case !ok || other == a || inNav(other) && inNav(a):
+				case inNav(other):
+					problems = append(problems, fmt.Sprintf("%s: %q of %s is taken by %s", s.name, k, a.ID(), other.ID()))
+				default:
 					problems = append(problems,
 						fmt.Sprintf("%s: %q is bound to both %s and %s", s.name, k, other.ID(), a.ID()))
 				}
 
-				owners[k] = a
-				switch {
-				case s.typing && (utf8.RuneCountInString(k) == 1 || k == "space"):
-					problems = append(problems,
-						fmt.Sprintf("%s: %q of %s types text, pick a key with ctrl or alt", s.name, k, a.ID()))
-				case !s.typing && !slices.Contains(nav, a) && taken[k] != nil:
-					problems = append(problems,
-						fmt.Sprintf("%s: %q of %s is taken by %s", s.name, k, a.ID(), taken[k].ID()))
+				if !ok {
+					owners[k] = a
+				}
+			}
+		}
+
+		// there is no timeout, so a key that starts a longer one always waits for more
+		for _, k := range slices.Sorted(maps.Keys(owners)) {
+			presses := strings.Split(k, " ")
+			for i := 1; i < len(presses); i++ {
+				prefix := strings.Join(presses[:i], " ")
+				if short, ok := owners[prefix]; ok && (!inNav(short) || !inNav(owners[k])) {
+					problems = append(problems, fmt.Sprintf("%s: %q of %s never fires, %q of %s starts with it",
+						s.name, prefix, short.ID(), k, owners[k].ID()))
 				}
 			}
 		}

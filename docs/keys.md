@@ -7,7 +7,7 @@ action with its default keys, ready to copy.
 ```toml
 [navigation]
 down  = ["j", "ctrl+j"]   # a list gives several keys, the first shows in hints
-first = "g"               # one key or a two-key sequence like "g g"
+last  = "g t"             # a sequence, g then t
 
 [community]
 reply  = "m"
@@ -21,7 +21,11 @@ delete = []               # unbinds the action
 - Named keys are `enter`, `tab`, `backspace`, `esc`, `space`, `up`, `down`, `left`, `right`, `home`, `end`, `pgup`,
   `pgdown`, `insert`, `delete`, `begin`, `find`, `select` and `f1` to `f99`.
 - Write a shifted letter as the capital, `J` and not `shift+j`.
-- Only `navigation.first` takes a sequence.
+- A key with spaces is a sequence, pressed one key after another, like `g t`. Help shows it as `gt`.
+- While a sequence waits for its next key, the footer lists the keys that complete it. Any other key cancels it.
+- There is no timeout, so a key can't also start a longer key on the same screen. `g` and `g t` together fail, while
+  `g g` and `g t` share their start and work.
+- Sequences don't work while you type, in the composer and in forms.
 - `navigation` and `common` actions need at least one key. Other actions can be unbound with `[]`.
 - Keys the composer and forms use while you type must not be text, so pick one with `ctrl` or `alt`.
 - `ctrl+c` always quits.
