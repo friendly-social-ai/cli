@@ -328,8 +328,13 @@ func (s Screen) Badge() string {
 	return ""
 }
 
-// Position returns the selected item, counting from 1, and the number of items. The footer shows both.
+// Position returns the selected item, counting from 1, and the number of items. The footer shows both. In post mode,
+// only the posts below the opened post count, so the opened post is 0.
 func (s Screen) Position() (int, int) {
+	if s.mode == modePost && !s.picking {
+		return s.content.list.Cursor(), s.content.list.Len() - 1
+	}
+
 	return s.content.list.Cursor() + 1, s.content.list.Len()
 }
 
