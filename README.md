@@ -37,6 +37,7 @@ make run
 - Emoji shortcode supports
 - Drag, paste or attach (with auto path completion) for images
 - Change any key in `~/.config/friendly/keys.toml`, see [docs/keys.md](docs/keys.md)
+- Change the colors in `~/.config/friendly/theme.toml`, see [docs/theme.md](docs/theme.md)
 
 ## Development
 

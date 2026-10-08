@@ -1,0 +1,21 @@
+# Default theme of the Friendly CLI. Copy it to ~/.config/friendly/theme.toml and change what you like.
+# Colors you delete keep their default. See docs/theme.md for the rules.
+
+# auto asks the terminal whether its background is dark. dark and light pick a section without asking.
+mode = "auto"
+
+# Colors on a dark background.
+[dark]
+primary   = "#6E8BFF"
+muted     = "#B4B4B4"
+danger    = "#F0715A"
+border    = "#4E4E4E"
+selection = "#232A3B"
+
+# Colors on a light background.
+[light]
+primary   = "#0060D0"
+muted     = "#646464"
+danger    = "#C4391D"
+border    = "#C8C8C8"
+selection = "#E8EDF9"
