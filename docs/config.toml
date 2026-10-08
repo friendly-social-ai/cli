@@ -1,0 +1,8 @@
+# Default settings of the Friendly CLI. Copy it to ~/.config/friendly/config.toml and change what you like.
+# Settings you delete keep their default. See docs/config.md for the rules.
+
+# How posts show images. auto, graphics, blocks or off.
+images = "auto"
+
+# How often to check for new posts and activity, like 30s or 5m. "0" turns the checks off.
+refresh = "1m"

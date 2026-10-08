@@ -38,6 +38,8 @@ make run
 - Drag, paste or attach (with auto path completion) for images
 - Change any key in `~/.config/friendly/keys.toml`, see [docs/keys.md](docs/keys.md)
 - Change the colors in `~/.config/friendly/theme.toml`, see [docs/theme.md](docs/theme.md)
+- Turn images off or change how often the app checks for new posts in `~/.config/friendly/config.toml`, see
+  [docs/config.md](docs/config.md)
 
 ## Development
 

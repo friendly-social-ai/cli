@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/BurntSushi/toml"
 )
 
 func loadSettings(t *testing.T, content string) (Settings, error) {
@@ -59,5 +61,28 @@ func TestLoadRejectsMistakes(t *testing.T) {
 func TestLoadRejectsShortRefresh(t *testing.T) {
 	if _, err := loadSettings(t, "refresh = \"5s\"\n"); err == nil || !strings.Contains(err.Error(), "shorter than 30s") {
 		t.Errorf("Load() = %v, want an error about the shortest refresh", err)
+	}
+}
+
+// docs/config.toml is the default config users copy, so it must give every setting its default.
+func TestDocsConfigListsDefaults(t *testing.T) {
+	data, err := os.ReadFile("../../docs/config.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var file map[string]any
+	if err := toml.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range []string{"images", "refresh"} {
+		if _, ok := file[name]; !ok {
+			t.Errorf("docs/config.toml misses %s", name)
+		}
+	}
+
+	if got, err := loadSettings(t, string(data)); err != nil || got != Defaults {
+		t.Errorf("docs/config.toml gives %+v, %v, want the defaults %+v", got, err, Defaults)
 	}
 }
