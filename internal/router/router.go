@@ -29,6 +29,8 @@ var tabs = []struct {
 type Router struct {
 	current screen.Type
 	screens map[screen.Type]screen.Model
+	// refresh is the time between screen.PollMsg, zero for none
+	refresh time.Duration
 
 	// spinner animates a busy status of the current screen, and spinning tells that its frames are ticking
 	spinner  spinner.Model
@@ -38,8 +40,9 @@ type Router struct {
 	height int
 }
 
-// NewRouter creates new Router based on provided screens.
-func NewRouter(models []screen.Model) Router {
+// NewRouter creates new Router based on provided screens. Every refresh it asks them to check for new data, never when
+// refresh is zero.
+func NewRouter(models []screen.Model, refresh time.Duration) Router {
 	screens := make(map[screen.Type]screen.Model)
 	for _, m := range models {
 		screens[m.ID()] = m
@@ -48,12 +51,13 @@ func NewRouter(models []screen.Model) Router {
 	return Router{
 		current: models[0].ID(),
 		screens: screens,
+		refresh: refresh,
 		spinner: spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(ui.AccentStyle)),
 	}
 }
 
 func (r Router) Init() tea.Cmd {
-	cmds := []tea.Cmd{minute()}
+	cmds := []tea.Cmd{minute(), r.poll()}
 	for _, s := range r.screens {
 		cmds = append(cmds, s.Init())
 	}
@@ -65,6 +69,17 @@ func (r Router) Init() tea.Cmd {
 func minute() tea.Cmd {
 	return tea.Tick(time.Minute, func(time.Time) tea.Msg {
 		return screen.MinuteMsg{}
+	})
+}
+
+// poll returns command delivering screen.PollMsg after the refresh, or nil when refresh is off.
+func (r Router) poll() tea.Cmd {
+	if r.refresh == 0 {
+		return nil
+	}
+
+	return tea.Tick(r.refresh, func(time.Time) tea.Msg {
+		return screen.PollMsg{}
 	})
 }
 
@@ -145,6 +160,9 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 	case screen.MinuteMsg:
 		r, cmd := r.broadcast(msg)
 		return r, tea.Batch(cmd, minute())
+	case screen.PollMsg:
+		r, cmd := r.broadcast(msg)
+		return r, tea.Batch(cmd, r.poll())
 	case ui.ExpireMsg:
 		msg.Apply()
 		return r, nil

@@ -531,6 +531,8 @@ func renderedKey(url string, width, rows int) string {
 func (s Screen) picture(url string) string {
 	p, ok := s.pictures[url]
 	switch {
+	case s.hideImages:
+		return ui.MutedStyle.Render("[image]")
 	case !ok || !p.done:
 		return ui.MutedStyle.Render("[loading image]")
 	case p.img == nil:

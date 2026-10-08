@@ -43,12 +43,13 @@ func main() {
 	}
 
 	// config files with mistakes stop the app before it draws, so the user sees every mistake at once
-	if err := loadConfig(); err != nil {
+	settings, err := loadConfig()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	graphics := ui.NewGraphics()
+	graphics := newGraphics(settings.Images)
 
 	// the transport reports a rejected session to the program, which is assigned below before any request runs
 	var p *tea.Program
@@ -60,7 +61,7 @@ func main() {
 	})
 	screens := []screen.Model{
 		home.New(),
-		community.New(community.NewService(client), graphics),
+		community.New(community.NewService(client), graphics, settings.Images == "off"),
 		activity.New(activity.NewService(client)),
 		people.New(people.NewService(client)),
 		profile.New(profile.NewService(client)),
@@ -69,7 +70,7 @@ func main() {
 		user.New(user.NewService(client)),
 	}
 
-	wrapper := navigation.NewWrapper(router.NewRouter(screens))
+	wrapper := navigation.NewWrapper(router.NewRouter(screens, settings.Refresh))
 
 	p = tea.NewProgram(wrapper, options()...)
 	// tmux draws emoji at their grapheme width, which is how lipgloss measures them. It doesn't answer the query for
@@ -79,7 +80,7 @@ func main() {
 		go p.Send(tea.ModeReportMsg{Mode: ansi.ModeUnicodeCore, Value: ansi.ModeSet})
 	}
 
-	_, err := p.Run()
+	_, err = p.Run()
 	if graphics != nil {
 		graphics.Close(os.Stdout)
 	}
@@ -90,22 +91,36 @@ func main() {
 	}
 }
 
-// loadConfig loads the user keymap and theme, and reports the mistakes of both. The theme asks the terminal for its
-// background only in auto mode.
-func loadConfig() error {
-	keysPath, err := config.Path("keys.toml")
-	if err != nil {
-		return err
+// loadConfig loads the user settings, keymap and theme, and reports the mistakes of all three. The theme asks the
+// terminal for its background only in auto mode.
+func loadConfig() (config.Settings, error) {
+	var paths [3]string
+	for i, name := range []string{"config.toml", "keys.toml", "theme.toml"} {
+		path, err := config.Path(name)
+		if err != nil {
+			return config.Defaults, err
+		}
+
+		paths[i] = path
 	}
 
-	themePath, err := config.Path("theme.toml")
-	if err != nil {
-		return err
-	}
-
-	return errors.Join(keys.Load(keysPath), ui.LoadTheme(themePath, func() bool {
+	settings, err := config.Load(paths[0])
+	return settings, errors.Join(err, keys.Load(paths[1]), ui.LoadTheme(paths[2], func() bool {
 		return lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 	}))
+}
+
+// newGraphics returns the terminal graphics the images setting asks for, or nil to draw images with half-blocks or
+// not at all.
+func newGraphics(images string) *ui.Graphics {
+	switch images {
+	case "auto":
+		return ui.NewGraphics()
+	case "graphics":
+		return ui.ForceGraphics()
+	}
+
+	return nil
 }
 
 // options returns program options. Inside tmux, color detection ignores COLORTERM and asks `tmux info`, which

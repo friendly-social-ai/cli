@@ -145,13 +145,15 @@ type postView struct {
 type Screen struct {
 	service  *Service
 	graphics *ui.Graphics
-	markdown *ui.Markdown
-	user     *sdk.Authorization
-	mode     mode
+	// hideImages shows images as [image] without downloading them
+	hideImages bool
+	markdown   *ui.Markdown
+	user       *sdk.Authorization
+	mode       mode
 
 	posts []sdk.CommunityPost
 	next  *sdk.CursorId
-	// fresh is the number of posts on the first page that the list doesn't have yet. The poll updates it every minute.
+	// fresh is the number of posts on the first page that the list doesn't have yet. The poll updates it every refresh.
 	fresh int
 
 	details     *sdk.CommunityPostDetails
@@ -214,16 +216,18 @@ type Screen struct {
 	height int
 }
 
-// New creates new Screen from Service. It draws images with graphics when it is not nil, and with half-blocks otherwise.
-func New(service *Service, graphics *ui.Graphics) Screen {
+// New creates new Screen from Service. It draws images with graphics when it is not nil, and with half-blocks
+// otherwise. With hideImages it shows no images.
+func New(service *Service, graphics *ui.Graphics, hideImages bool) Screen {
 	result := Screen{
-		service:   service,
-		graphics:  graphics,
-		markdown:  ui.NewMarkdown(),
-		pictures:  make(map[string]*picture),
-		rendered:  make(map[string]string),
-		images:    make(map[int]string),
-		attachDir: "~/",
+		service:    service,
+		graphics:   graphics,
+		hideImages: hideImages,
+		markdown:   ui.NewMarkdown(),
+		pictures:   make(map[string]*picture),
+		rendered:   make(map[string]string),
+		images:     make(map[int]string),
+		attachDir:  "~/",
 	}
 
 	input := textarea.New()
@@ -476,6 +480,10 @@ func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
 
 // loadImages downloads images of text that aren't loaded yet.
 func (s Screen) loadImages(text string) tea.Cmd {
+	if s.hideImages {
+		return nil
+	}
+
 	var cmds []tea.Cmd
 	for _, match := range imagePattern.FindAllStringSubmatch(text, -1) {
 		url := match[1]
@@ -947,6 +955,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case screen.MinuteMsg:
 		// rebuilt items show fresh relative times
 		s.content.list.Set(s.items()...)
+		return s, nil
+	case screen.PollMsg:
 		return s, s.poll()
 	case polledMsg:
 		known := make(map[sdk.CommunityPostId]bool, len(s.posts))

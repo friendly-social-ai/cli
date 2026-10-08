@@ -61,8 +61,14 @@ func NewGraphics() *Graphics {
 		return nil
 	}
 
+	return ForceGraphics()
+}
+
+// ForceGraphics returns Graphics without asking whether the terminal supports Unicode placeholders, for a user who
+// knows it does.
+func ForceGraphics() *Graphics {
 	return &Graphics{
-		tmux: tmux,
+		tmux: os.Getenv("TMUX") != "",
 		ids:  make(map[uint32]struct{}),
 	}
 }

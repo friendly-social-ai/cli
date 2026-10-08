@@ -121,7 +121,7 @@ func (s Screen) load(cursor *sdk.CursorId) tea.Cmd {
 	}
 }
 
-// poll fetches the first page of activity without showing a status. On failure it logs and tries again next minute.
+// poll fetches the first page of activity without showing a status. On failure it logs and tries again at the next refresh.
 func (s Screen) poll() tea.Cmd {
 	if s.user == nil {
 		return nil
@@ -183,6 +183,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.load(nil)
 	case screen.MinuteMsg:
 		s.content.list.Set(s.items()...)
+		return s, nil
+	case screen.PollMsg:
 		return s, s.poll()
 	case polledMsg:
 		// new activities go on top and the cursor stays on the same one

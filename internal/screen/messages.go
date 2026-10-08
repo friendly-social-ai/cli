@@ -22,8 +22,11 @@ type ErrorMsg struct {
 // TickMsg signals that screen must be redrawn.
 type TickMsg struct{}
 
-// MinuteMsg reaches every screen once a minute, to redraw relative times and check for new activity.
+// MinuteMsg reaches every screen once a minute, to redraw relative times.
 type MinuteMsg struct{}
+
+// PollMsg reaches every screen at the refresh the user sets, to check for new posts and activity.
+type PollMsg struct{}
 
 // ReselectMsg reaches a tab screen when the user picks its tab while already on it, to go back to its first view.
 type ReselectMsg struct{}
