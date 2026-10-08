@@ -225,11 +225,11 @@ func (s Screen) actions() []ui.Action {
 	actions = append(actions, refresh)
 	if len(s.details.Upstream) > 0 || len(s.stack) > 0 {
 		return append(actions,
-			ui.Action{Key: ui.Key("h", "to parent"), Msg: backMsg{}},
+			ui.Action{Key: ui.Key("h", "to parent", "esc"), Msg: backMsg{}},
 			ui.Action{Key: ui.Key("H", "to list"), Msg: topMsg{}})
 	}
 
-	return append(actions, ui.Action{Key: ui.Key("h", "to list"), Msg: backMsg{}})
+	return append(actions, ui.Action{Key: ui.Key("h", "to list", "esc"), Msg: backMsg{}})
 }
 
 // openLinkAction returns the message that opens l. Images open in the image viewer, other links in the browser.

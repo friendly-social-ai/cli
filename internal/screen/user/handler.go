@@ -73,7 +73,7 @@ func (Screen) Init() tea.Cmd {
 }
 
 func (s Screen) actions() []ui.Action {
-	back := ui.Action{Key: ui.Key("h", "back"), Msg: backMsg{}}
+	back := ui.Action{Key: ui.Key("h", "back", "esc"), Msg: backMsg{}}
 	if s.confirmRemove {
 		return []ui.Action{
 			{Key: ui.Key("x", "confirm remove"), Msg: removeMsg{}},
