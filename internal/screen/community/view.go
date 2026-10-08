@@ -180,6 +180,13 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("l", "open", "enter")})
 	}
 
+	// J and K skip the rest of a chain, so they only differ from j and k when a reply is a chain
+	if s.mode == modePost && len(s.replyStarts()) < s.content.list.Len() {
+		actions = append(actions,
+			ui.Action{Key: ui.Key("J", "next reply"), Msg: replyJumpMsg{direction: ui.DirectionDown}},
+			ui.Action{Key: ui.Key("K", "previous reply"), Msg: replyJumpMsg{direction: ui.DirectionUp}})
+	}
+
 	if post, ok := s.cursorPost(); ok && !post.Deleted() {
 		actions = append(actions, ui.Action{Key: ui.Key("y", "copy"), Msg: copyMsg{text: post.Text.Value(), what: "post"}})
 		if post.Owner != nil && !s.owns(post) {

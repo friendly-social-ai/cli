@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -72,6 +73,8 @@ type (
 	hideEmojiMsg     struct{}
 	// chooseMsg moves the chosen shortcode suggestion by step
 	chooseMsg struct{ step int }
+	// replyJumpMsg selects the first post of the next or previous reply in direction
+	replyJumpMsg struct{ direction ui.Direction }
 	// copyMsg puts text in the clipboard. what names the copied thing in the notice.
 	copyMsg struct{ text, what string }
 )
@@ -730,6 +733,43 @@ func (s *Screen) up(i int) tea.Cmd {
 	return tea.Batch(raw(freed), s.loadPictures(parent), s.loadDetails(parent.Descriptor()))
 }
 
+// replyStarts returns the list indexes of the opened post and of the first post of each reply. A reply can be a chain
+// of posts.
+func (s Screen) replyStarts() []int {
+	starts := []int{0}
+	next := 1
+	for _, reply := range s.replies {
+		starts = append(starts, next)
+		next += len(reply.Posts())
+	}
+
+	return starts
+}
+
+// replyJump returns the list index of the first post of the next reply from the cursor in direction. The opened post
+// counts as a reply. Up from inside a chain goes to the first post of that chain. At either end it returns the cursor.
+func (s Screen) replyJump(direction ui.Direction) int {
+	cursor := s.content.list.Cursor()
+	starts := s.replyStarts()
+	if direction == ui.DirectionDown {
+		for _, i := range starts {
+			if i > cursor {
+				return i
+			}
+		}
+
+		return cursor
+	}
+
+	for _, i := range slices.Backward(starts) {
+		if i < cursor {
+			return i
+		}
+	}
+
+	return cursor
+}
+
 // restore brings back the post on top of the stack at its position, and refreshes it in the background.
 func (s *Screen) restore() tea.Cmd {
 	view := s.stack[len(s.stack)-1]
@@ -1004,6 +1044,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		return s, s.leave()
+	case replyJumpMsg:
+		s.content.list.Select(s.replyJump(msg.direction))
+		// like moving near the end, it loads the next page of replies
+		if s.content.list.Cursor() >= s.content.list.Len()-3 {
+			return s.Update(moreMsg{})
+		}
+
+		return s, nil
 	case rootMsg:
 		if s.mode == modeList {
 			return s, nil
