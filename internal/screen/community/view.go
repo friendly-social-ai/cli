@@ -35,8 +35,8 @@ var (
 // suggestionLimit is the number of shortcodes the composer suggests at once.
 const suggestionLimit = 6
 
-// items builds elements of the current mode. List mode shows posts. Post mode shows the parents from the top of the
-// thread, then the opened post and its replies.
+// items builds elements of the current mode. List mode shows posts. Post mode shows the opened post and its replies.
+// View shows the parents above the list.
 func (s Screen) items() []ui.Component {
 	var items []ui.Component
 	if s.picking {
@@ -58,12 +58,6 @@ func (s Screen) items() []ui.Component {
 		}
 
 		return items
-	}
-
-	for i, post := range s.details.Upstream {
-		author, _ := metaParts(post)
-		line := ansi.Truncate("↑ "+author+": "+FirstLine(post), s.textWidth(), "…")
-		items = append(items, ui.NewButton(ui.MutedStyle.Render(line), screen.Send(upMsg{index: i})))
 	}
 
 	items = append(items, ui.NewLabel(s.opened()))
@@ -162,10 +156,8 @@ func (s Screen) actions() []ui.Action {
 		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
 	}
 
-	switch cursor := s.content.list.Cursor(); {
-	case s.mode == modePost && cursor < s.openedIndex():
-		actions = append(actions, ui.Action{Key: ui.Key("l", "open", "enter")})
-	case s.mode == modePost && cursor == s.openedIndex():
+	switch {
+	case s.mode == modePost && s.content.list.Cursor() == 0:
 		if s.details.Post.Deleted() {
 			break
 		}
@@ -399,12 +391,27 @@ func (s Screen) header() string {
 	return ""
 }
 
-// openedIndex returns list index of the opened post, which follows its parents.
-func (s Screen) openedIndex() int {
-	return len(s.details.Upstream)
+// parentLimit is the number of nearest parents shown above the opened post. Older ones show as a count.
+const parentLimit = 3
+
+// parents renders the parents of the opened post, nearest last. View shows them above the list.
+func (s Screen) parents() string {
+	upstream := s.details.Upstream
+	var lines []string
+	if hidden := len(upstream) - parentLimit; hidden > 0 {
+		lines = append(lines, ui.MutedStyle.Render(fmt.Sprintf("↑ %d more", hidden)))
+		upstream = upstream[hidden:]
+	}
+
+	for _, post := range upstream {
+		author, _ := metaParts(post)
+		lines = append(lines, ui.MutedStyle.Render(ansi.Truncate("↑ "+author+": "+FirstLine(post), s.textWidth(), "…")))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
-// opened renders the opened post in full, as the item after its parents in post mode.
+// opened renders the opened post in full, as the first item in post mode.
 func (s Screen) opened() string {
 	post := s.details.Post
 	body := ui.MutedStyle.Render("this post was deleted")
@@ -607,6 +614,10 @@ func (s Screen) View() string {
 	var top []string
 	if header := s.header(); header != "" {
 		top = append(top, header)
+	}
+
+	if s.mode == modePost && !s.picking && len(s.details.Upstream) > 0 {
+		top = append(top, s.parents())
 	}
 
 	if s.mode == modeList {

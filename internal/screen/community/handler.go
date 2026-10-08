@@ -74,8 +74,6 @@ type (
 	chooseMsg struct{ step int }
 	// copyMsg puts text in the clipboard. what names the copied thing in the notice.
 	copyMsg struct{ text, what string }
-	// upMsg opens parent index of the opened post, counted from the top of the thread
-	upMsg struct{ index int }
 )
 
 // Messages produced by requests. Requests wrap them into router.TargetMsg so they reach this screen even after the user leaves.
@@ -329,8 +327,8 @@ func (s *Screen) reload() tea.Cmd {
 	return s.loadList(nil)
 }
 
-// shown returns posts shown as list items in order, and the list index of the first one, which follows the parents
-// and the opened post in post mode.
+// shown returns the posts in the list in order, and the list index of the first one. In post mode the opened post
+// comes first, so the index is 1.
 func (s Screen) shown() ([]sdk.CommunityPost, int) {
 	if s.mode == modeList {
 		return s.listed(), 0
@@ -341,7 +339,7 @@ func (s Screen) shown() ([]sdk.CommunityPost, int) {
 		posts = append(posts, reply.Posts()...)
 	}
 
-	return posts, s.openedIndex() + 1
+	return posts, 1
 }
 
 // listed returns posts of the list that match the filter by author or text.
@@ -384,15 +382,10 @@ func (s Screen) selected() (sdk.CommunityPost, bool) {
 	return sdk.CommunityPost{}, false
 }
 
-// cursorPost returns the post under the cursor: a parent, the opened post, a reply or a post of the list.
+// cursorPost returns the post under the cursor: the opened post, a reply or a post of the list.
 func (s Screen) cursorPost() (sdk.CommunityPost, bool) {
-	if cursor := s.content.list.Cursor(); s.mode == modePost {
-		switch {
-		case cursor < s.openedIndex():
-			return s.details.Upstream[cursor], true
-		case cursor == s.openedIndex():
-			return s.details.Post, true
-		}
+	if s.mode == modePost && s.content.list.Cursor() == 0 {
+		return s.details.Post, true
 	}
 
 	return s.selected()
@@ -445,7 +438,6 @@ func (s *Screen) open(post sdk.CommunityPost, upstream []sdk.CommunityPost) stri
 	s.replies, s.repliesNext = nil, nil
 	s.content.field.Raw().SetValue("")
 	s.content.list.Reset(s.items()...)
-	s.content.list.SetPosition(s.openedIndex(), 0)
 	return freed
 }
 
@@ -553,7 +545,6 @@ func raw(seq string) tea.Cmd {
 func (s *Screen) stopPicking() {
 	s.picking = false
 	s.content.list.Reset(s.items()...)
-	s.content.list.Select(s.openedIndex())
 }
 
 // stopAttaching hides path prompt and moves typing back to the text field.
@@ -999,8 +990,6 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		s.openComposer()
 		return s, nil
-	case upMsg:
-		return s, s.up(msg.index)
 	case copyMsg:
 		return s, tea.Batch(tea.SetClipboard(msg.text), s.notice("copied "+msg.what))
 	case authorMsg:
@@ -1226,11 +1215,6 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case detailsMsg:
 		// details of the post already open update it in place. The cursor and any draft stay.
 		same := s.mode == modePost && s.details != nil && s.details.Post.Id == msg.details.Post.Id
-		// parents come first in the list, so a change in their number moves the other items
-		shift := len(msg.details.Upstream)
-		if same {
-			shift -= len(s.details.Upstream)
-		}
 
 		var freed string
 		if !same {
@@ -1250,11 +1234,6 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			s.content.list.Set(s.items()...)
 		} else {
 			s.content.list.Reset(s.items()...)
-		}
-
-		if shift != 0 {
-			cursor, offset := s.content.list.Position()
-			s.content.list.SetPosition(cursor+shift, offset)
 		}
 
 		s.selectPending()
