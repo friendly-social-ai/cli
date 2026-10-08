@@ -3,6 +3,7 @@ package community
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -295,6 +296,15 @@ func (s Screen) Typing() bool {
 // Unsaved reports whether the composer is open.
 func (s Screen) Unsaved() bool {
 	return s.composing
+}
+
+// Badge returns the number of new posts for the tab, empty when there are none.
+func (s Screen) Badge() string {
+	if s.fresh > 0 {
+		return strconv.Itoa(s.fresh)
+	}
+
+	return ""
 }
 
 // Position returns the selected item, counting from 1, and the number of items. The footer shows both.
