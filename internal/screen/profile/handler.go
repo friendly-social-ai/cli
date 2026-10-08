@@ -21,8 +21,7 @@ type (
 	toggleEmailMsg  struct{}
 	editMsg         struct{}
 	cancelEditMsg   struct{}
-	// nextMsg moves to the next field of the form, and saves from the last one
-	nextMsg struct{}
+	saveMsg         struct{}
 	// fieldMsg moves typing by step fields, down for a positive step and up for a negative one.
 	fieldMsg struct{ step int }
 	// loadedMsg carries profile of the logged in user. The request wraps it into router.TargetMsg so it reaches this screen.
@@ -112,13 +111,8 @@ func (Screen) Init() tea.Cmd {
 func (s Screen) actions() []ui.Action {
 	switch {
 	case s.editing:
-		next := ui.Action{Key: ui.Key("enter", "next"), Msg: nextMsg{}}
-		if s.content.list.Cursor() == len(s.content.fields)-1 {
-			next = ui.Action{Key: ui.Key("enter", "save"), Msg: nextMsg{}}
-		}
-
 		return []ui.Action{
-			next,
+			{Key: ui.Key("enter", "save"), Msg: saveMsg{}},
 			{Key: ui.Key("tab", "next field", "down"), Msg: fieldMsg{step: 1}},
 			{Key: ui.Key("shift+tab", "previous field", "up"), Msg: fieldMsg{step: -1}},
 			{Key: ui.Key("esc", "cancel"), Msg: cancelEditMsg{}},
@@ -230,11 +224,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.stopEditing()
 		s.content.status.Set("")
 		return s, nil
-	case nextMsg:
-		if cursor := s.content.list.Cursor(); cursor < len(s.content.fields)-1 {
-			return s, s.content.list.SelectFocused(cursor + 1)
-		}
-
+	case saveMsg:
 		return s, s.save()
 	case fieldMsg:
 		return s, s.content.list.SelectFocused(s.content.list.Cursor() + msg.step)
