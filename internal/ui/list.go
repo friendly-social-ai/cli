@@ -23,6 +23,9 @@ type List struct {
 	// gap is the number of blank lines between items.
 	gap int
 
+	// attachment is a view that View draws under the selected item without its highlight, like a reply box.
+	attachment string
+
 	// width is the width of the list. The background of the selected item spans it. Zero means no background, for lists
 	// like forms that mark the selection another way.
 	width int
@@ -103,13 +106,29 @@ func (l *List) move(i int) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// clip returns the clipping height for items, half of the visible list. Zero means no clipping.
+// clip returns the clipping height for items, half of the visible list. Zero means no clipping. Items clip shorter
+// when the attachment would otherwise run off the bottom of the list.
 func (l *List) clip() int {
 	if l.height <= 0 {
 		return 0
 	}
 
-	return max(l.height/2, 5)
+	c := max(l.height/2, 5)
+	if l.attachment != "" {
+		// leave one line for the position indicator
+		c = max(min(c, l.height-lipgloss.Height(l.attachment)-1), 1)
+	}
+
+	return c
+}
+
+// attached returns the number of lines the attachment adds under item i.
+func (l *List) attached(i int) int {
+	if i != l.cursor || l.attachment == "" {
+		return 0
+	}
+
+	return lipgloss.Height(l.attachment)
 }
 
 // Scrollable reports whether the selected item is clipped, so ScrollMsg can scroll it.
@@ -232,7 +251,7 @@ func (l *List) scrollItem(direction Direction, step int) bool {
 func (l *List) span(first, end int) int {
 	total := 0
 	for i := first; i < end; i++ {
-		total += lipgloss.Height(l.itemView(i))
+		total += lipgloss.Height(l.itemView(i)) + l.attached(i)
 		if i < len(l.items)-1 {
 			total += l.gap
 		}
@@ -254,6 +273,11 @@ func (l *List) Len() int {
 // SetGap sets number of blank lines between items.
 func (l *List) SetGap(gap int) {
 	l.gap = gap
+}
+
+// SetAttachment sets the view drawn under the selected item, "" for none.
+func (l *List) SetAttachment(view string) {
+	l.attachment = view
 }
 
 // SetWidth sets the width that the background of the selected item spans.
@@ -336,6 +360,12 @@ func (l *List) View() string {
 			lines[j] = prefix + lines[j]
 		}
 
+		if l.attached(i) > 0 {
+			for line := range strings.SplitSeq(l.attachment, "\n") {
+				lines = append(lines, "  "+line)
+			}
+		}
+
 		views[i] = strings.Join(lines, "\n")
 		if i < len(l.items)-1 {
 			views[i] += strings.Repeat("\n", l.gap)
@@ -366,7 +396,8 @@ func (l *List) View() string {
 	return strings.Join(result[:min(len(result), l.height)], "\n")
 }
 
-// record appends the item index of each line of views to rows, starting at item first. Gap lines get -1.
+// record appends the item index of each line of views to rows, starting at item first. Lines of the attachment and
+// gaps get -1.
 func (l *List) record(views []string, first int) {
 	for i := first; i < len(views); i++ {
 		n := lipgloss.Height(views[i])
@@ -375,11 +406,11 @@ func (l *List) record(views []string, first int) {
 			gap = l.gap
 		}
 
-		for range n - gap {
+		for range n - gap - l.attached(i) {
 			l.rows = append(l.rows, i)
 		}
 
-		for range gap {
+		for range l.attached(i) + gap {
 			l.rows = append(l.rows, -1)
 		}
 	}

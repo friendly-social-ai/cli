@@ -403,7 +403,18 @@ func (s Screen) header() string {
 		return ui.MutedStyle.Render("links in this post")
 	}
 
-	if s.confirmDelete {
+	return ""
+}
+
+// attachment renders what belongs to the selected post under it in post mode: the reply or edit composer, or the
+// delete confirmation. The new post composer belongs to no post and shows above the list.
+func (s Screen) attachment() string {
+	switch {
+	case s.mode != modePost:
+		return ""
+	case s.composing:
+		return s.composer()
+	case s.confirmDelete:
 		return ui.DangerStyle.Render("Delete this post? Press d again to confirm.")
 	}
 
@@ -669,11 +680,12 @@ func (s Screen) View() string {
 		}
 	}
 
-	if s.composing {
+	if s.composing && s.mode == modeList {
 		top = append(top, s.composer())
 	}
 
 	s.content.list.SetWidth(s.width)
+	s.content.list.SetAttachment(s.attachment())
 	if len(top) == 0 {
 		s.content.list.SetHeight(s.height)
 		s.content.list.SetTop(0)
