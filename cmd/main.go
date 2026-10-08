@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/friendly-social-ai/cli/internal/config"
 	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/navigation"
 	"github.com/friendly-social-ai/cli/internal/router"
@@ -40,18 +42,12 @@ func main() {
 		log.SetOutput(io.Discard)
 	}
 
-	// a keymap with mistakes stops the app before it draws, so the user sees every mistake at once
-	path, err := keys.Path()
-	if err == nil {
-		err = keys.Load(path)
-	}
-
-	if err != nil {
+	// config files with mistakes stop the app before it draws, so the user sees every mistake at once
+	if err := loadConfig(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	ui.SetTheme(lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
 	graphics := ui.NewGraphics()
 
 	// the transport reports a rejected session to the program, which is assigned below before any request runs
@@ -83,7 +79,7 @@ func main() {
 		go p.Send(tea.ModeReportMsg{Mode: ansi.ModeUnicodeCore, Value: ansi.ModeSet})
 	}
 
-	_, err = p.Run()
+	_, err := p.Run()
 	if graphics != nil {
 		graphics.Close(os.Stdout)
 	}
@@ -92,6 +88,24 @@ func main() {
 		fmt.Fprintln(os.Stderr, "failed to run app router:", err)
 		os.Exit(1)
 	}
+}
+
+// loadConfig loads the user keymap and theme, and reports the mistakes of both. The theme asks the terminal for its
+// background only in auto mode.
+func loadConfig() error {
+	keysPath, err := config.Path("keys.toml")
+	if err != nil {
+		return err
+	}
+
+	themePath, err := config.Path("theme.toml")
+	if err != nil {
+		return err
+	}
+
+	return errors.Join(keys.Load(keysPath), ui.LoadTheme(themePath, func() bool {
+		return lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	}))
 }
 
 // options returns program options. Inside tmux, color detection ignores COLORTERM and asks `tmux info`, which

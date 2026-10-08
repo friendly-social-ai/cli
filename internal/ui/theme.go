@@ -8,16 +8,13 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Colors follow the Friendly web theme, adjusted for text contrast on light and dark terminals. SetTheme picks them.
+// Colors follow the Friendly web theme, adjusted for text contrast on light and dark terminals. SetTheme and LoadTheme
+// pick them.
 var (
 	ColorPrimary color.Color
 	ColorMuted   color.Color
 	ColorDanger  color.Color
-	ColorSuccess color.Color
 	ColorBorder  color.Color
-
-	// ColorOnAccent is text color on top of ColorPrimary or ColorSuccess backgrounds.
-	ColorOnAccent color.Color
 )
 
 var (
@@ -42,6 +39,22 @@ func init() {
 	SetTheme(true)
 }
 
+// colors are the theme colors for one terminal background, as hex strings or ANSI numbers. Selection is the background
+// of the selected item.
+type colors struct {
+	primary, muted, danger, border, selection string
+}
+
+// lightColors and darkColors are the default themes for light and dark terminal backgrounds.
+var (
+	lightColors = colors{
+		primary: "#0060D0", muted: "#646464", danger: "#C4391D", border: "#C8C8C8", selection: "#E8EDF9",
+	}
+	darkColors = colors{
+		primary: "#6E8BFF", muted: "#B4B4B4", danger: "#F0715A", border: "#4E4E4E", selection: "#232A3B",
+	}
+)
+
 // palette holds the theme as hex strings for libraries that take colors as strings, like glamour.
 var palette struct {
 	dark    bool
@@ -49,27 +62,26 @@ var palette struct {
 	muted   string
 }
 
-// SetTheme picks colors for dark or light terminal background. Call it before building the UI, since rendered text
-// keeps the colors it was rendered with.
+// SetTheme picks the default colors for dark or light terminal background. Call it before building the UI, since
+// rendered text keeps the colors it was rendered with.
 func SetTheme(dark bool) {
-	pick := func(onLight, onDark string) string {
-		if dark {
-			return onDark
-		}
-
-		return onLight
+	c := lightColors
+	if dark {
+		c = darkColors
 	}
 
-	palette.dark = dark
-	palette.primary = pick("#0060D0", "#6E8BFF")
-	palette.muted = pick("#646464", "#B4B4B4")
+	apply(dark, c)
+}
 
-	ColorPrimary = lipgloss.Color(palette.primary)
-	ColorMuted = lipgloss.Color(palette.muted)
-	ColorDanger = lipgloss.Color(pick("#C4391D", "#F0715A"))
-	ColorSuccess = lipgloss.Color(pick("#18794E", "#3DD68C"))
-	ColorBorder = lipgloss.Color(pick("#C8C8C8", "#4E4E4E"))
-	ColorOnAccent = lipgloss.Color(pick("#FFFFFF", "#111111"))
+func apply(dark bool, c colors) {
+	palette.dark = dark
+	palette.primary = c.primary
+	palette.muted = c.muted
+
+	ColorPrimary = lipgloss.Color(c.primary)
+	ColorMuted = lipgloss.Color(c.muted)
+	ColorDanger = lipgloss.Color(c.danger)
+	ColorBorder = lipgloss.Color(c.border)
 
 	MutedStyle = lipgloss.NewStyle().Foreground(ColorMuted)
 	AccentStyle = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
@@ -78,7 +90,7 @@ func SetTheme(dark bool) {
 	inputStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(ColorBorder).Padding(0, 1)
 	inputFocusedStyle = inputStyle.BorderForeground(ColorPrimary)
 	listMarker = lipgloss.NewStyle().Foreground(ColorPrimary).Render("▎ ")
-	selection = ansi.Style{}.BackgroundColor(lipgloss.Color(pick("#E8EDF9", "#232A3B"))).String()
+	selection = ansi.Style{}.BackgroundColor(lipgloss.Color(c.selection)).String()
 }
 
 // highlight puts the selection background behind line, padded to width. A reset inside the line would end the

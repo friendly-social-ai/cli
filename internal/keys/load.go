@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -13,22 +12,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 )
-
-// Path returns the path of the user keymap, keys.toml in the friendly folder of $XDG_CONFIG_HOME, or of ~/.config
-// when it isn't set.
-func Path() (string, error) {
-	dir := os.Getenv("XDG_CONFIG_HOME")
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("keys: failed to get home directory: %w", err)
-		}
-
-		dir = filepath.Join(home, ".config")
-	}
-
-	return filepath.Join(dir, "friendly", "keys.toml"), nil
-}
 
 // Load replaces default keys with the ones the user keymap at path lists. Each entry in a section like [community]
 // names an action and gives it a key or a list of keys. An empty list unbinds a screen action. A missing file keeps
