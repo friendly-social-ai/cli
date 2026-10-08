@@ -4,10 +4,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Button is an interactive button that can be selected.
+// Button is an interactive button. It renders the same whether selected or not, since the list marks the selection.
 type Button struct {
-	selected bool
-
 	title  string
 	action tea.Cmd
 }
@@ -26,12 +24,7 @@ func (b *Button) SetTitle(title string) {
 }
 
 func (b *Button) Update(msg tea.Msg) (Component, tea.Cmd) {
-	switch msg.(type) {
-	case SelectMsg:
-		b.selected = true
-	case UnselectMsg:
-		b.selected = false
-	case InteractMsg:
+	if _, ok := msg.(InteractMsg); ok {
 		return b, b.action
 	}
 
@@ -39,9 +32,5 @@ func (b *Button) Update(msg tea.Msg) (Component, tea.Cmd) {
 }
 
 func (b *Button) View() string {
-	if b.selected {
-		return AccentStyle.Render(b.title)
-	}
-
 	return b.title
 }

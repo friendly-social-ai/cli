@@ -13,6 +13,7 @@ import (
 type Screen struct {
 	// checked tells that the saved login was checked. The menu stays empty until then.
 	checked bool
+	width   int
 
 	content struct {
 		list *ui.List
@@ -53,7 +54,10 @@ func (s Screen) Init() tea.Cmd {
 }
 
 func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width = msg.Width
+		return s, nil
 	case auth.LoginMsg, auth.LogoutMsg:
 		s.checked = true
 		s.content.list.Select(0)
@@ -73,5 +77,6 @@ func (s Screen) View() string {
 		return ""
 	}
 
+	s.content.list.SetWidth(s.width)
 	return s.content.list.View()
 }

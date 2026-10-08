@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Colors follow the Friendly web theme, adjusted for text contrast on light and dark terminals. SetTheme picks them.
@@ -33,6 +34,8 @@ var (
 
 	// listMarker marks every line of the selected item. Unselected items get an indent of the same width.
 	listMarker string
+	// selection is the escape sequence of the background behind the selected item
+	selection string
 )
 
 func init() {
@@ -75,6 +78,14 @@ func SetTheme(dark bool) {
 	inputStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(ColorBorder).Padding(0, 1)
 	inputFocusedStyle = inputStyle.BorderForeground(ColorPrimary)
 	listMarker = lipgloss.NewStyle().Foreground(ColorPrimary).Render("▎ ")
+	selection = ansi.Style{}.BackgroundColor(lipgloss.Color(pick("#E8EDF9", "#232A3B"))).String()
+}
+
+// highlight puts the selection background behind line, padded to width. A reset inside the line would end the
+// background early, so the background starts again after each one.
+func highlight(line string, width int) string {
+	line += strings.Repeat(" ", max(width-lipgloss.Width(line), 0))
+	return selection + strings.ReplaceAll(line, ansi.ResetStyle, ansi.ResetStyle+selection) + ansi.ResetStyle
 }
 
 // Fields renders "key: value" lines with muted keys. It skips pairs with an empty value.

@@ -23,6 +23,10 @@ type List struct {
 	// gap is the number of blank lines between items.
 	gap int
 
+	// width is the width of the list. The background of the selected item spans it. Zero means no background, for lists
+	// like forms that mark the selection another way.
+	width int
+
 	// top is the line of the screen where the list starts. rows holds the index of the item drawn on each line of the
 	// last View, or -1 for a gap line. ClickMsg uses both to find the clicked item.
 	top  int
@@ -252,6 +256,11 @@ func (l *List) SetGap(gap int) {
 	l.gap = gap
 }
 
+// SetWidth sets the width that the background of the selected item spans.
+func (l *List) SetWidth(width int) {
+	l.width = width
+}
+
 // SetHeight limits List to provided number of lines.
 func (l *List) SetHeight(height int) {
 	l.height = height
@@ -320,6 +329,10 @@ func (l *List) View() string {
 
 		lines := strings.Split(l.itemView(i), "\n")
 		for j := range lines {
+			if l.cursor == i && l.width > 0 {
+				lines[j] = highlight(lines[j], l.width-lipgloss.Width(listMarker))
+			}
+
 			lines[j] = prefix + lines[j]
 		}
 

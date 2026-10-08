@@ -285,6 +285,7 @@ func (s Screen) View() string {
 		top = append(top, ui.MutedStyle.Render("nobody matches"))
 	}
 
+	s.content.list.SetWidth(s.width)
 	if len(top) == 0 {
 		s.content.list.SetHeight(s.height)
 		s.content.list.SetTop(0)

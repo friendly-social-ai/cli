@@ -333,5 +333,6 @@ func (s Screen) View() string {
 	}
 
 	s.content.list.SetHeight(s.height)
+	s.content.list.SetWidth(s.width)
 	return s.content.list.View()
 }
