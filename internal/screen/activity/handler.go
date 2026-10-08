@@ -21,6 +21,8 @@ type (
 	moreMsg    struct{}
 	openMsg    struct{ index int }
 	readAllMsg struct{}
+	// nextUnreadMsg selects the next unread activity after the cursor. Past the last one it starts again from the top.
+	nextUnreadMsg struct{}
 	// loadedMsg carries a page of activity. Requests wrap it into router.TargetMsg so it reaches this screen anywhere.
 	loadedMsg struct {
 		page   *sdk.Cursor[sdk.Activity]
@@ -81,7 +83,9 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if s.unreadCount() > 0 {
-		actions = append(actions, ui.Action{Key: ui.Key("m", "mark all read"), Msg: readAllMsg{}})
+		actions = append(actions,
+			ui.Action{Key: ui.Key("n", "next unread"), Msg: nextUnreadMsg{}},
+			ui.Action{Key: ui.Key("m", "mark all read"), Msg: readAllMsg{}})
 	}
 
 	return append(actions, ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}})
@@ -226,6 +230,16 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.content.status.Set("")
+		return s, nil
+	case nextUnreadMsg:
+		cursor := s.content.list.Cursor()
+		for i := 1; i <= len(s.activities); i++ {
+			if j := (cursor + i) % len(s.activities); !s.activities[j].IsRead {
+				s.content.list.Select(j)
+				break
+			}
+		}
+
 		return s, nil
 	case readAllMsg:
 		var ids []sdk.ActivityId
