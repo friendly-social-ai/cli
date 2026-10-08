@@ -2,8 +2,8 @@
 
 Put settings at `~/.config/friendly/config.toml`, or at `$XDG_CONFIG_HOME/friendly/config.toml` when `XDG_CONFIG_HOME`
 is set. `FRIENDLY_CONFIG_DIR` picks another folder, see [below](#another-folder). List only the settings you change.
-Everything else keeps its default. [config.toml](config.toml) lists every setting with its default, ready to copy. Keys
-and colors have their own files, see [keys.md](keys.md) and [theme.md](theme.md).
+Everything else keeps its default. [config/config.toml](../config/config.toml) lists every setting with its default,
+ready to copy. Keys and colors have their own files, see [keys.md](keys.md) and [theme.md](theme.md).
 
 ```toml
 images  = "off"
@@ -29,5 +29,6 @@ a theme without touching your own files.
 FRIENDLY_CONFIG_DIR=~/friendly-test friendly
 ```
 
-The files go straight in that folder, without a `friendly` folder inside it. A path that isn't a folder stops the app,
-so a typo can't leave you on the defaults without noticing.
+The files go straight in that folder, without a `friendly` folder inside it. [config/](../config) in this repo is laid
+out that way, so `FRIENDLY_CONFIG_DIR=config` works from the repo root. A path that isn't a folder stops the app, so a
+typo can't leave you on the defaults without noticing.

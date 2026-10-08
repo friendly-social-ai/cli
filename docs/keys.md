@@ -2,8 +2,8 @@
 
 Put a keymap at `~/.config/friendly/keys.toml`, or at `$XDG_CONFIG_HOME/friendly/keys.toml` when `XDG_CONFIG_HOME` is
 set. `FRIENDLY_CONFIG_DIR` picks another folder, see [config.md](config.md#another-folder). List only the actions you
-change. Everything else keeps its default. [keys.toml](keys.toml) lists every action with its default keys, ready to
-copy.
+change. Everything else keeps its default. [config/keys.toml](../config/keys.toml) lists every action with its default
+keys, ready to copy.
 
 ```toml
 [navigation]

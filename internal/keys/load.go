@@ -76,7 +76,7 @@ func Load(path string) error {
 		a.keys = keys
 	}
 
-	slog.Info("keymap", "path", path, "found", true, "changed", len(chosen))
+	slog.Info("keymap", "path", path, "found", true, "listed", len(chosen))
 	return nil
 }
 

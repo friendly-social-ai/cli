@@ -99,9 +99,9 @@ border = "#12"
 	}
 }
 
-// docs/theme.toml is the default theme users copy, so it must list every color with its default.
-func TestDocsThemeListsDefaults(t *testing.T) {
-	data, err := os.ReadFile("../../docs/theme.toml")
+// config/theme.toml is the default theme users copy, so it must list every color with its default.
+func TestDefaultThemeListsDefaults(t *testing.T) {
+	data, err := os.ReadFile("../../config/theme.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,12 +118,12 @@ func TestDocsThemeListsDefaults(t *testing.T) {
 	}{{"light", file.Light, lightColors}, {"dark", file.Dark, darkColors}} {
 		got, problems := override(section.defaults, section.name, section.set)
 		if problems != nil || got != section.defaults || len(section.set) != 5 {
-			t.Errorf("docs/theme.toml [%s] = %v, want every color at its default %+v", section.name, section.set,
+			t.Errorf("config/theme.toml [%s] = %v, want every color at its default %+v", section.name, section.set,
 				section.defaults)
 		}
 	}
 
 	if err := loadTheme(t, string(data), detected(true)); err != nil {
-		t.Errorf("LoadTheme(docs/theme.toml) = %v, want nil", err)
+		t.Errorf("LoadTheme(config/theme.toml) = %v, want nil", err)
 	}
 }

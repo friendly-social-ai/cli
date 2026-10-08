@@ -64,9 +64,9 @@ func TestLoadRejectsShortRefresh(t *testing.T) {
 	}
 }
 
-// docs/config.toml is the default config users copy, so it must give every setting its default.
-func TestDocsConfigListsDefaults(t *testing.T) {
-	data, err := os.ReadFile("../../docs/config.toml")
+// config/config.toml is the default config users copy, so it must give every setting its default.
+func TestDefaultConfigListsDefaults(t *testing.T) {
+	data, err := os.ReadFile("../../config/config.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,11 +78,11 @@ func TestDocsConfigListsDefaults(t *testing.T) {
 
 	for _, name := range []string{"images", "refresh"} {
 		if _, ok := file[name]; !ok {
-			t.Errorf("docs/config.toml misses %s", name)
+			t.Errorf("config/config.toml misses %s", name)
 		}
 	}
 
 	if got, err := loadSettings(t, string(data)); err != nil || got != Defaults {
-		t.Errorf("docs/config.toml gives %+v, %v, want the defaults %+v", got, err, Defaults)
+		t.Errorf("config/config.toml gives %+v, %v, want the defaults %+v", got, err, Defaults)
 	}
 }

@@ -41,6 +41,7 @@ make run
 - Turn images off or change how often the app checks for new posts in `~/.config/friendly/config.toml`, see
   [docs/config.md](docs/config.md)
 - Start with another config folder through `FRIENDLY_CONFIG_DIR`
+- [config/](config) holds every default config file, ready to copy to `~/.config/friendly`
 
 ## Development
 

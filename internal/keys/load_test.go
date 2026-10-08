@@ -171,9 +171,9 @@ quit = ""
 	}
 }
 
-// docs/keys.toml is the default keymap users copy, so it must list every action with its default keys.
-func TestDocsKeymapListsDefaults(t *testing.T) {
-	data, err := os.ReadFile("../../docs/keys.toml")
+// config/keys.toml is the default keymap users copy, so it must list every action with its default keys.
+func TestDefaultKeymapListsDefaults(t *testing.T) {
+	data, err := os.ReadFile("../../config/keys.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,16 +186,16 @@ func TestDocsKeymapListsDefaults(t *testing.T) {
 	for _, a := range all {
 		value, ok := file[a.context][a.name]
 		if !ok {
-			t.Errorf("docs/keys.toml misses %s", a.ID())
+			t.Errorf("config/keys.toml misses %s", a.ID())
 			continue
 		}
 
 		if keys, problem := parse(a, value); problem != "" || !slices.Equal(keys, a.keys) {
-			t.Errorf("docs/keys.toml gives %s %v, want %v", a.ID(), value, a.keys)
+			t.Errorf("config/keys.toml gives %s %v, want %v", a.ID(), value, a.keys)
 		}
 	}
 
 	if err := load(t, string(data)); err != nil {
-		t.Errorf("Load(docs/keys.toml) = %v, want nil", err)
+		t.Errorf("Load(config/keys.toml) = %v, want nil", err)
 	}
 }
