@@ -20,6 +20,9 @@ var (
 	keyClose = ui.Key("any key", "close")
 )
 
+// minWidth and minHeight are the smallest terminal the layout fits. A smaller one shows only a note about its size.
+const minWidth, minHeight = 40, 12
+
 // Wrapper translates key presses and mouse input into UI messages for the router. While the current screen is typing,
 // keys go to it as text, except keys bound to its actions that can't be text.
 type Wrapper struct {
@@ -73,6 +76,18 @@ func (w Wrapper) follow(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 }
 
 func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
+	// a terminal too small for the layout hides the screen, but input would still change it. Only ctrl+c goes through.
+	if w.tooSmall() {
+		switch msg := msg.(type) {
+		case tea.KeyPressMsg:
+			if msg.String() != "ctrl+c" {
+				return w, nil
+			}
+		case tea.MouseMsg:
+			return w, nil
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		w.width = msg.Width
@@ -349,16 +364,30 @@ func (w Wrapper) footer() string {
 }
 
 func (w Wrapper) View() tea.View {
-	footer := w.footer()
+	view := tea.NewView(w.content())
+	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
+	return view
+}
 
+// content renders the screen with the footer, or the note about the size when the terminal is too small.
+func (w Wrapper) content() string {
+	if w.tooSmall() {
+		size := fmt.Sprintf("%dx%d, needs %dx%d", w.width, w.height, minWidth, minHeight)
+		return lipgloss.Place(w.width, w.height, lipgloss.Center, lipgloss.Center,
+			lipgloss.JoinVertical(lipgloss.Center, ui.BoldStyle.Render("terminal too small"), ui.MutedStyle.Render(size)))
+	}
+
+	footer := w.footer()
 	content := w.model.View()
 	if w.help {
 		content = w.model.Header() + "\n" + lipgloss.NewStyle().Padding(1, 1).Render(w.helpView())
 	}
 
-	content = ui.Clip(content, w.width, w.height-lipgloss.Height(footer))
-	view := tea.NewView(content + "\n" + footer)
-	view.AltScreen = true
-	view.MouseMode = tea.MouseModeCellMotion
-	return view
+	return ui.Clip(content, w.width, w.height-lipgloss.Height(footer)) + "\n" + footer
+}
+
+// tooSmall reports whether the terminal is smaller than the layout fits.
+func (w Wrapper) tooSmall() bool {
+	return w.width > 0 && (w.width < minWidth || w.height < minHeight)
 }
