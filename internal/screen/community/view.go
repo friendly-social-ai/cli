@@ -213,13 +213,17 @@ func (s Screen) actions() []ui.Action {
 			ui.Action{Key: ui.Key("d", "delete"), Msg: deleteMsg{}})
 	}
 
-	// h goes up one level. From the top of the thread it goes to the list. Deeper in a thread, H goes straight to
-	// the list.
+	// h goes up one level. From the top of the thread it goes to the list. Two or more levels deep, H opens the root
+	// of the thread.
 	actions = append(actions, refresh)
-	if len(s.details.Upstream) > 0 || len(s.stack) > 0 {
+	if len(s.details.Upstream) > 1 {
 		return append(actions,
 			ui.Action{Key: ui.Key("h", "to parent", "esc"), Msg: backMsg{}},
-			ui.Action{Key: ui.Key("H", "to list"), Msg: topMsg{}})
+			ui.Action{Key: ui.Key("H", "to root"), Msg: rootMsg{}})
+	}
+
+	if len(s.details.Upstream) > 0 || len(s.stack) > 0 {
+		return append(actions, ui.Action{Key: ui.Key("h", "to parent", "esc"), Msg: backMsg{}})
 	}
 
 	return append(actions, ui.Action{Key: ui.Key("h", "to list", "esc"), Msg: backMsg{}})
@@ -439,7 +443,7 @@ func (s Screen) parents() string {
 	upstream := s.details.Upstream
 	var lines []string
 	if hidden := len(upstream) - parentLimit; hidden > 0 {
-		lines = append(lines, ui.MutedStyle.Render(fmt.Sprintf("↑ %d more", hidden)))
+		lines = append(lines, ui.MutedStyle.Render(fmt.Sprintf("↑ %d more · root %d levels up", hidden, len(upstream))))
 		upstream = upstream[hidden:]
 	}
 

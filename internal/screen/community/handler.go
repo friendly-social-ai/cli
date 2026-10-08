@@ -53,7 +53,7 @@ type (
 	refreshMsg       struct{}
 	moreMsg          struct{}
 	backMsg          struct{}
-	topMsg           struct{}
+	rootMsg          struct{}
 	editMsg          struct{}
 	deleteMsg        struct{}
 	composeMsg       struct{}
@@ -997,13 +997,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		return s, s.leave()
-	case topMsg:
+	case rootMsg:
 		if s.mode == modeList {
 			return s, nil
 		}
 
-		s.stack = nil
-		return s, s.leave()
+		return s, s.up(0)
 	case composeMsg:
 		// a reply goes to the selected post. Every item of a thread is a post, so the cursor is always on one.
 		if s.mode == modePost {
