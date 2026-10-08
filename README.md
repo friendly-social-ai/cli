@@ -36,6 +36,7 @@ make run
 - Pasting an image reads the clipboard with `osascript` on macOS, and `wl-paste` or `xclip` on Linux.
 - Emoji shortcode supports
 - Drag, paste or attach (with auto path completion) for images
+- Change any key in `~/.config/friendly/keys.toml`, see [docs/keys.md](docs/keys.md)
 
 ## Development
 
