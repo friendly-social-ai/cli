@@ -8,15 +8,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/ui"
-)
-
-// Keys handled by Wrapper itself, shown around the keys of the wrapped model.
-var (
-	keyQuit  = ui.Key("q", "quit")
-	keyHelp  = ui.Key("?", "help")
-	keyClose = ui.Key("? / esc", "close")
 )
 
 // minWidth and minHeight are the smallest terminal the layout fits. A smaller one shows only a note about its size.
@@ -34,9 +28,9 @@ type Wrapper struct {
 	// closes it and works as usual. helpOffset is the first help line shown when the lines don't fit.
 	help       bool
 	helpOffset int
-	// pendingG is set after g, which waits for a second g to jump to the first item. Any other key or mouse input
-	// cancels it.
-	pendingG bool
+	// pending is the first key of a sequence of keys.Navigation.First, waiting for the key that completes it. Any other
+	// key or mouse input cancels it.
+	pending string
 
 	width  int
 	height int
@@ -99,7 +93,7 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 		w.model, cmd = w.model.Update(msg)
 		return w, cmd
 	case tea.MouseWheelMsg:
-		w.pendingG = false
+		w.pending = ""
 		if w.help {
 			w.scrollHelp(msg.Button == tea.MouseWheelUp)
 			return w, nil
@@ -121,7 +115,7 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 
 		return w, nil
 	case tea.MouseClickMsg:
-		w.pendingG = false
+		w.pending = ""
 		if msg.Button != tea.MouseLeft || msg.Y >= w.height-lipgloss.Height(w.footer()) {
 			return w, nil
 		}
@@ -161,14 +155,15 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 			return w, tea.Quit
 		}
 
+		k := msg.String()
 		if w.help {
-			switch msg.String() {
-			case "?", "esc":
+			switch {
+			case keys.Navigation.Help.Matches(k) || keys.Common.Cancel.Matches(k):
 				w.help = false
 				return w, nil
-			case "j", "down", "k", "up":
+			case keys.Navigation.Down.Matches(k) || keys.Navigation.Up.Matches(k):
 				if w.helpOverflows() {
-					w.scrollHelp(msg.String() == "k" || msg.String() == "up")
+					w.scrollHelp(keys.Navigation.Up.Matches(k))
 					return w, nil
 				}
 			}
@@ -186,59 +181,56 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 			break
 		}
 
-		if w.pendingG {
-			w.pendingG = false
-			if msg.String() == "g" {
+		if pending := w.pending; pending != "" {
+			w.pending = ""
+			if keys.Navigation.First.Matches(pending + " " + k) {
 				return w, func() tea.Msg {
 					return ui.JumpMsg{Direction: ui.DirectionUp}
 				}
 			}
 		}
 
-		switch msg.String() {
-		case "q":
-			// q is likely a slip while the screen has typed text. ctrl+c still quits.
+		switch {
+		case keys.Navigation.Quit.Matches(k):
+			// quitting is likely a slip while the screen has typed text. ctrl+c still quits.
 			if w.model.Unsaved() {
 				return w, nil
 			}
 
 			return w, tea.Quit
-		case "?":
+		case keys.Navigation.Help.Matches(k):
 			w.help, w.helpOffset = true, 0
 			return w, nil
-		case "enter", "l", "right":
+		case keys.Navigation.Open.Matches(k):
 			return w, func() tea.Msg {
 				return ui.InteractMsg{}
 			}
-		case "left":
-			// left works like h. Both reach the screen as an action below, and screens bind h to go back.
-			msg = tea.KeyPressMsg{Code: 'h', Text: "h"}
-		case "j", "down":
+		case keys.Navigation.Down.Matches(k):
 			return w, func() tea.Msg {
 				return ui.MoveMsg{Direction: ui.DirectionDown}
 			}
-		case "k", "up":
+		case keys.Navigation.Up.Matches(k):
 			return w, func() tea.Msg {
 				return ui.MoveMsg{Direction: ui.DirectionUp}
 			}
-		case "g":
-			w.pendingG = true
+		case keys.Navigation.First.Next(k) != "":
+			w.pending = k
 			return w, nil
-		case "G":
+		case keys.Navigation.Last.Matches(k):
 			return w, func() tea.Msg {
 				return ui.JumpMsg{Direction: ui.DirectionDown}
 			}
-		case "ctrl+d":
+		case keys.Navigation.HalfPageDown.Matches(k):
 			return w, func() tea.Msg {
 				return ui.ScrollMsg{Direction: ui.DirectionDown}
 			}
-		case "ctrl+u":
+		case keys.Navigation.HalfPageUp.Matches(k):
 			return w, func() tea.Msg {
 				return ui.ScrollMsg{Direction: ui.DirectionUp}
 			}
 		}
 
-		// remaining keys are screen actions. Raw keys reach the model only while typing.
+		// remaining keys are screen actions, like back. Raw keys reach the model only while typing.
 		var cmd tea.Cmd
 		w.model, cmd = w.model.Update(ui.ActionMsg{Key: msg})
 		return w, cmd
@@ -292,19 +284,22 @@ var keySeparator = ui.MutedStyle.Render(" · ")
 func (w Wrapper) helpKeys() []helpSection {
 	var app []key.Binding
 	if w.model.OnTab() {
-		app = append(app, ui.Key("1-4", "switch tabs, press again for the first view"))
+		tabs := keys.Navigation.Tabs
+		app = append(app, keys.Hint("switch tabs, press again for the first view", tabs[0].Key()+"-"+tabs[len(tabs)-1].Key()))
 	}
 
 	if !w.model.Unsaved() {
-		app = append(app, keyQuit)
+		app = append(app, keys.Bind("quit", keys.Navigation.Quit))
 	}
 
-	// navigation handles the moves itself, so these bindings only label keys in the panel. Their alternatives are
-	// display text, like "down / up".
+	// navigation handles the moves itself, so these bindings only label keys in the panel
 	return []helpSection{
 		{"Screen", w.keys()},
-		{"Move", []key.Binding{ui.Key("j / k", "down / up", "down / up"), ui.Key("gg / G", "first / last item"),
-			ui.Key("ctrl+d / u", "half page down / up")}},
+		{"Move", []key.Binding{
+			keys.Hint("down / up", keys.Pair(keys.Navigation.Down, keys.Navigation.Up, " / ")...),
+			keys.Hint("first / last item", keys.Pair(keys.Navigation.First, keys.Navigation.Last, " / ")...),
+			keys.Hint("half page down / up", keys.Pair(keys.Navigation.HalfPageDown, keys.Navigation.HalfPageUp, " / ")...),
+		}},
 		{"App", app},
 	}
 }
@@ -318,19 +313,10 @@ type helpSection struct {
 // arrows replaces the names of arrow keys with their symbols in the help panel.
 var arrows = strings.NewReplacer("left", "←", "right", "→", "up", "↑", "down", "↓")
 
-// helpKey renders the keys of binding, its main key first and the alternatives after it. Navigation turns ← into h
-// and → into l, so they show as alternatives of those.
+// helpKey renders the keys of binding, its main key first and the alternatives after it.
 func helpKey(binding key.Binding) string {
-	keys := binding.Keys()
-	switch binding.Help().Key {
-	case "h":
-		keys = append(keys, "left")
-	case "l":
-		keys = append(keys, "right")
-	}
-
 	rendered := ui.AccentStyle.Render(arrows.Replace(binding.Help().Key))
-	for _, k := range keys[1:] {
+	for _, k := range binding.Keys()[1:] {
 		rendered += "  " + ui.MutedStyle.Render(arrows.Replace(k))
 	}
 
@@ -375,7 +361,7 @@ func (w Wrapper) helpRows() int {
 	return max(w.height-lipgloss.Height(w.model.Header())-lipgloss.Height(w.footer())-6, 1)
 }
 
-// helpOverflows reports whether the help lines don't fit the panel, so j and k scroll them.
+// helpOverflows reports whether the help lines don't fit the panel, so the down and up keys scroll them.
 func (w Wrapper) helpOverflows() bool {
 	return len(w.helpLines()) > w.helpRows()
 }
@@ -400,7 +386,8 @@ func (w Wrapper) helpView(width, height int) string {
 
 	if rows := w.helpRows(); len(lines) > rows {
 		start := min(w.helpOffset, len(lines)-rows)
-		indicator := fmt.Sprintf("lines %d-%d of %d · j/k scroll", start+1, start+rows, len(lines))
+		indicator := fmt.Sprintf("lines %d-%d of %d · %s scroll", start+1, start+rows, len(lines),
+			keys.Label(keys.Navigation.Down, keys.Navigation.Up, "/"))
 		lines = append(lines[start:start+rows], "", ui.MutedStyle.Render(indicator))
 	}
 
@@ -424,11 +411,11 @@ func (w Wrapper) footer() string {
 	var hints, tail string
 	switch {
 	case w.help:
-		hints = renderKeys([]key.Binding{keyClose})
-	case w.pendingG:
-		// a pending g has no timeout, as in vim, so the footer shows what the next g does
-		hints = ui.AccentStyle.Render("g") + ui.MutedStyle.Render(" pending") + keySeparator +
-			renderKeys([]key.Binding{ui.Key("g", "first item")})
+		hints = renderKeys([]key.Binding{keys.Hint("close", keys.Navigation.Help.Key()+" / "+keys.Common.Cancel.Key())})
+	case w.pending != "":
+		// a pending sequence has no timeout, as in vim, so the footer shows what completes it
+		hints = ui.AccentStyle.Render(w.pending) + ui.MutedStyle.Render(" pending") + keySeparator +
+			renderKeys([]key.Binding{keys.Hint("first item", keys.Navigation.First.Next(w.pending))})
 	case w.typing:
 		// only keys that can't be text work while typing
 		var bindings []key.Binding
@@ -441,7 +428,7 @@ func (w Wrapper) footer() string {
 		hints = renderKeys(bindings)
 	default:
 		hints = renderKeys(w.keys())
-		tail = renderKeys([]key.Binding{keyHelp})
+		tail = renderKeys([]key.Binding{keys.Bind("help", keys.Navigation.Help)})
 	}
 
 	// the position in the list goes to the right end, like the status in the header

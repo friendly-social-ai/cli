@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/screen/auth"
@@ -75,20 +76,20 @@ func (Screen) Init() tea.Cmd {
 func (s Screen) actions() []ui.Action {
 	var actions []ui.Action
 	if s.content.list.Scrollable() {
-		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
+		actions = append(actions, ui.Action{Key: keys.Hint("scroll", keys.Label(keys.Navigation.HalfPageDown, keys.Navigation.HalfPageUp, "/"))})
 	}
 
 	if len(s.activities) > 0 {
-		actions = append(actions, ui.Action{Key: ui.Key("l", "open", "enter")})
+		actions = append(actions, ui.Action{Key: keys.Bind("open", keys.Navigation.Open)})
 	}
 
 	if s.unreadCount() > 0 {
 		actions = append(actions,
-			ui.Action{Key: ui.Key("n", "next unread"), Msg: nextUnreadMsg{}},
-			ui.Action{Key: ui.Key("m", "mark all read"), Msg: readAllMsg{}})
+			ui.Action{Key: keys.Bind("next unread", keys.Activity.NextUnread), Msg: nextUnreadMsg{}},
+			ui.Action{Key: keys.Bind("mark all read", keys.Activity.ReadAll), Msg: readAllMsg{}})
 	}
 
-	return append(actions, ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}})
+	return append(actions, ui.Action{Key: keys.Bind("refresh", keys.Common.Refresh), Msg: refreshMsg{}})
 }
 
 func (s Screen) Keys() []key.Binding {
@@ -329,7 +330,7 @@ func (s Screen) View() string {
 	case s.user == nil:
 		return ui.MutedStyle.Render("log in to see activity")
 	case len(s.activities) == 0 && s.content.status.Value() == "":
-		return ui.Empty(s.width, s.height, "no activity yet", "r", "to refresh")
+		return ui.Empty(s.width, s.height, "no activity yet", keys.Common.Refresh.Key(), "to refresh")
 	}
 
 	s.content.list.SetHeight(s.height)

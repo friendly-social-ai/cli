@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/friendly-social-ai/cli/internal/browser"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/screen/auth"
@@ -74,11 +75,11 @@ func (Screen) Init() tea.Cmd {
 }
 
 func (s Screen) actions() []ui.Action {
-	back := ui.Action{Key: ui.Key("h", "back", "esc"), Msg: backMsg{}}
+	back := ui.Action{Key: keys.Bind("back", keys.Navigation.Back, keys.Common.Cancel), Msg: backMsg{}}
 	if s.confirmRemove {
 		return []ui.Action{
-			{Key: ui.Key("x", "confirm remove"), Msg: removeMsg{}},
-			{Key: ui.Key("esc", "cancel"), Msg: cancelRemoveMsg{}},
+			{Key: keys.Bind("confirm remove", keys.User.Remove), Msg: removeMsg{}},
+			{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelRemoveMsg{}},
 		}
 	}
 
@@ -89,16 +90,16 @@ func (s Screen) actions() []ui.Action {
 	var actions []ui.Action
 	switch s.profile.User.Friendship {
 	case sdk.FriendshipFriends:
-		actions = append(actions, ui.Action{Key: ui.Key("x", "remove friend"), Msg: removeMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("remove friend", keys.User.Remove), Msg: removeMsg{}})
 	case sdk.FriendshipIncomingRequest:
-		actions = append(actions, ui.Action{Key: ui.Key("a", "accept"), Msg: connectMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("accept", keys.User.Connect), Msg: connectMsg{}})
 	case sdk.FriendshipOutgoingRequest:
 	default:
-		actions = append(actions, ui.Action{Key: ui.Key("a", "connect"), Msg: connectMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("connect", keys.User.Connect), Msg: connectMsg{}})
 	}
 
 	if s.profile.User.SocialLink.Value() != "" {
-		actions = append(actions, ui.Action{Key: ui.Key("o", "open social link"), Msg: openSocialMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("open social link", keys.User.OpenSocial), Msg: openSocialMsg{}})
 	}
 
 	return append(actions, back)
@@ -230,7 +231,7 @@ func (s Screen) View() string {
 		"social link", details.SocialLink.Value(),
 		"common friends", strings.Join(common, ", "))
 	if s.confirmRemove {
-		view += "\n\n" + ui.DangerStyle.Render("Remove "+details.Nickname.Value()+" from friends? Press x again to confirm.")
+		view += "\n\n" + ui.DangerStyle.Render("Remove "+details.Nickname.Value()+" from friends? Press "+keys.User.Remove.Key()+" again to confirm.")
 	}
 
 	// long descriptions wrap to the window instead of running off its edge

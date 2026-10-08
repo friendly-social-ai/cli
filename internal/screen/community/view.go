@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/ui"
 	sdk "github.com/friendly-social-ai/golang-sdk"
@@ -87,36 +88,36 @@ func (s Screen) actions() []ui.Action {
 				desc = "open"
 			}
 
-			actions = append(actions, ui.Action{Key: ui.Key("enter", desc), Msg: attachDoneMsg{}})
+			actions = append(actions, ui.Action{Key: keys.Bind(desc, keys.Common.Confirm), Msg: attachDoneMsg{}})
 		}
 
 		if len(s.files) > 0 {
 			actions = append(actions,
-				ui.Action{Key: ui.Key("tab", "complete"), Msg: completePathMsg{}},
-				ui.Action{Key: ui.Key("down", "next", "ctrl+n"), Msg: chooseMsg{step: 1}},
-				ui.Action{Key: ui.Key("up", "previous", "ctrl+p"), Msg: chooseMsg{step: -1}})
+				ui.Action{Key: keys.Bind("complete", keys.Common.Complete), Msg: completePathMsg{}},
+				ui.Action{Key: keys.Bind("next", keys.Common.NextSuggestion), Msg: chooseMsg{step: 1}},
+				ui.Action{Key: keys.Bind("previous", keys.Common.PreviousSuggestion), Msg: chooseMsg{step: -1}})
 		}
 
-		return append(actions, ui.Action{Key: ui.Key("esc", "cancel"), Msg: cancelAttachMsg{}})
+		return append(actions, ui.Action{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelAttachMsg{}})
 	}
 
 	if s.picking {
 		l := links(s.details.Post.Text.Value())[s.content.list.Cursor()]
 		return []ui.Action{
-			{Key: ui.Key("l", "open", "enter")},
-			{Key: ui.Key("y", "copy link"), Msg: copyMsg{text: l.url, what: "link"}},
-			{Key: ui.Key("esc", "cancel"), Msg: cancelPickMsg{}},
+			{Key: keys.Bind("open", keys.Navigation.Open)},
+			{Key: keys.Bind("copy link", keys.Community.Copy), Msg: copyMsg{text: l.url, what: "link"}},
+			{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelPickMsg{}},
 		}
 	}
 
 	if s.content.filter.Typing() {
-		return []ui.Action{{Key: ui.Key("enter", "done", "esc"), Msg: filterDoneMsg{}}}
+		return []ui.Action{{Key: keys.Bind("done", keys.Common.Confirm, keys.Common.Cancel), Msg: filterDoneMsg{}}}
 	}
 
 	if s.composing && s.confirmDiscard {
 		return []ui.Action{
-			{Key: ui.Key("x", "confirm discard"), Msg: discardMsg{}},
-			{Key: ui.Key("esc", "cancel"), Msg: cancelDiscardMsg{}},
+			{Key: keys.Bind("confirm discard", keys.Community.Discard), Msg: discardMsg{}},
+			{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelDiscardMsg{}},
 		}
 	}
 
@@ -125,21 +126,21 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if s.composing {
-		post := ui.Action{Key: ui.Key("alt+enter", s.submitLabel()), Msg: submitMsg{}}
+		post := ui.Action{Key: keys.Bind(s.submitLabel(), keys.Community.Post), Msg: submitMsg{}}
 		if s.previewing {
-			return []ui.Action{{Key: ui.Key("esc", "edit", "p"), Msg: previewMsg{}}, post}
+			return []ui.Action{{Key: keys.Bind("edit", keys.Common.Cancel, keys.Community.Preview), Msg: previewMsg{}}, post}
 		}
 
 		var actions []ui.Action
 		if found := s.suggestions(); len(found) > 0 {
 			name := ":" + found[min(s.suggestion, len(found)-1)].Name + ":"
 			actions = append(actions,
-				ui.Action{Key: ui.Key("tab", "insert "+name, "enter"), Msg: completeMsg{}},
-				ui.Action{Key: ui.Key("down", "next", "ctrl+n"), Msg: chooseMsg{step: 1}},
-				ui.Action{Key: ui.Key("up", "previous", "ctrl+p"), Msg: chooseMsg{step: -1}},
-				ui.Action{Key: ui.Key("esc", "hide"), Msg: hideEmojiMsg{}},
+				ui.Action{Key: keys.Bind("insert "+name, keys.Common.Complete, keys.Common.Confirm), Msg: completeMsg{}},
+				ui.Action{Key: keys.Bind("next", keys.Common.NextSuggestion), Msg: chooseMsg{step: 1}},
+				ui.Action{Key: keys.Bind("previous", keys.Common.PreviousSuggestion), Msg: chooseMsg{step: -1}},
+				ui.Action{Key: keys.Bind("hide", keys.Common.Cancel), Msg: hideEmojiMsg{}},
 				post,
-				ui.Action{Key: ui.Key("ctrl+o", "menu"), Msg: menuMsg{}})
+				ui.Action{Key: keys.Bind("menu", keys.Community.Menu), Msg: menuMsg{}})
 			return actions
 		}
 
@@ -148,13 +149,13 @@ func (s Screen) actions() []ui.Action {
 		}
 
 		return append(actions,
-			ui.Action{Key: ui.Key("ctrl+o", "menu"), Msg: menuMsg{}},
-			ui.Action{Key: ui.Key("esc", "close"), Msg: closeMsg{}})
+			ui.Action{Key: keys.Bind("menu", keys.Community.Menu), Msg: menuMsg{}},
+			ui.Action{Key: keys.Bind("close", keys.Common.Cancel), Msg: closeMsg{}})
 	}
 
 	var actions []ui.Action
 	if s.content.list.Scrollable() {
-		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
+		actions = append(actions, ui.Action{Key: keys.Hint("scroll", keys.Label(keys.Navigation.HalfPageDown, keys.Navigation.HalfPageUp, "/"))})
 	}
 
 	switch {
@@ -172,36 +173,36 @@ func (s Screen) actions() []ui.Action {
 				desc = "open image"
 			}
 
-			actions = append(actions, ui.Action{Key: ui.Key("o", desc), Msg: openLinkAction(found[0])})
+			actions = append(actions, ui.Action{Key: keys.Bind(desc, keys.Community.Links), Msg: openLinkAction(found[0])})
 		default:
-			actions = append(actions, ui.Action{Key: ui.Key("o", "links"), Msg: pickMsg{}})
+			actions = append(actions, ui.Action{Key: keys.Bind("links", keys.Community.Links), Msg: pickMsg{}})
 		}
 	case s.content.list.Len() > 0:
-		actions = append(actions, ui.Action{Key: ui.Key("l", "open", "enter")})
+		actions = append(actions, ui.Action{Key: keys.Bind("open", keys.Navigation.Open)})
 	}
 
 	// J and K skip the rest of a chain, so they only differ from j and k when a reply is a chain
 	if s.mode == modePost && len(s.replyStarts()) < s.content.list.Len() {
 		actions = append(actions,
-			ui.Action{Key: ui.Key("J", "next reply"), Msg: replyJumpMsg{direction: ui.DirectionDown}},
-			ui.Action{Key: ui.Key("K", "previous reply"), Msg: replyJumpMsg{direction: ui.DirectionUp}})
+			ui.Action{Key: keys.Bind("next reply", keys.Community.NextReply), Msg: replyJumpMsg{direction: ui.DirectionDown}},
+			ui.Action{Key: keys.Bind("previous reply", keys.Community.PreviousReply), Msg: replyJumpMsg{direction: ui.DirectionUp}})
 	}
 
 	if post, ok := s.cursorPost(); ok && !post.Deleted() {
-		actions = append(actions, ui.Action{Key: ui.Key("y", "copy"), Msg: copyMsg{text: post.Text.Value(), what: "post"}})
+		actions = append(actions, ui.Action{Key: keys.Bind("copy", keys.Community.Copy), Msg: copyMsg{text: post.Text.Value(), what: "post"}})
 		if post.Owner != nil && !s.owns(post) {
-			actions = append(actions, ui.Action{Key: ui.Key("@", "author"), Msg: authorMsg{owner: *post.Owner}})
+			actions = append(actions, ui.Action{Key: keys.Bind("author", keys.Community.Author), Msg: authorMsg{owner: *post.Owner}})
 		}
 	}
 
-	refresh := ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}}
+	refresh := ui.Action{Key: keys.Bind("refresh", keys.Common.Refresh), Msg: refreshMsg{}}
 	if s.mode == modeList {
 		actions = append(actions,
-			ui.Action{Key: ui.Key("n", "new post"), Msg: composeMsg{}},
-			ui.Action{Key: ui.Key("/", "filter"), Msg: filterMsg{}},
+			ui.Action{Key: keys.Bind("new post", keys.Community.NewPost), Msg: composeMsg{}},
+			ui.Action{Key: keys.Bind("filter", keys.Common.Filter), Msg: filterMsg{}},
 			refresh)
 		if s.content.filter.Query() != "" {
-			actions = append(actions, ui.Action{Key: ui.Key("esc", "clear"), Msg: clearFilterMsg{}})
+			actions = append(actions, ui.Action{Key: keys.Bind("clear", keys.Common.Cancel), Msg: clearFilterMsg{}})
 		}
 
 		return actions
@@ -209,15 +210,15 @@ func (s Screen) actions() []ui.Action {
 
 	if s.confirmDelete {
 		return append(actions,
-			ui.Action{Key: ui.Key("d", "confirm delete"), Msg: deleteMsg{}},
-			ui.Action{Key: ui.Key("esc", "cancel"), Msg: cancelDeleteMsg{}})
+			ui.Action{Key: keys.Bind("confirm delete", keys.Community.Delete), Msg: deleteMsg{}},
+			ui.Action{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelDeleteMsg{}})
 	}
 
-	actions = append(actions, ui.Action{Key: ui.Key("n", "reply"), Msg: composeMsg{}})
+	actions = append(actions, ui.Action{Key: keys.Bind("reply", keys.Community.Reply), Msg: composeMsg{}})
 	if post, ok := s.cursorPost(); ok && s.owns(post) && !post.Deleted() {
 		actions = append(actions,
-			ui.Action{Key: ui.Key("e", "edit"), Msg: editMsg{}},
-			ui.Action{Key: ui.Key("d", "delete"), Msg: deleteMsg{}})
+			ui.Action{Key: keys.Bind("edit", keys.Community.Edit), Msg: editMsg{}},
+			ui.Action{Key: keys.Bind("delete", keys.Community.Delete), Msg: deleteMsg{}})
 	}
 
 	// h goes up one level. From the top of the thread it goes to the list. Two or more levels deep, H opens the root
@@ -225,15 +226,15 @@ func (s Screen) actions() []ui.Action {
 	actions = append(actions, refresh)
 	if len(s.details.Upstream) > 1 {
 		return append(actions,
-			ui.Action{Key: ui.Key("h", "to parent", "esc"), Msg: backMsg{}},
-			ui.Action{Key: ui.Key("H", "to root"), Msg: rootMsg{}})
+			ui.Action{Key: keys.Bind("to parent", keys.Navigation.Back, keys.Common.Cancel), Msg: backMsg{}},
+			ui.Action{Key: keys.Bind("to root", keys.Community.Root), Msg: rootMsg{}})
 	}
 
 	if len(s.details.Upstream) > 0 || len(s.stack) > 0 {
-		return append(actions, ui.Action{Key: ui.Key("h", "to parent", "esc"), Msg: backMsg{}})
+		return append(actions, ui.Action{Key: keys.Bind("to parent", keys.Navigation.Back, keys.Common.Cancel), Msg: backMsg{}})
 	}
 
-	return append(actions, ui.Action{Key: ui.Key("h", "to list", "esc"), Msg: backMsg{}})
+	return append(actions, ui.Action{Key: keys.Bind("to list", keys.Navigation.Back, keys.Common.Cancel), Msg: backMsg{}})
 }
 
 // Reselect describes what picking the community tab again does, for the router to show with the tab key. It is
@@ -272,19 +273,19 @@ func (s Screen) Keys() []key.Binding {
 
 // menuActions builds keys of the composer menu. Preview and discard need a draft.
 func (s Screen) menuActions() []ui.Action {
-	actions := []ui.Action{{Key: ui.Key("e", "editor"), Msg: editorMsg{}}}
+	actions := []ui.Action{{Key: keys.Bind("editor", keys.Community.Editor), Msg: editorMsg{}}}
 	if s.content.field.Value() != "" {
-		actions = append(actions, ui.Action{Key: ui.Key("p", "preview"), Msg: previewMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("preview", keys.Community.Preview), Msg: previewMsg{}})
 	}
 
 	actions = append(actions,
-		ui.Action{Key: ui.Key("a", "attach image"), Msg: attachMsg{}},
-		ui.Action{Key: ui.Key("v", "paste image"), Msg: pasteImageMsg{}})
+		ui.Action{Key: keys.Bind("attach image", keys.Community.Attach), Msg: attachMsg{}},
+		ui.Action{Key: keys.Bind("paste image", keys.Community.PasteImage), Msg: pasteImageMsg{}})
 	if s.content.field.Value() != "" {
-		actions = append(actions, ui.Action{Key: ui.Key("x", "discard draft"), Msg: discardMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("discard draft", keys.Community.Discard), Msg: discardMsg{}})
 	}
 
-	return append(actions, ui.Action{Key: ui.Key("esc", "back", "ctrl+o"), Msg: closeMenuMsg{}})
+	return append(actions, ui.Action{Key: keys.Bind("back", keys.Common.Cancel, keys.Community.Menu), Msg: closeMenuMsg{}})
 }
 
 // menuView renders the composer menu as a box of its keys.
@@ -455,7 +456,7 @@ func (s Screen) attachment() string {
 	case s.composing:
 		return s.composer()
 	case s.confirmDelete:
-		return ui.DangerStyle.Render("Delete this post? Press d again to confirm.")
+		return ui.DangerStyle.Render("Delete this post? Press " + keys.Community.Delete.Key() + " again to confirm.")
 	}
 
 	return ""
@@ -468,7 +469,7 @@ func (s Screen) freshNotice() string {
 		posts = "post"
 	}
 
-	return ui.AccentStyle.Render(fmt.Sprintf("↑ %d new %s", s.fresh, posts)) + ui.MutedStyle.Render(" · r to load")
+	return ui.AccentStyle.Render(fmt.Sprintf("↑ %d new %s", s.fresh, posts)) + ui.MutedStyle.Render(" · "+keys.Common.Refresh.Key()+" to load")
 }
 
 // parentLimit is the number of nearest parents shown above the opened post. Older ones show as a count.
@@ -592,7 +593,7 @@ func (s Screen) composer() string {
 	case s.menu:
 		parts = append(parts, s.menuView())
 	case s.confirmDiscard:
-		parts = append(parts, ui.DangerStyle.Render("Discard this draft? Press x again to confirm."))
+		parts = append(parts, ui.DangerStyle.Render("Discard this draft? Press "+keys.Community.Discard.Key()+" again to confirm."))
 	}
 
 	if found := s.suggestions(); len(found) > 0 {
@@ -684,7 +685,7 @@ func (s Screen) preview(text string) string {
 	}
 
 	start := min(s.previewOffset, len(lines)-rows)
-	indicator := ui.MutedStyle.Render(fmt.Sprintf("lines %d-%d of %d · j/k scroll", start+1, start+rows, len(lines)))
+	indicator := ui.MutedStyle.Render(fmt.Sprintf("lines %d-%d of %d · %s scroll", start+1, start+rows, len(lines), keys.Label(keys.Navigation.Down, keys.Navigation.Up, "/")))
 	return strings.Join(lines[start:start+rows], "\n") + "\n" + indicator
 }
 
@@ -694,7 +695,7 @@ func (s Screen) View() string {
 	}
 
 	if s.mode == modeList && len(s.posts) == 0 && s.fresh == 0 && s.content.status.Value() == "" && !s.composing {
-		return ui.Empty(s.width, s.height, "no posts yet", "n", "to write the first one")
+		return ui.Empty(s.width, s.height, "no posts yet", keys.Community.NewPost.Key(), "to write the first one")
 	}
 
 	var top []string

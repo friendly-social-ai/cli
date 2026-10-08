@@ -3,6 +3,7 @@ package home
 import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/screen/auth"
@@ -44,7 +45,7 @@ func (s Screen) Keys() []key.Binding {
 		return nil
 	}
 
-	return []key.Binding{ui.Key("l", "open", "enter")}
+	return []key.Binding{keys.Bind("open", keys.Navigation.Open)}
 }
 
 func (s Screen) Init() tea.Cmd {

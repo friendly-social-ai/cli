@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/ui"
@@ -105,16 +106,16 @@ func (s Screen) Init() tea.Cmd {
 }
 
 func (s Screen) actions() []ui.Action {
-	next := ui.Action{Key: ui.Key("enter", "send code"), Msg: nextMsg{}}
+	next := ui.Action{Key: keys.Bind("send code", keys.Common.Confirm), Msg: nextMsg{}}
 	if s.content.list.Cursor() == 1 {
-		next = ui.Action{Key: ui.Key("enter", "confirm"), Msg: nextMsg{}}
+		next = ui.Action{Key: keys.Bind("confirm", keys.Common.Confirm), Msg: nextMsg{}}
 	}
 
 	return []ui.Action{
 		next,
-		{Key: ui.Key("tab", "next field", "down"), Msg: fieldMsg{step: 1}},
-		{Key: ui.Key("shift+tab", "previous field", "up"), Msg: fieldMsg{step: -1}},
-		{Key: ui.Key("esc", "back"), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
+		{Key: keys.Bind("next field", keys.Common.NextField), Msg: fieldMsg{step: 1}},
+		{Key: keys.Bind("previous field", keys.Common.PreviousField), Msg: fieldMsg{step: -1}},
+		{Key: keys.Bind("back", keys.Common.Cancel), Msg: screen.ChangeMsg{NewType: screen.TypeHome}},
 	}
 }
 

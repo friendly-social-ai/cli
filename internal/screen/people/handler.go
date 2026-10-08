@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/screen/auth"
@@ -128,12 +129,12 @@ func (s Screen) listed() []int {
 
 func (s Screen) actions() []ui.Action {
 	if s.content.filter.Typing() {
-		return []ui.Action{{Key: ui.Key("enter", "done", "esc"), Msg: filterDoneMsg{}}}
+		return []ui.Action{{Key: keys.Bind("done", keys.Common.Confirm, keys.Common.Cancel), Msg: filterDoneMsg{}}}
 	}
 
 	var actions []ui.Action
 	if s.content.list.Scrollable() {
-		actions = append(actions, ui.Action{Key: ui.Key("ctrl+d/u", "scroll")})
+		actions = append(actions, ui.Action{Key: keys.Hint("scroll", keys.Label(keys.Navigation.HalfPageDown, keys.Navigation.HalfPageUp, "/"))})
 	}
 
 	if listed := s.listed(); len(listed) > 0 {
@@ -143,15 +144,15 @@ func (s Screen) actions() []ui.Action {
 		}
 
 		actions = append(actions,
-			ui.Action{Key: ui.Key("a", desc), Msg: connectMsg{}},
-			ui.Action{Key: ui.Key("x", "skip"), Msg: skipMsg{}})
+			ui.Action{Key: keys.Bind(desc, keys.People.Connect), Msg: connectMsg{}},
+			ui.Action{Key: keys.Bind("skip", keys.People.Skip), Msg: skipMsg{}})
 	}
 
 	actions = append(actions,
-		ui.Action{Key: ui.Key("/", "filter"), Msg: filterMsg{}},
-		ui.Action{Key: ui.Key("r", "refresh"), Msg: refreshMsg{}})
+		ui.Action{Key: keys.Bind("filter", keys.Common.Filter), Msg: filterMsg{}},
+		ui.Action{Key: keys.Bind("refresh", keys.Common.Refresh), Msg: refreshMsg{}})
 	if s.content.filter.Query() != "" {
-		actions = append(actions, ui.Action{Key: ui.Key("esc", "clear"), Msg: clearFilterMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("clear", keys.Common.Cancel), Msg: clearFilterMsg{}})
 	}
 
 	return actions
@@ -273,7 +274,7 @@ func (s Screen) View() string {
 	case s.user == nil:
 		return ui.MutedStyle.Render("log in to see people")
 	case len(s.entries) == 0 && s.content.status.Value() == "":
-		return ui.Empty(s.width, s.height, "you're all caught up", "r", "to check again")
+		return ui.Empty(s.width, s.height, "you're all caught up", keys.Common.Refresh.Key(), "to check again")
 	}
 
 	var top []string

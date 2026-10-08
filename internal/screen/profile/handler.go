@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/screen/auth"
@@ -112,20 +113,20 @@ func (s Screen) actions() []ui.Action {
 	switch {
 	case s.editing:
 		return []ui.Action{
-			{Key: ui.Key("enter", "save"), Msg: saveMsg{}},
-			{Key: ui.Key("tab", "next field", "down"), Msg: fieldMsg{step: 1}},
-			{Key: ui.Key("shift+tab", "previous field", "up"), Msg: fieldMsg{step: -1}},
-			{Key: ui.Key("esc", "cancel"), Msg: cancelEditMsg{}},
+			{Key: keys.Bind("save", keys.Common.Confirm), Msg: saveMsg{}},
+			{Key: keys.Bind("next field", keys.Common.NextField), Msg: fieldMsg{step: 1}},
+			{Key: keys.Bind("previous field", keys.Common.PreviousField), Msg: fieldMsg{step: -1}},
+			{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelEditMsg{}},
 		}
 	case s.confirmLogout:
 		return []ui.Action{
-			{Key: ui.Key("x", "confirm logout"), Msg: logoutMsg{}},
-			{Key: ui.Key("esc", "cancel"), Msg: cancelLogoutMsg{}},
+			{Key: keys.Bind("confirm logout", keys.Profile.Logout), Msg: logoutMsg{}},
+			{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelLogoutMsg{}},
 		}
 	case s.user != nil:
 		var actions []ui.Action
 		if s.self != nil {
-			actions = append(actions, ui.Action{Key: ui.Key("e", "edit"), Msg: editMsg{}})
+			actions = append(actions, ui.Action{Key: keys.Bind("edit", keys.Profile.Edit), Msg: editMsg{}})
 		}
 
 		if s.email() != "" {
@@ -134,10 +135,10 @@ func (s Screen) actions() []ui.Action {
 				desc = "hide email"
 			}
 
-			actions = append(actions, ui.Action{Key: ui.Key("v", desc), Msg: toggleEmailMsg{}})
+			actions = append(actions, ui.Action{Key: keys.Bind(desc, keys.Profile.ToggleEmail), Msg: toggleEmailMsg{}})
 		}
 
-		return append(actions, ui.Action{Key: ui.Key("x", "logout"), Msg: logoutMsg{}})
+		return append(actions, ui.Action{Key: keys.Bind("logout", keys.Profile.Logout), Msg: logoutMsg{}})
 	}
 
 	return nil
@@ -356,7 +357,7 @@ func (s Screen) View() string {
 			warning = "Log out? You can log back in with your email."
 		}
 
-		parts = append(parts, ui.DangerStyle.Render(warning+" Press x again to confirm."))
+		parts = append(parts, ui.DangerStyle.Render(warning+" Press "+keys.Profile.Logout.Key()+" again to confirm."))
 	}
 
 	return strings.Join(parts, "\n\n")

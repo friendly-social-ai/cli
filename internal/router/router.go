@@ -9,20 +9,20 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/ui"
 )
 
-// tabs are the screens of a logged in user, shown in the header and switched with their keys.
+// tabs are the screens of a logged in user, shown in the header and switched with keys.Navigation.Tabs in order.
 var tabs = []struct {
-	key    string
 	screen screen.Type
 	title  string
 }{
-	{"1", screen.TypeCommunity, "Community"},
-	{"2", screen.TypeActivity, "Activity"},
-	{"3", screen.TypePeople, "People"},
-	{"4", screen.TypeProfile, "Profile"},
+	{screen.TypeCommunity, "Community"},
+	{screen.TypeActivity, "Activity"},
+	{screen.TypePeople, "People"},
+	{screen.TypeProfile, "Profile"},
 }
 
 // Router orchestrates multiple screens.
@@ -162,8 +162,8 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 		return r, nil
 	case ui.ActionMsg:
 		if r.OnTab() {
-			for _, tab := range tabs {
-				if msg.Key.String() == tab.key {
+			for i, tab := range tabs {
+				if keys.Navigation.Tabs[i].Matches(msg.Key.String()) {
 					return r.pick(tab.screen)
 				}
 			}
@@ -176,24 +176,24 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 // Keys returns key bindings of the current screen. A tab screen with a Reselect method also gets its tab key,
 // labeled with what Reselect says picking the tab again does. An empty Reselect hides it.
 func (r Router) Keys() []key.Binding {
-	keys := r.screens[r.current].Keys()
+	bindings := r.screens[r.current].Keys()
 	holder, ok := r.screens[r.current].(interface{ Reselect() string })
 	if !ok {
-		return keys
+		return bindings
 	}
 
 	desc := holder.Reselect()
 	if desc == "" {
-		return keys
+		return bindings
 	}
 
-	for _, tab := range tabs {
+	for i, tab := range tabs {
 		if tab.screen == r.current {
-			return append(keys, ui.Key(tab.key, desc))
+			return append(bindings, keys.Bind(desc, keys.Navigation.Tabs[i]))
 		}
 	}
 
-	return keys
+	return bindings
 }
 
 // Unsaved reports whether the current screen has typed text that quitting would lose. Only screens with an Unsaved
@@ -298,10 +298,11 @@ func (r Router) tabAt(x int) (screen.Type, bool) {
 // its badge next to its tab.
 func (r Router) tabLabels() []string {
 	var labels []string
-	for _, tab := range tabs {
-		label := ui.MutedStyle.Render("[" + tab.key + "] " + tab.title)
+	for i, tab := range tabs {
+		k := keys.Navigation.Tabs[i].Key()
+		label := ui.MutedStyle.Render("[" + k + "] " + tab.title)
 		if tab.screen == r.current {
-			label = ui.MutedStyle.Render("["+tab.key+"] ") + ui.AccentStyle.Render(tab.title)
+			label = ui.MutedStyle.Render("["+k+"] ") + ui.AccentStyle.Render(tab.title)
 		}
 
 		if badged, ok := r.screens[tab.screen].(interface{ Badge() string }); ok && badged.Badge() != "" {
