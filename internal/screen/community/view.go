@@ -403,6 +403,10 @@ func (s Screen) header() string {
 		return ui.MutedStyle.Render("links in this post")
 	}
 
+	if s.confirmDelete {
+		return ui.DangerStyle.Render("Delete this post? Press d again to confirm.")
+	}
+
 	return ""
 }
 
@@ -536,6 +540,8 @@ func (s Screen) composer() string {
 		}
 	case s.menu:
 		parts = append(parts, s.menuView())
+	case s.confirmDiscard:
+		parts = append(parts, ui.DangerStyle.Render("Discard this draft? Press x again to confirm."))
 	}
 
 	if found := s.suggestions(); len(found) > 0 {

@@ -223,11 +223,16 @@ func (s Screen) View() string {
 		sdk.FriendshipOutgoingRequest: "request sent",
 	}[details.Friendship]
 
-	// long descriptions wrap to the window instead of running off its edge
-	return lipgloss.NewStyle().Width(max(s.width, 20)).Render(ui.BoldStyle.Render(details.Nickname.Value()) + "\n" + ui.Fields(
+	view := ui.BoldStyle.Render(details.Nickname.Value()) + "\n" + ui.Fields(
 		"friendship", friendship,
 		"description", details.Description.Value(),
 		"interests", strings.Join(interests, ", "),
 		"social link", details.SocialLink.Value(),
-		"common friends", strings.Join(common, ", ")))
+		"common friends", strings.Join(common, ", "))
+	if s.confirmRemove {
+		view += "\n\n" + ui.DangerStyle.Render("Remove "+details.Nickname.Value()+" from friends? Press x again to confirm.")
+	}
+
+	// long descriptions wrap to the window instead of running off its edge
+	return lipgloss.NewStyle().Width(max(s.width, 20)).Render(view)
 }

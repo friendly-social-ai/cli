@@ -356,7 +356,7 @@ func (s Screen) View() string {
 			warning = "Log out? You can log back in with your email."
 		}
 
-		parts = append(parts, ui.DangerStyle.Render(warning))
+		parts = append(parts, ui.DangerStyle.Render(warning+" Press x again to confirm."))
 	}
 
 	return strings.Join(parts, "\n\n")
