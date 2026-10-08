@@ -396,6 +396,16 @@ func (s Screen) header() string {
 	return ""
 }
 
+// freshNotice renders the number of new posts and the key that loads them.
+func (s Screen) freshNotice() string {
+	posts := "posts"
+	if s.fresh == 1 {
+		posts = "post"
+	}
+
+	return ui.AccentStyle.Render(fmt.Sprintf("↑ %d new %s", s.fresh, posts)) + ui.MutedStyle.Render(" · r to load")
+}
+
 // parentLimit is the number of nearest parents shown above the opened post. Older ones show as a count.
 const parentLimit = 3
 
@@ -616,7 +626,7 @@ func (s Screen) View() string {
 		return ui.MutedStyle.Render("log in to see community")
 	}
 
-	if s.mode == modeList && len(s.posts) == 0 && s.content.status.Value() == "" && !s.composing {
+	if s.mode == modeList && len(s.posts) == 0 && s.fresh == 0 && s.content.status.Value() == "" && !s.composing {
 		return ui.Empty(s.width, s.height, "no posts yet", "n", "to write the first one")
 	}
 
@@ -630,6 +640,10 @@ func (s Screen) View() string {
 	}
 
 	if s.mode == modeList {
+		if s.fresh > 0 {
+			top = append(top, s.freshNotice())
+		}
+
 		if filter := s.content.filter.View(s.textWidth()); filter != "" {
 			top = append(top, filter)
 		}

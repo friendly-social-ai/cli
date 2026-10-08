@@ -3,6 +3,7 @@ package community
 import (
 	"fmt"
 	"image"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -82,6 +83,10 @@ type (
 		page   *sdk.Cursor[sdk.CommunityPost]
 		append bool
 	}
+	// polledMsg carries the first page of posts that the poll loaded in the background
+	polledMsg struct {
+		page *sdk.Cursor[sdk.CommunityPost]
+	}
 	detailsMsg struct{ details *sdk.CommunityPostDetails }
 	repliesMsg struct {
 		page *sdk.Cursor[sdk.CommunityPostReply]
@@ -146,6 +151,8 @@ type Screen struct {
 
 	posts []sdk.CommunityPost
 	next  *sdk.CursorId
+	// fresh is the number of posts on the first page that the list doesn't have yet. The poll updates it every minute.
+	fresh int
 
 	details     *sdk.CommunityPostDetails
 	replies     []sdk.CommunityPostReply
@@ -268,6 +275,24 @@ func (s Screen) loadList(cursor *sdk.CursorId) tea.Cmd {
 		page, err := s.service.list(s.user, cursor)
 		return listMsg{page: page, append: cursor != nil}, err
 	})
+}
+
+// poll loads the first page of posts in the background. On failure it only logs the error.
+func (s Screen) poll() tea.Cmd {
+	if s.user == nil {
+		return nil
+	}
+
+	user := s.user
+	return func() tea.Msg {
+		page, err := s.service.list(user, nil)
+		if err != nil {
+			log.Printf("error: %v", err)
+			return nil
+		}
+
+		return router.TargetMsg{Type: screen.TypeCommunity, Inner: polledMsg{page: page}}
+	}
 }
 
 func (s Screen) loadDetails(post sdk.CommunityPostDescriptor) tea.Cmd {
@@ -877,7 +902,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.mode = modeList
 		s.stack = nil
 		s.picking = false
-		s.posts, s.next = nil, nil
+		s.posts, s.next, s.fresh = nil, nil, 0
 		s.details, s.replies, s.repliesNext = nil, nil, nil
 		s.closeComposer()
 		s.confirmDelete, s.loadingMore = false, false
@@ -893,6 +918,20 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case screen.MinuteMsg:
 		// rebuilt items show fresh relative times
 		s.content.list.Set(s.items()...)
+		return s, s.poll()
+	case polledMsg:
+		known := make(map[sdk.CommunityPostId]bool, len(s.posts))
+		for _, post := range s.posts {
+			known[post.Id] = true
+		}
+
+		s.fresh = 0
+		for _, post := range msg.page.Data {
+			if !known[post.Id] {
+				s.fresh++
+			}
+		}
+
 		return s, nil
 	case refreshMsg:
 		return s, s.reload()
@@ -1203,7 +1242,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
-		s.posts = msg.page.Data
+		s.posts, s.fresh = msg.page.Data, 0
 		if s.pending == nil {
 			s.content.list.Reset(s.items()...)
 			return s, nil
