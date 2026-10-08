@@ -368,7 +368,8 @@ func FirstLine(post sdk.CommunityPost) string {
 	return ui.Emojize(inlineMarks.Replace(inlineLinkPattern.ReplaceAllString(line, "$1")))
 }
 
-// Ago returns short relative time of t, like "5m ago", or its date when older than a day.
+// Ago returns a short relative time for t, like "5m ago" or "3d ago", or its date when older than a week. Dates of past
+// years include the year.
 func Ago(t time.Time) string {
 	d := time.Since(t)
 	switch {
@@ -378,6 +379,10 @@ func Ago(t time.Time) string {
 		return fmt.Sprintf("%dm ago", int(d.Minutes()))
 	case d < 24*time.Hour:
 		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	case d < 7*24*time.Hour:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	case t.Local().Year() != time.Now().Year():
+		return t.Local().Format("Jan 2, 2006")
 	}
 
 	return t.Local().Format("Jan 2")
