@@ -257,6 +257,22 @@ func (r Router) title() string {
 	return strings.Join(append([]string{head}, r.tabLabels()...), tabSeparator)
 }
 
+// Name names the current screen by its tab title or its type. A screen with a Context method adds what it shows.
+func (r Router) Name() string {
+	name := string(r.current)
+	for _, tab := range tabs {
+		if tab.screen == r.current {
+			name = tab.title
+		}
+	}
+
+	if holder, ok := r.screens[r.current].(interface{ Context() string }); ok && holder.Context() != "" {
+		name += " · " + holder.Context()
+	}
+
+	return name
+}
+
 // tabAt returns the tab drawn at column x of the title line.
 func (r Router) tabAt(x int) (screen.Type, bool) {
 	if !r.OnTab() {

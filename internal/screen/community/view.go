@@ -328,6 +328,20 @@ func (s Screen) Badge() string {
 	return ""
 }
 
+// Context names what the screen shows besides the list, for the help panel title.
+func (s Screen) Context() string {
+	switch {
+	case s.composing:
+		return "composer"
+	case s.picking:
+		return "links"
+	case s.mode == modePost:
+		return "post"
+	}
+
+	return ""
+}
+
 // Position returns the selected item, counting from 1, and the number of items. The footer shows both. In post mode,
 // only the posts below the opened post count, so the opened post is 0.
 func (s Screen) Position() (int, int) {

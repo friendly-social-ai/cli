@@ -14,10 +14,9 @@ import (
 
 // Keys handled by Wrapper itself, shown around the keys of the wrapped model.
 var (
-	keyMove  = ui.Key("j/k", "move")
 	keyQuit  = ui.Key("q", "quit")
 	keyHelp  = ui.Key("?", "help")
-	keyClose = ui.Key("any key", "close")
+	keyClose = ui.Key("? / esc", "close")
 )
 
 // minWidth and minHeight are the smallest terminal the layout fits. A smaller one shows only a note about its size.
@@ -31,8 +30,10 @@ type Wrapper struct {
 	// typing follows Typing of the router, so that the field gets focus when typing starts and loses it when it stops
 	typing bool
 
-	// help shows all keys in place of the screen until the next key press
-	help bool
+	// help shows the keys of the current screen and the app in a panel over the screen. A key other than ? and esc
+	// closes it and works as usual. helpOffset is the first help line shown when the lines don't fit.
+	help       bool
+	helpOffset int
 	// pendingG is set after g, which waits for a second g to jump to the first item. Any other key or mouse input
 	// cancels it.
 	pendingG bool
@@ -99,8 +100,13 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 		return w, cmd
 	case tea.MouseWheelMsg:
 		w.pendingG = false
+		if w.help {
+			w.scrollHelp(msg.Button == tea.MouseWheelUp)
+			return w, nil
+		}
+
 		// the wheel scrolls the list. It does nothing while typing, since the cursor could follow the scroll off the field.
-		if !w.typing && !w.help {
+		if !w.typing {
 			switch msg.Button {
 			case tea.MouseWheelDown:
 				return w, func() tea.Msg {
@@ -156,8 +162,18 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 		}
 
 		if w.help {
+			switch msg.String() {
+			case "?", "esc":
+				w.help = false
+				return w, nil
+			case "j", "down", "k", "up":
+				if w.helpOverflows() {
+					w.scrollHelp(msg.String() == "k" || msg.String() == "up")
+					return w, nil
+				}
+			}
+
 			w.help = false
-			return w, nil
 		}
 
 		if w.typing {
@@ -188,7 +204,7 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 
 			return w, tea.Quit
 		case "?":
-			w.help = true
+			w.help, w.helpOffset = true, 0
 			return w, nil
 		case "enter", "l", "right":
 			return w, func() tea.Msg {
@@ -272,38 +288,135 @@ func renderKeys(bindings []key.Binding) string {
 // keySeparator goes between key hints.
 var keySeparator = ui.MutedStyle.Render(" · ")
 
-// helpView lists keys of the current screen, then the ones that work on every screen.
-func (w Wrapper) helpView() string {
-	everywhere := []key.Binding{keyMove, ui.Key("h/l", "back/open"), ui.Key("gg/G", "first/last item"),
-		ui.Key("ctrl+d/u", "half page")}
+// helpKeys returns the sections of the help panel: keys of the current screen, moves, and keys of the app.
+func (w Wrapper) helpKeys() []helpSection {
+	var app []key.Binding
 	if w.model.OnTab() {
-		everywhere = append(everywhere, ui.Key("1-4", "switch tabs, press again for the first view"))
+		app = append(app, ui.Key("1-4", "switch tabs, press again for the first view"))
 	}
 
-	everywhere = append(everywhere, keyHelp)
 	if !w.model.Unsaved() {
-		everywhere = append(everywhere, keyQuit)
+		app = append(app, keyQuit)
 	}
 
-	return helpSection("this screen", w.keys()) + "\n\n" + helpSection("everywhere", everywhere)
+	// navigation handles the moves itself, so these bindings only label keys in the panel. Their alternatives are
+	// display text, like "down / up".
+	return []helpSection{
+		{"Screen", w.keys()},
+		{"Move", []key.Binding{ui.Key("j / k", "down / up", "down / up"), ui.Key("gg / G", "first / last item"),
+			ui.Key("ctrl+d / u", "half page down / up")}},
+		{"App", app},
+	}
 }
 
-// helpSection renders title over bindings, one per line with aligned descriptions.
-func helpSection(title string, bindings []key.Binding) string {
-	width := 0
-	for _, binding := range bindings {
-		width = max(width, lipgloss.Width(binding.Help().Key))
+// helpSection is a titled group of keys in the help panel.
+type helpSection struct {
+	title    string
+	bindings []key.Binding
+}
+
+// arrows replaces the names of arrow keys with their symbols in the help panel.
+var arrows = strings.NewReplacer("left", "←", "right", "→", "up", "↑", "down", "↓")
+
+// helpKey renders the keys of binding, its main key first and the alternatives after it. Navigation turns ← into h
+// and → into l, so they show as alternatives of those.
+func helpKey(binding key.Binding) string {
+	keys := binding.Keys()
+	switch binding.Help().Key {
+	case "h":
+		keys = append(keys, "left")
+	case "l":
+		keys = append(keys, "right")
 	}
 
-	lines := []string{ui.BoldStyle.Render(title)}
-	for _, binding := range bindings {
-		if binding.Enabled() {
-			k := binding.Help().Key
-			lines = append(lines, "  "+ui.AccentStyle.Render(k)+strings.Repeat(" ", width-lipgloss.Width(k)+2)+binding.Help().Desc)
+	rendered := ui.AccentStyle.Render(arrows.Replace(binding.Help().Key))
+	for _, k := range keys[1:] {
+		rendered += "  " + ui.MutedStyle.Render(arrows.Replace(k))
+	}
+
+	return rendered
+}
+
+// helpLines renders the sections of the help panel, one key per line with descriptions aligned across sections.
+func (w Wrapper) helpLines() []string {
+	sections := w.helpKeys()
+	width := 0
+	for _, section := range sections {
+		for _, binding := range section.bindings {
+			width = max(width, lipgloss.Width(helpKey(binding)))
 		}
 	}
 
-	return strings.Join(lines, "\n")
+	var lines []string
+	for _, section := range sections {
+		if len(section.bindings) == 0 {
+			continue
+		}
+
+		if lines != nil {
+			lines = append(lines, "")
+		}
+
+		lines = append(lines, ui.BoldStyle.Render(section.title))
+		for _, binding := range section.bindings {
+			if binding.Enabled() {
+				k := helpKey(binding)
+				lines = append(lines, "  "+k+strings.Repeat(" ", width-lipgloss.Width(k)+2)+binding.Help().Desc)
+			}
+		}
+	}
+
+	return lines
+}
+
+// helpRows returns the number of help lines the panel shows at once. Its border, padding and the lines about
+// scrolling take 6 rows of the room between the header and the footer.
+func (w Wrapper) helpRows() int {
+	return max(w.height-lipgloss.Height(w.model.Header())-lipgloss.Height(w.footer())-6, 1)
+}
+
+// helpOverflows reports whether the help lines don't fit the panel, so j and k scroll them.
+func (w Wrapper) helpOverflows() bool {
+	return len(w.helpLines()) > w.helpRows()
+}
+
+// scrollHelp scrolls the help lines one line up or down, stopping at either end.
+func (w *Wrapper) scrollHelp(up bool) {
+	step := 1
+	if up {
+		step = -1
+	}
+
+	w.helpOffset = max(min(w.helpOffset+step, len(w.helpLines())-w.helpRows()), 0)
+}
+
+// helpView renders the help panel centered in a width x height area, titled with the name of the current screen.
+func (w Wrapper) helpView(width, height int) string {
+	lines := w.helpLines()
+	// the border and the padding take 6 columns
+	for i, line := range lines {
+		lines[i] = ansi.Truncate(line, max(width-6, 1), "…")
+	}
+
+	if rows := w.helpRows(); len(lines) > rows {
+		start := min(w.helpOffset, len(lines)-rows)
+		indicator := fmt.Sprintf("lines %d-%d of %d · j/k scroll", start+1, start+rows, len(lines))
+		lines = append(lines[start:start+rows], "", ui.MutedStyle.Render(indicator))
+	}
+
+	body := lipgloss.NewStyle().Padding(1, 2).Render(strings.Join(lines, "\n"))
+	border := lipgloss.NewStyle().Foreground(ui.ColorBorder)
+	// the top border is drawn here to hold the title, and the style draws the other three sides
+	inner := lipgloss.Width(body)
+	title := " " + ansi.Truncate(w.model.Name(), max(inner-3, 0), "…") + " "
+	top := border.Render("╭─") + ui.BoldStyle.Render(title) +
+		border.Render(strings.Repeat("─", max(inner-1-lipgloss.Width(title), 0))+"╮")
+	rest := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder(), false, true, true, true).
+		BorderForeground(ui.ColorBorder).
+		Render(body)
+
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, top+"\n"+rest)
 }
 
 func (w Wrapper) footer() string {
@@ -381,7 +494,8 @@ func (w Wrapper) content() string {
 	footer := w.footer()
 	content := w.model.View()
 	if w.help {
-		content = w.model.Header() + "\n" + lipgloss.NewStyle().Padding(1, 1).Render(w.helpView())
+		header := w.model.Header()
+		content = header + "\n" + w.helpView(w.width, w.height-lipgloss.Height(header)-lipgloss.Height(footer))
 	}
 
 	return ui.Clip(content, w.width, w.height-lipgloss.Height(footer)) + "\n" + footer
