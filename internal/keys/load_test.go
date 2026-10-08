@@ -3,8 +3,11 @@ package keys
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/BurntSushi/toml"
 )
 
 // load writes content as a keymap file and loads it. The keys of every action go back to the defaults after the test.
@@ -141,5 +144,34 @@ quit = ""
 
 	if got := Community.Reply.Key(); got != "n" {
 		t.Errorf("Community.Reply.Key() = %q, want n", got)
+	}
+}
+
+// docs/keys.toml is the default keymap users copy, so it must list every action with its default keys.
+func TestDocsKeymapListsDefaults(t *testing.T) {
+	data, err := os.ReadFile("../../docs/keys.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var file map[string]map[string]any
+	if err := toml.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, a := range all {
+		value, ok := file[a.context][a.name]
+		if !ok {
+			t.Errorf("docs/keys.toml misses %s", a.ID())
+			continue
+		}
+
+		if keys, problem := parse(a, value); problem != "" || !slices.Equal(keys, a.keys) {
+			t.Errorf("docs/keys.toml gives %s %v, want %v", a.ID(), value, a.keys)
+		}
+	}
+
+	if err := load(t, string(data)); err != nil {
+		t.Errorf("Load(docs/keys.toml) = %v, want nil", err)
 	}
 }

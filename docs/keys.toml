@@ -1,0 +1,73 @@
+# Default keymap of the Friendly CLI. Copy it to ~/.config/friendly/keys.toml and change what you like.
+# Entries you delete keep their default. See docs/keys.md for the rules.
+
+# Navigation keys work on every screen.
+[navigation]
+quit                = "q"
+help                = "?"
+open                = ["l", "enter", "right"]
+back                = ["h", "left"]
+down                = ["j", "down"]
+up                  = ["k", "up"]
+first               = "g g"
+last                = "G"
+half_page_down      = "ctrl+d"
+half_page_up        = "ctrl+u"
+tab_1               = "1"
+tab_2               = "2"
+tab_3               = "3"
+tab_4               = "4"
+
+# Several screens share the common keys.
+[common]
+cancel              = "esc"
+confirm             = "enter"
+next_field          = ["tab", "down"]
+previous_field      = ["shift+tab", "up"]
+complete            = "tab"
+next_suggestion     = ["down", "ctrl+n"]
+previous_suggestion = ["up", "ctrl+p"]
+refresh             = "r"
+filter              = "/"
+
+# Community has the post list, a post, the composer and its menu.
+[community]
+new_post            = "n"
+reply               = "n"
+links               = "o"
+copy                = "y"
+author              = "@"
+edit                = "e"
+delete              = "d"
+next_reply          = "J"
+previous_reply      = "K"
+root                = "H"
+menu                = "ctrl+o"
+post                = "alt+enter"
+editor              = "e"
+preview             = "p"
+attach              = "a"
+paste_image         = "v"
+discard             = "x"
+
+# Activity lists replies to your posts.
+[activity]
+next_unread         = "n"
+read_all            = "m"
+
+# People lists people to connect with.
+[people]
+connect             = "a"
+skip                = "x"
+
+# Profile is your own profile.
+[profile]
+edit                = "e"
+toggle_email        = "v"
+logout              = "x"
+
+# User is the profile of someone else.
+[user]
+connect             = "a"
+remove              = "x"
+open_social         = "o"
