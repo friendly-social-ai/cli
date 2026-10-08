@@ -437,17 +437,19 @@ func (s Screen) known(id sdk.CommunityPostId) (sdk.CommunityPost, bool) {
 	return sdk.CommunityPost{}, false
 }
 
-// open shows post right away. Its replies and parents arrive with the details. It returns the sequence that frees
-// pictures of the previous post, for tea.Raw.
-func (s *Screen) open(post sdk.CommunityPost) string {
+// open shows post right away. upstream holds its parents when they are known, or nil. Its replies, and its parents
+// when upstream is nil, arrive with the details. It returns the sequence that frees pictures of the previous post,
+// for tea.Raw.
+func (s *Screen) open(post sdk.CommunityPost, upstream []sdk.CommunityPost) string {
 	freed := s.dropPictures(post.Text)
 	s.mode = modePost
 	s.closeComposer()
 	s.picking, s.confirmDelete = false, false
-	s.details = &sdk.CommunityPostDetails{Post: post}
+	s.details = &sdk.CommunityPostDetails{Post: post, Upstream: upstream}
 	s.replies, s.repliesNext = nil, nil
 	s.content.field.Raw().SetValue("")
 	s.content.list.Reset(s.items()...)
+	s.content.list.SetPosition(s.openedIndex(), 0)
 	return freed
 }
 
@@ -721,7 +723,8 @@ func (s *Screen) up(i int) tea.Cmd {
 		child = upstream[i+1].Id
 	}
 
-	freed := s.open(parent)
+	// upstream already holds the parents of parent, so h can go further up before its details arrive
+	freed := s.open(parent, upstream[:i])
 	s.pending = &child
 	return tea.Batch(raw(freed), s.loadPictures(parent), s.loadDetails(parent.Descriptor()))
 }
@@ -935,7 +938,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		if post, ok := s.known(msg.Post.Id); ok {
-			freed := s.open(post)
+			freed := s.open(post, nil)
 			return s, tea.Batch(raw(freed), s.loadPictures(post), s.loadDetails(msg.Post))
 		}
 
