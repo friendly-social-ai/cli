@@ -1,9 +1,9 @@
 # Settings
 
-Put settings at `$XDG_CONFIG_HOME/friendly/config.toml`, or `~/.config/friendly/config.toml` when `XDG_CONFIG_HOME`
-isn't set. List only the settings you change. Everything else keeps its default. [config.toml](config.toml) lists
-every setting with its default, ready to copy. Keys and colors have their own files, see [keys.md](keys.md) and
-[theme.md](theme.md).
+Put settings at `~/.config/friendly/config.toml`, or at `$XDG_CONFIG_HOME/friendly/config.toml` when `XDG_CONFIG_HOME`
+is set. `FRIENDLY_CONFIG_DIR` picks another folder, see [below](#another-folder). List only the settings you change.
+Everything else keeps its default. [config.toml](config.toml) lists every setting with its default, ready to copy. Keys
+and colors have their own files, see [keys.md](keys.md) and [theme.md](theme.md).
 
 ```toml
 images  = "off"
@@ -19,3 +19,15 @@ refresh = "5m"
 
 A file with mistakes stops the app before it starts and lists every mistake. Nothing from the file applies until you
 fix it.
+
+## Another folder
+
+Set `FRIENDLY_CONFIG_DIR` to read `config.toml`, `keys.toml` and `theme.toml` from another folder, for example to try
+a theme without touching your own files.
+
+```bash
+FRIENDLY_CONFIG_DIR=~/friendly-test friendly
+```
+
+The files go straight in that folder, without a `friendly` folder inside it. A path that isn't a folder stops the app,
+so a typo can't leave you on the defaults without noticing.

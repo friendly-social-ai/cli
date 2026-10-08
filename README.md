@@ -40,6 +40,7 @@ make run
 - Change the colors in `~/.config/friendly/theme.toml`, see [docs/theme.md](docs/theme.md)
 - Turn images off or change how often the app checks for new posts in `~/.config/friendly/config.toml`, see
   [docs/config.md](docs/config.md)
+- Start with another config folder through `FRIENDLY_CONFIG_DIR`
 
 ## Development
 

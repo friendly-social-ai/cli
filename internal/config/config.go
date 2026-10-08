@@ -7,9 +7,23 @@ import (
 	"path/filepath"
 )
 
-// Path returns the path of the config file name, in the friendly folder of $XDG_CONFIG_HOME, or of ~/.config when it
-// isn't set.
+// Path returns the path of the config file name. It is in $FRIENDLY_CONFIG_DIR when that is set, and otherwise in the
+// friendly folder of $XDG_CONFIG_HOME, or of ~/.config. A FRIENDLY_CONFIG_DIR that isn't a folder is an error, since
+// the app would otherwise run with the defaults and hide the typo.
 func Path(name string) (string, error) {
+	if dir := os.Getenv("FRIENDLY_CONFIG_DIR"); dir != "" {
+		info, err := os.Stat(dir)
+		if err != nil {
+			return "", fmt.Errorf("FRIENDLY_CONFIG_DIR: %w", err)
+		}
+
+		if !info.IsDir() {
+			return "", fmt.Errorf("FRIENDLY_CONFIG_DIR: %s is not a folder", dir)
+		}
+
+		return filepath.Join(dir, name), nil
+	}
+
 	dir := os.Getenv("XDG_CONFIG_HOME")
 	if dir == "" {
 		home, err := os.UserHomeDir()

@@ -1,8 +1,8 @@
 # Theme
 
-Put a theme at `$XDG_CONFIG_HOME/friendly/theme.toml`, or `~/.config/friendly/theme.toml` when `XDG_CONFIG_HOME`
-isn't set. List only the colors you change. Everything else keeps its default. [theme.toml](theme.toml) lists every
-color with its default, ready to copy.
+Put a theme at `~/.config/friendly/theme.toml`, or at `$XDG_CONFIG_HOME/friendly/theme.toml` when `XDG_CONFIG_HOME` is
+set. `FRIENDLY_CONFIG_DIR` picks another folder, see [config.md](config.md#another-folder). List only the colors you
+change. Everything else keeps its default. [theme.toml](theme.toml) lists every color with its default, ready to copy.
 
 ```toml
 mode = "dark"            # auto, dark or light
