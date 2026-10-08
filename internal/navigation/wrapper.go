@@ -213,6 +213,10 @@ func (w Wrapper) update(msg tea.Msg) (Wrapper, tea.Cmd) {
 			return w, func() tea.Msg {
 				return ui.MoveMsg{Direction: ui.DirectionUp}
 			}
+		case keys.Navigation.First.Matches(k):
+			return w, func() tea.Msg {
+				return ui.JumpMsg{Direction: ui.DirectionUp}
+			}
 		case keys.Navigation.First.Next(k) != "":
 			w.pending = k
 			return w, nil

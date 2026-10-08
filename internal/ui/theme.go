@@ -103,6 +103,11 @@ func Fields(pairs ...string) string {
 // Empty centers title in a width by height area, with key k and desc below it as a hint. Screens show it when they
 // have nothing to list.
 func Empty(width, height int, title, k, desc string) string {
+	// an unbound key has no hint
+	if k == "" {
+		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, BoldStyle.Render(title))
+	}
+
 	hint := AccentStyle.Render(k) + MutedStyle.Render(" "+desc)
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center,
 		lipgloss.JoinVertical(lipgloss.Center, BoldStyle.Render(title), "", hint))

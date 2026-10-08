@@ -16,8 +16,13 @@ type Action struct {
 	keys          []string
 }
 
+// all holds every action in the order they are defined, for Load to find them by ID.
+var all []*Action
+
 func define(context, name string, keys ...string) *Action {
-	return &Action{context: context, name: name, keys: keys}
+	a := &Action{context: context, name: name, keys: keys}
+	all = append(all, a)
+	return a
 }
 
 // ID returns the context and name of a, like community.reply.
@@ -41,8 +46,12 @@ func (a *Action) Next(first string) string {
 	return ""
 }
 
-// Key returns the first key of a for text that names it.
+// Key returns the first key of a for text that names it, or "" when the user keymap unbinds a.
 func (a *Action) Key() string {
+	if len(a.keys) == 0 {
+		return ""
+	}
+
 	return display(a.keys[0])
 }
 
@@ -60,12 +69,17 @@ func display(k string) string {
 
 // Bind returns a binding of the keys of actions in order, with help desc. Hints show the first key.
 func Bind(desc string, actions ...*Action) key.Binding {
-	var all []string
+	var bound []string
 	for _, a := range actions {
-		all = append(all, a.keys...)
+		bound = append(bound, a.keys...)
 	}
 
-	return key.NewBinding(key.WithKeys(all...), key.WithHelp(display(all[0]), desc))
+	// an action the user keymap unbinds has no keys, and a disabled binding neither matches nor shows
+	if len(bound) == 0 {
+		return key.NewBinding(key.WithDisabled())
+	}
+
+	return key.NewBinding(key.WithKeys(bound...), key.WithHelp(display(bound[0]), desc))
 }
 
 // Hint returns a binding that only describes keys handled elsewhere, shown as the first label with the others as

@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/friendly-social-ai/cli/internal/keys"
 	"github.com/friendly-social-ai/cli/internal/navigation"
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
@@ -37,6 +38,17 @@ func main() {
 		defer f.Close() //nolint:errcheck
 	} else {
 		log.SetOutput(io.Discard)
+	}
+
+	// a keymap with mistakes stops the app before it draws, so the user sees every mistake at once
+	path, err := keys.Path()
+	if err == nil {
+		err = keys.Load(path)
+	}
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
 	ui.SetTheme(lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
@@ -71,7 +83,7 @@ func main() {
 		go p.Send(tea.ModeReportMsg{Mode: ansi.ModeUnicodeCore, Value: ansi.ModeSet})
 	}
 
-	_, err := p.Run()
+	_, err = p.Run()
 	if graphics != nil {
 		graphics.Close(os.Stdout)
 	}
