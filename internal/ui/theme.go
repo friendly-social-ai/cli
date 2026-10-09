@@ -94,10 +94,12 @@ func apply(dark bool, c colors) {
 }
 
 // highlight puts the selection background behind line, padded to width. A reset inside the line would end the
-// background early, so the background starts again after each one.
+// background early, so the background starts again after each one. Lipgloss writes the short reset, and chroma writes
+// the long one in code blocks.
 func highlight(line string, width int) string {
 	line += strings.Repeat(" ", max(width-lipgloss.Width(line), 0))
-	return selection + strings.ReplaceAll(line, ansi.ResetStyle, ansi.ResetStyle+selection) + ansi.ResetStyle
+	resets := strings.NewReplacer(ansi.ResetStyle, ansi.ResetStyle+selection, "\x1b[0m", "\x1b[0m"+selection)
+	return selection + resets.Replace(line) + ansi.ResetStyle
 }
 
 // Fields renders "key: value" lines with muted keys. It skips pairs with an empty value.
