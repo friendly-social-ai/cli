@@ -1119,6 +1119,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.filter.Stop()
 		return s, nil
 	case clearFilterMsg:
+		s.content.filter.Stop()
 		s.content.filter.Clear()
 		s.content.list.Reset(s.items()...)
 		return s, nil

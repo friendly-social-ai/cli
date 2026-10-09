@@ -129,7 +129,10 @@ func (s Screen) listed() []int {
 
 func (s Screen) actions() []ui.Action {
 	if s.content.filter.Typing() {
-		return []ui.Action{{Key: keys.Bind("done", keys.Common.Confirm, keys.Common.Cancel), Msg: filterDoneMsg{}}}
+		return []ui.Action{
+			{Key: keys.Bind("done", keys.Common.Confirm), Msg: filterDoneMsg{}},
+			{Key: keys.Bind("clear", keys.Common.Cancel), Msg: clearFilterMsg{}},
+		}
 	}
 
 	var actions []ui.Action
@@ -215,6 +218,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.filter.Stop()
 		return s, nil
 	case clearFilterMsg:
+		s.content.filter.Stop()
 		s.content.filter.Clear()
 		s.content.list.Reset(s.items()...)
 		return s, nil

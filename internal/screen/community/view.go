@@ -112,7 +112,10 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	if s.content.filter.Typing() {
-		return []ui.Action{{Key: keys.Bind("done", keys.Common.Confirm, keys.Common.Cancel), Msg: filterDoneMsg{}}}
+		return []ui.Action{
+			{Key: keys.Bind("done", keys.Common.Confirm), Msg: filterDoneMsg{}},
+			{Key: keys.Bind("clear", keys.Common.Cancel), Msg: clearFilterMsg{}},
+		}
 	}
 
 	if s.composing && s.confirmDiscard {
