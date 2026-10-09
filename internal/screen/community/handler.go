@@ -93,7 +93,9 @@ type (
 		page *sdk.Cursor[sdk.CommunityPost]
 	}
 	detailsMsg struct{ details *sdk.CommunityPostDetails }
+	// repliesMsg carries the next page of replies to post
 	repliesMsg struct {
+		post sdk.CommunityPostId
 		page *sdk.Cursor[sdk.CommunityPostReply]
 	}
 	// doneMsg reports a finished write. posted is the new post, if any.
@@ -316,7 +318,7 @@ func (s Screen) loadReplies() tea.Cmd {
 	post, cursor := s.details.Post.Descriptor(), s.repliesNext
 	return s.request("loading replies", func() (tea.Msg, error) {
 		page, err := s.service.replies(s.user, post, cursor)
-		return repliesMsg{page: page}, err
+		return repliesMsg{post: post.Id, page: page}, err
 	})
 }
 
@@ -1340,6 +1342,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, raw(msg.upload + s.place(p))
 	case repliesMsg:
 		s.loadingMore = false
+		// drop replies of a post left before they arrived
+		if s.mode != modePost || s.details.Post.Id != msg.post {
+			return s, nil
+		}
+
 		s.replies = append(s.replies, msg.page.Data...)
 		s.repliesNext = msg.page.NextId
 		s.content.status.Set("")
