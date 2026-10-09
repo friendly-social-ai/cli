@@ -4,10 +4,12 @@ BIN_DIR := ./bin
 COVER_FILE := $(OUT_DIR)/coverage.out
 
 # recipes list
-.PHONY: fmt lint run clean
+.PHONY: fmt lint run clean mathjax
 
 # source files for tracking changes
 SRC := $(shell find . -type f -name '*.go')
+# files the binary embeds
+EMBED := $(shell find ./internal/ui/mathjax -type f)
 
 # public recipe for formatting
 fmt: $(OUT_DIR)/fmt.cache
@@ -22,6 +24,12 @@ build: $(OUT_DIR)/build.cache
 run: build
 	@echo ">> Running CLI..."
 	@$(BIN_DIR)/cli
+
+# regenerating the MathJax bundle and font after changing internal/ui/gen_mathjax.go
+mathjax:
+	@echo ">> Generating MathJax..."
+	@cd internal/ui && go generate -run gen_mathjax .
+	@echo ">> Generated."
 
 # cleaning up garbage
 clean:
@@ -51,7 +59,7 @@ $(OUT_DIR)/lint.cache: $(SRC) | $(OUT_DIR)
 	@touch $@
 
 # building
-$(OUT_DIR)/build.cache: $(SRC) | $(OUT_DIR)
+$(OUT_DIR)/build.cache: $(SRC) $(EMBED) | $(OUT_DIR)
 	@echo ">> Building CLI..."
 	@go build -o $(BIN_DIR)/cli cmd/main.go
 	@echo ">> Built in $(BIN_DIR)/cli"
