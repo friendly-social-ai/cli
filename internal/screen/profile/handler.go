@@ -29,7 +29,10 @@ type (
 	// fieldMsg moves typing by step fields, down for a positive step and up for a negative one.
 	fieldMsg struct{ step int }
 	// openFriendMsg opens the profile of the friend at index.
-	openFriendMsg struct{ index int }
+	openFriendMsg  struct{ index int }
+	filterMsg      struct{}
+	filterDoneMsg  struct{}
+	clearFilterMsg struct{}
 	// loadedMsg carries profile and friends of the logged in user. The request wraps it into router.TargetMsg so it
 	// reaches this screen. friendsErr is set when only the friends failed to load.
 	loadedMsg struct {
@@ -69,8 +72,10 @@ type Screen struct {
 	content struct {
 		status *ui.Status
 
-		// friends lists the friends to open. It is separate from list, which holds the edit form.
+		// friends lists the friends to open. It is separate from list, which holds the edit form. filter narrows it by
+		// nickname.
 		friends *ui.List
+		filter  *ui.Filter
 
 		list   *ui.List
 		fields []*ui.Field
@@ -119,6 +124,7 @@ func New(service *Service) Screen {
 
 	result.content.list = ui.NewList()
 	result.content.friends = ui.NewList()
+	result.content.filter = ui.NewFilter()
 	return result
 }
 
@@ -141,6 +147,11 @@ func (s Screen) actions() []ui.Action {
 			{Key: keys.Bind("previous field", keys.Common.PreviousField), Msg: fieldMsg{step: -1}},
 			{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelEditMsg{}},
 		}
+	case s.content.filter.Typing():
+		return []ui.Action{
+			{Key: keys.Bind("done", keys.Common.Confirm), Msg: filterDoneMsg{}},
+			{Key: keys.Bind("clear", keys.Common.Cancel), Msg: clearFilterMsg{}},
+		}
 	case s.confirmLogout:
 		return []ui.Action{
 			{Key: keys.Bind("confirm logout", keys.Profile.Logout), Msg: logoutMsg{}},
@@ -148,8 +159,16 @@ func (s Screen) actions() []ui.Action {
 		}
 	case s.user != nil:
 		var actions []ui.Action
-		if len(s.friends) > 0 {
+		if len(s.listed()) > 0 {
 			actions = append(actions, ui.Action{Key: keys.Bind("open friend", keys.Navigation.Open)})
+		}
+
+		if len(s.friends) > 0 {
+			actions = append(actions, ui.Action{Key: keys.Bind("filter", keys.Common.Filter), Msg: filterMsg{}})
+		}
+
+		if s.content.filter.Query() != "" {
+			actions = append(actions, ui.Action{Key: keys.Bind("clear filter", keys.Common.Cancel), Msg: clearFilterMsg{}})
 		}
 
 		if s.self != nil {
@@ -276,6 +295,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.content.status.Notice("profile saved")
 	case auth.LogoutMsg:
 		s.user, s.self, s.friends, s.showEmail, s.editing = nil, nil, nil, false, false
+		s.content.filter.Stop()
+		s.content.filter.Clear()
 		s.content.friends.Reset()
 		s.content.status.Set("")
 		return s, nil
@@ -326,6 +347,17 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, tea.Sequence(
 			screen.Send(router.TargetMsg{Type: screen.TypeUser, Inner: user.OpenMsg{Person: s.friends[msg.index], From: screen.TypeProfile}}),
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeUser}))
+	case filterMsg:
+		s.content.filter.Start()
+		return s, nil
+	case filterDoneMsg:
+		s.content.filter.Stop()
+		return s, nil
+	case clearFilterMsg:
+		s.content.filter.Stop()
+		s.content.filter.Clear()
+		s.content.friends.Reset(s.friendItems()...)
+		return s, nil
 	}
 
 	switch {
@@ -334,6 +366,16 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, cmd
 	case s.editing:
 		return s, nil
+	}
+
+	// typing the filter narrows the friends as the query changes
+	if s.content.filter.Typing() {
+		changed, cmd := s.content.filter.Update(msg)
+		if changed {
+			s.content.friends.Reset(s.friendItems()...)
+		}
+
+		return s, cmd
 	}
 
 	// moving to another friend drops pending logout confirmation, like any other key
@@ -364,14 +406,28 @@ func (s Screen) reloadFriends() tea.Cmd {
 	}
 }
 
-// friendItems builds a button for each friend. The button opens that friend's profile.
+// friendItems builds a button for each friend that matches the filter. The button opens that friend's profile.
 func (s Screen) friendItems() []ui.Component {
-	items := make([]ui.Component, len(s.friends))
-	for i, friend := range s.friends {
-		items[i] = ui.NewButton(friend.Nickname.Value(), screen.Send(openFriendMsg{index: i}))
+	listed := s.listed()
+	items := make([]ui.Component, len(listed))
+	for i, index := range listed {
+		items[i] = ui.NewButton(s.friends[index].Nickname.Value(), screen.Send(openFriendMsg{index: index}))
 	}
 
 	return items
+}
+
+// listed returns indexes of friends whose nickname matches the filter. The list shows only nicknames, so only
+// nicknames match.
+func (s Screen) listed() []int {
+	var listed []int
+	for i, friend := range s.friends {
+		if s.content.filter.Match(friend.Nickname.Value()) {
+			listed = append(listed, i)
+		}
+	}
+
+	return listed
 }
 
 // stopEditing hides the edit form and unfocuses its field.
@@ -426,9 +482,9 @@ func (s Screen) Unsaved() bool {
 	return s.editing
 }
 
-// Typing reports whether the edit form takes typed text.
+// Typing reports whether the edit form or the filter takes typed text.
 func (s Screen) Typing() bool {
-	return s.editing
+	return s.editing || s.content.filter.Typing()
 }
 
 func (s Screen) Status() *ui.Status {
@@ -472,10 +528,18 @@ func (s Screen) View() string {
 		if len(s.friends) == 0 {
 			parts = append(parts, ui.MutedStyle.Render("no friends yet"))
 		}
+
+		if filter := s.content.filter.View(s.width); filter != "" {
+			parts = append(parts, filter)
+		}
+
+		if s.content.filter.Query() != "" && len(s.listed()) == 0 {
+			parts = append(parts, ui.MutedStyle.Render("nobody matches"))
+		}
 	}
 
 	header := strings.Join(parts, "\n\n")
-	if len(s.friends) == 0 {
+	if s.content.friends.Len() == 0 {
 		return header
 	}
 
