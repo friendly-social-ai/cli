@@ -30,11 +30,15 @@ type (
 	nextMsg struct{}
 	// fieldMsg moves typing by step fields, down for a positive step and up for a negative one.
 	fieldMsg struct{ step int }
+	// rejectedMsg reports that confirming the code failed.
+	rejectedMsg struct{ err error }
 )
 
 // Screen is a model of e-mail login screen.
 type Screen struct {
 	service *Service
+	// confirming locks the form until the server checks the code
+	confirming bool
 
 	content struct {
 		list   *ui.List
@@ -106,6 +110,10 @@ func (s Screen) Init() tea.Cmd {
 }
 
 func (s Screen) actions() []ui.Action {
+	if s.confirming {
+		return nil
+	}
+
 	next := ui.Action{Key: keys.Bind("send code", keys.Common.Confirm), Msg: nextMsg{}}
 	if s.content.list.Cursor() == 1 {
 		next = ui.Action{Key: keys.Bind("confirm", keys.Common.Confirm), Msg: nextMsg{}}
@@ -147,7 +155,7 @@ func (s Screen) confirm() tea.Cmd {
 	return func() tea.Msg {
 		user, err := s.service.confirm(email, code)
 		if err != nil {
-			return screen.ErrorMsg{Value: err}
+			return router.TargetMsg{Type: screen.TypeAuth, Inner: rejectedMsg{err: err}}
 		}
 
 		return router.BroadcastMsg{Inner: LoginMsg{User: user}}
@@ -165,7 +173,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, tea.Batch(s.send(), s.content.list.SelectFocused(1))
 		}
 
+		s.confirming = true
+		s.content.list.Update(ui.UnfocusMsg{})
 		return s, s.confirm()
+	case rejectedMsg:
+		s.confirming = false
+		s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
+		// typing goes back to the code field
+		return s, s.content.list.SelectFocused(s.content.list.Cursor())
 	case fieldMsg:
 		return s, s.content.list.SelectFocused(s.content.list.Cursor() + msg.step)
 	case tea.WindowSizeMsg:
@@ -191,11 +206,16 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			screen.Send(router.BroadcastMsg{Inner: LogoutMsg{Expired: true}}),
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeAuth}))
 	case LoginMsg:
+		s.confirming = false
 		return s, func() tea.Msg {
 			return screen.ChangeMsg{NewType: screen.TypeCommunity}
 		}
 	case screen.ErrorMsg:
 		s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.Value)))
+		return s, nil
+	}
+
+	if s.confirming {
 		return s, nil
 	}
 

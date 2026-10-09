@@ -42,8 +42,9 @@ type Screen struct {
 	service       *Service
 	user          *sdk.Authorization
 	confirmLogout bool
-	// editing shows the edit form in place of the profile
+	// editing shows the edit form in place of the profile. saving locks it until the save ends.
 	editing bool
+	saving  bool
 
 	// self is the loaded profile, nil until it loads
 	self *sdk.UserDetails
@@ -111,6 +112,8 @@ func (Screen) Init() tea.Cmd {
 
 func (s Screen) actions() []ui.Action {
 	switch {
+	case s.saving:
+		return nil
 	case s.editing:
 		return []ui.Action{
 			{Key: keys.Bind("save", keys.Common.Confirm), Msg: saveMsg{}},
@@ -226,13 +229,21 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.status.Set("")
 		return s, nil
 	case saveMsg:
+		s.saving = true
+		s.content.list.Update(ui.UnfocusMsg{})
 		return s, s.save()
 	case fieldMsg:
 		return s, s.content.list.SelectFocused(s.content.list.Cursor() + msg.step)
 	case savedMsg:
+		s.saving = false
 		if msg.err != nil {
 			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
-			return s, nil
+			if !s.editing {
+				return s, nil
+			}
+
+			// typing goes back to the field it left
+			return s, s.content.list.SelectFocused(s.content.list.Cursor())
 		}
 
 		s.self = msg.self
@@ -260,7 +271,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	}
 
-	if s.editing {
+	if s.editing && !s.saving {
 		_, cmd := s.content.list.Update(msg)
 		return s, cmd
 	}

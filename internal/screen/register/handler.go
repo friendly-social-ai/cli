@@ -22,6 +22,8 @@ type (
 // Screen is a model of registration screen.
 type Screen struct {
 	service *Service
+	// submitting locks the form until registration ends
+	submitting bool
 
 	content struct {
 		list   *ui.List
@@ -87,6 +89,10 @@ func (s Screen) Init() tea.Cmd {
 }
 
 func (s Screen) actions() []ui.Action {
+	if s.submitting {
+		return nil
+	}
+
 	next := ui.Action{Key: keys.Bind("next", keys.Common.Confirm), Msg: nextMsg{}}
 	if s.content.list.Cursor() == len(s.content.fields)-1 {
 		next = ui.Action{Key: keys.Bind("submit", keys.Common.Confirm), Msg: nextMsg{}}
@@ -137,6 +143,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, s.content.list.SelectFocused(cursor + 1)
 		}
 
+		s.submitting = true
+		s.content.list.Update(ui.UnfocusMsg{})
 		return s, s.submit()
 	case fieldMsg:
 		return s, s.content.list.SelectFocused(s.content.list.Cursor() + msg.step)
@@ -151,11 +159,18 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.status.Set("")
 		return s, nil
 	case auth.LoginMsg:
+		s.submitting = false
 		return s, func() tea.Msg {
 			return screen.ChangeMsg{NewType: screen.TypeCommunity}
 		}
 	case screen.ErrorMsg:
+		s.submitting = false
 		s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.Value)))
+		// typing goes back to the field it left
+		return s, s.content.list.SelectFocused(s.content.list.Cursor())
+	}
+
+	if s.submitting {
 		return s, nil
 	}
 
