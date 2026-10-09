@@ -110,8 +110,11 @@ type (
 		path string
 		err  error
 	}
-	// deletedMsg reports that post id was deleted.
-	deletedMsg struct{ id sdk.CommunityPostId }
+	// deletedMsg reports that deleting post id finished, or failed with err.
+	deletedMsg struct {
+		id  sdk.CommunityPostId
+		err error
+	}
 	// attachedMsg reports the upload of image n of the draft. prompt marks an upload started from the path prompt.
 	attachedMsg struct {
 		n      int
@@ -206,9 +209,11 @@ type Screen struct {
 	attachDir string
 
 	confirmDelete bool
-	loadingMore   bool
-	attaching     bool
-	picking       bool
+	// deleting hides delete while a delete runs
+	deleting    bool
+	loadingMore bool
+	attaching   bool
+	picking     bool
 
 	// listCursor and listOffset keep the list position while a post is open
 	listCursor, listOffset int
@@ -352,7 +357,7 @@ func (s Screen) submit() tea.Cmd {
 
 func (s Screen) delete(id sdk.CommunityPostId) tea.Cmd {
 	return s.request("deleting", func() (tea.Msg, error) {
-		return deletedMsg{id: id}, s.service.delete(s.user, id)
+		return deletedMsg{id: id, err: s.service.delete(s.user, id)}, nil
 	})
 }
 
@@ -1219,6 +1224,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case deleteMsg:
 		if s.confirmDelete {
 			post, _ := s.cursorPost()
+			s.confirmDelete, s.deleting = false, true
 			return s, s.delete(post.Id)
 		}
 
@@ -1403,7 +1409,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		return s, s.reload()
 	case deletedMsg:
-		s.confirmDelete = false
+		s.deleting = false
+		if msg.err != nil {
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
+			return s, nil
+		}
+
 		// a deleted reply or parent stays in the thread marked as deleted, and so does a deleted post with replies.
 		// Leaving the post before the delete finishes only reloads the list.
 		if s.mode == modeList || msg.id != s.details.Post.Id || len(s.replies) > 0 {

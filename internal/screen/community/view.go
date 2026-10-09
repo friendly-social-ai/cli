@@ -222,9 +222,10 @@ func (s Screen) actions() []ui.Action {
 
 	actions = append(actions, ui.Action{Key: keys.Bind("reply", keys.Community.Reply), Msg: composeMsg{}})
 	if post, ok := s.cursorPost(); ok && s.owns(post) && !post.Deleted() {
-		actions = append(actions,
-			ui.Action{Key: keys.Bind("edit", keys.Community.Edit), Msg: editMsg{}},
-			ui.Action{Key: keys.Bind("delete", keys.Community.Delete), Msg: deleteMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("edit", keys.Community.Edit), Msg: editMsg{}})
+		if !s.deleting {
+			actions = append(actions, ui.Action{Key: keys.Bind("delete", keys.Community.Delete), Msg: deleteMsg{}})
+		}
 	}
 
 	// h goes up one level. From the top of the thread it goes to the list. Two or more levels deep, H opens the root
