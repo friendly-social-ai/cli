@@ -187,7 +187,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			slog.Error("failed to clear expired session", "err", err)
 		}
 
-		return s, tea.Batch(
+		return s, tea.Sequence(
 			screen.Send(router.BroadcastMsg{Inner: LogoutMsg{Expired: true}}),
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeAuth}))
 	case LoginMsg:

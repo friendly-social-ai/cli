@@ -1076,7 +1076,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case copyMsg:
 		return s, tea.Batch(tea.SetClipboard(msg.text), s.content.status.Notice("copied "+msg.what))
 	case authorMsg:
-		return s, tea.Batch(
+		return s, tea.Sequence(
 			screen.Send(router.TargetMsg{Type: screen.TypeUser, Inner: user.OpenMsg{Person: msg.owner, From: screen.TypeCommunity}}),
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeUser}))
 	case editMsg:
