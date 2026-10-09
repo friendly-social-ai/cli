@@ -123,9 +123,9 @@ type svgFrame struct {
 
 // drawSVG draws the SVG that MathJax writes, cropped to its ink with margin pixels above and below, at scale pixels a
 // user unit. currentColor is col. It reads the elements MathJax writes for math: g, path, rect, line, polygon, text and
-// nested svg. It draws text with system fonts and clips to each nested svg.
-func drawSVG(src string, col color.RGBA, scale, margin float64) (image.Image, error) {
-	shapes, pictures, err := svgShapes(src, col)
+// nested svg. It draws text with fonts and clips to each nested svg.
+func drawSVG(src string, col color.RGBA, scale, margin float64, text *textFonts) (image.Image, error) {
+	shapes, pictures, err := svgShapes(src, col, text)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +209,7 @@ func drawSVG(src string, col color.RGBA, scale, margin float64) (image.Image, er
 }
 
 // svgShapes returns the filled and stroked shapes and the pictures of SVG src in user units of its root.
-func svgShapes(src string, col color.RGBA) ([]shape, []picture, error) {
+func svgShapes(src string, col color.RGBA, fonts *textFonts) ([]shape, []picture, error) {
 	var shapes []shape
 	var pictures []picture
 	stack := []svgFrame{{m: identity, clip: everywhere, fill: "currentColor", stroke: "none"}}
@@ -332,7 +332,7 @@ func svgShapes(src string, col color.RGBA) ([]shape, []picture, error) {
 			if family == "" {
 				family = "serif"
 			}
-			text, err := shapeText(textKey{body.Text, family, attr["font-style"] == "italic", attr["font-weight"] == "bold"})
+			text, err := fonts.shape(textKey{body.Text, family, attr["font-style"] == "italic", attr["font-weight"] == "bold"})
 			if err != nil {
 				return nil, nil, err
 			}
@@ -341,7 +341,7 @@ func svgShapes(src string, col color.RGBA) ([]shape, []picture, error) {
 			size := number(strings.TrimSuffix(attr["font-size"], "px")) / textSize
 			m := f.m.mul(affine{size, 0, 0, size, number(attr["x"]), number(attr["y"])})
 			c, filled := paint(f.fill, col)
-			err = text.glyphs(func(o font.GlyphOutline, at affine) {
+			err = fonts.glyphs(text, func(o font.GlyphOutline, at affine) {
 				if filled {
 					s := shape{col: c, clip: f.clip}
 					s.outline(o, m.mul(at))

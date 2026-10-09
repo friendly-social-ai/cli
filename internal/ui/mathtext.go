@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sync"
 
 	"github.com/go-text/typesetting/di"
 	"github.com/go-text/typesetting/font"
@@ -24,12 +23,13 @@ import (
 const textSize = 1000
 
 // textFonts shapes math text that the math font lacks with system fonts. It picks a font for each character, as a
-// browser does for MathJax on the web. It scans the system fonts on first use and caches the scan on disk for later
-// runs. RenderMath holds mathjax.mu while it uses textFonts.
-var textFonts struct {
-	once   sync.Once
+// browser does for MathJax on the web. fontscan scans the system fonts once per process and caches the scan on disk
+// for later runs.
+//
+// Each render gets its own textFonts and drops it after. The font map keeps every face it loads in memory, and a
+// CJK or emoji face holds tens to hundreds of megabytes of tables.
+type textFonts struct {
 	fonts  *fontscan.FontMap
-	err    error
 	shaped map[textKey]*shapedText
 	images map[glyphKey]image.Image
 }
@@ -57,26 +57,22 @@ type silentLogger struct{}
 
 func (silentLogger) Printf(string, ...any) {}
 
-// shapeText shapes text with the system fonts that have its characters, preferring the family and style of key.
-func shapeText(key textKey) (*shapedText, error) {
-	textFonts.once.Do(func() {
-		textFonts.fonts = fontscan.NewFontMap(silentLogger{})
+// shape shapes text with the system fonts that have its characters, preferring the family and style of key.
+func (t *textFonts) shape(key textKey) (*shapedText, error) {
+	if t.fonts == nil {
+		fonts := fontscan.NewFontMap(silentLogger{})
 		// an empty cache folder lets fontscan pick one
 		cache, err := os.UserCacheDir()
 		if err == nil {
 			cache = filepath.Join(cache, "friendly", "fonts")
 		}
-		if err := textFonts.fonts.UseSystemFonts(cache); err != nil {
-			textFonts.err = fmt.Errorf("failed to load system fonts: %w", err)
+		if err := fonts.UseSystemFonts(cache); err != nil {
+			return nil, fmt.Errorf("failed to load system fonts: %w", err)
 		}
-		textFonts.shaped = map[textKey]*shapedText{}
-		textFonts.images = map[glyphKey]image.Image{}
-	})
-	if textFonts.err != nil {
-		return nil, textFonts.err
+		t.fonts, t.shaped, t.images = fonts, map[textKey]*shapedText{}, map[glyphKey]image.Image{}
 	}
 
-	if s, ok := textFonts.shaped[key]; ok {
+	if s, ok := t.shaped[key]; ok {
 		return s, nil
 	}
 
@@ -87,14 +83,14 @@ func shapeText(key textKey) (*shapedText, error) {
 	if key.bold {
 		aspect.Weight = font.WeightBold
 	}
-	textFonts.fonts.SetQuery(fontscan.Query{Families: []string{key.family}, Aspect: aspect})
+	t.fonts.SetQuery(fontscan.Query{Families: []string{key.family}, Aspect: aspect})
 
 	text := []rune(key.text)
 	input := shaping.Input{Text: text, RunEnd: len(text), Direction: di.DirectionLTR, Size: fixed.I(textSize)}
 	var segmenter shaping.Segmenter
 	var shaper shaping.HarfbuzzShaper
 	var runs []shaping.Output
-	for _, in := range segmenter.Split(input, textFonts.fonts) {
+	for _, in := range segmenter.Split(input, t.fonts) {
 		// fontscan finds no face only when the system has no fonts
 		if in.Face == nil {
 			return nil, fmt.Errorf("no system font has %q", string(text[in.RunStart:in.RunEnd]))
@@ -125,7 +121,7 @@ func shapeText(key textKey) (*shapedText, error) {
 		s.ascent = max(s.ascent, float64(r.GlyphBounds.Ascent)/64)
 		s.descent = max(s.descent, -float64(r.GlyphBounds.Descent)/64)
 	}
-	textFonts.shaped[key] = s
+	t.shaped[key] = s
 
 	return s, nil
 }
@@ -133,7 +129,7 @@ func shapeText(key textKey) (*shapedText, error) {
 // glyphs calls outline for each vector glyph of s, and picture for each bitmap glyph, which emoji fonts hold. Both
 // get a matrix into text units, where the baseline starts at the origin and y grows down. The matrix of outline maps
 // the units of its font, and the matrix of picture maps the unit square to the box of the glyph.
-func (s *shapedText) glyphs(outline func(o font.GlyphOutline, m affine), picture func(img image.Image, m affine)) error {
+func (t *textFonts) glyphs(s *shapedText, outline func(o font.GlyphOutline, m affine), picture func(img image.Image, m affine)) error {
 	pen := 0.0
 	for _, r := range s.runs {
 		scale := textSize / float64(r.Face.Upem())
@@ -145,7 +141,7 @@ func (s *shapedText) glyphs(outline func(o font.GlyphOutline, m affine), picture
 			case font.GlyphOutline:
 				outline(data, affine{scale, 0, 0, -scale, x, y})
 			case font.GlyphBitmap:
-				img, err := glyphImage(r.Face, g.GlyphID, data)
+				img, err := t.image(r.Face, g.GlyphID, data)
 				if err != nil {
 					return err
 				}
@@ -161,10 +157,10 @@ func (s *shapedText) glyphs(outline func(o font.GlyphOutline, m affine), picture
 	return nil
 }
 
-// glyphImage decodes the bitmap of a glyph.
-func glyphImage(face *font.Face, id font.GID, b font.GlyphBitmap) (image.Image, error) {
+// image decodes the bitmap of a glyph.
+func (t *textFonts) image(face *font.Face, id font.GID, b font.GlyphBitmap) (image.Image, error) {
 	key := glyphKey{face, id}
-	if img, ok := textFonts.images[key]; ok {
+	if img, ok := t.images[key]; ok {
 		return img, nil
 	}
 
@@ -181,7 +177,7 @@ func glyphImage(face *font.Face, id font.GID, b font.GlyphBitmap) (image.Image, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode glyph %d of %s: %w", id, face.Describe().Family, err)
 	}
-	textFonts.images[key] = img
+	t.images[key] = img
 
 	return img, nil
 }

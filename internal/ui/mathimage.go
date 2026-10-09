@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
+	"runtime/debug"
 	"sync"
 
 	"github.com/dop251/goja"
@@ -39,6 +40,8 @@ var mathjax struct {
 	mu     sync.Mutex
 	render func(tex string) (string, error)
 	err    error
+	// text holds the system fonts of the render in progress, for measureText
+	text *textFonts
 }
 
 // RenderMath renders TeX display math to an image with MathJax. The theme has no text color, so math is near white
@@ -52,6 +55,17 @@ func RenderMath(tex string) (image.Image, error) {
 	mathjax.mu.Lock()
 	defer mathjax.mu.Unlock()
 
+	text := &textFonts{}
+	mathjax.text = text
+	defer func() {
+		loaded := text.fonts != nil
+		mathjax.text, *text = nil, textFonts{}
+		// system font faces can take hundreds of megabytes, so return them to the OS now, not after the next collection
+		if loaded {
+			debug.FreeOSMemory()
+		}
+	}()
+
 	svg, err := mathjax.render(tex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render math with mathjax: %w", err)
@@ -63,7 +77,7 @@ func RenderMath(tex string) (image.Image, error) {
 	}
 
 	// MathJax measures in thousandths of an em
-	return drawSVG(svg, col, mathEmPixels/1000.0, mathMarginPixels)
+	return drawSVG(svg, col, mathEmPixels/1000.0, mathMarginPixels, text)
 }
 
 // loadMathJax runs the MathJax bundle and gives it the functions its entry in gen_mathjax.go calls: loadFontFile,
@@ -87,7 +101,7 @@ func loadMathJax() error {
 	}
 
 	err = vm.Set("measureText", func(text, family string, italic, bold bool) ([]float64, error) {
-		s, err := shapeText(textKey{text, family, italic, bold})
+		s, err := mathjax.text.shape(textKey{text, family, italic, bold})
 		if err != nil {
 			return nil, err
 		}
