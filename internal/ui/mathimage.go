@@ -2,73 +2,136 @@ package ui
 
 import (
 	"bytes"
-	"context"
+	"compress/gzip"
+	"embed"
+	"errors"
 	"fmt"
 	"image"
-	"image/png"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
+	"image/color"
+	"io"
+	"io/fs"
+	"path"
+	"sync"
+
+	"github.com/dop251/goja"
 )
+
+//go:generate go run gen_mathjax.go
 
 const (
-	// mathTimeout bounds a typst run, which downloads mitex the first time.
-	mathTimeout = 15 * time.Second
-
-	// mathPPI is 3 pixels a point. mathRowPixels is the height of a terminal row in rendered math, about 14pt, the
-	// line height of the 11pt text in mathSource.
-	mathPPI       = 216
-	mathRowPixels = 42
+	// mathEmPixels is the em of rendered math, 11pt at 3 pixels a point. mathRowPixels is the height of a terminal row
+	// in rendered math, about 14pt, the line height of 11pt text. mathMarginPixels pads math above and below.
+	mathEmPixels     = 33
+	mathRowPixels    = 42
+	mathMarginPixels = 6
 )
 
-// mathSource is the typst document that renders TeX input with mitex, which reads LaTeX math like KaTeX on the web.
-// New Computer Modern is the font family KaTeX's own fonts copy. KaTeX's fonts have no OpenType MATH table, so typst
-// can't lay out math with them.
-const mathSource = `#import "@preview/mitex:0.2.7": mitex
-#set page(width: auto, height: auto, margin: (x: 0pt, y: 2pt), fill: none)
-#set text(font: "New Computer Modern", size: 11pt, fill: rgb(sys.inputs.color))
-#mitex(sys.inputs.tex)
-`
+// mathjaxFiles holds MathJax bundled by gen_mathjax.go and the glyph ranges of its font, gzipped. MathJax reads LaTeX
+// math like KaTeX on the web, and its New Computer Modern font copies the Computer Modern of KaTeX's fonts.
+//
+//go:embed mathjax
+var mathjaxFiles embed.FS
 
-// RenderMath renders TeX display math to an image with typst and mitex. The theme has no text color, so math is
-// near white on dark terminals and near black on light ones. Typst runs in an empty root folder, since the TeX comes
-// from posts and mitex evaluates it as typst code.
+// mathjax runs MathJax, loaded on the first render. Its runtime isn't safe for concurrent use, so RenderMath holds
+// mu.
+var mathjax struct {
+	once   sync.Once
+	mu     sync.Mutex
+	render func(tex string) (string, error)
+	err    error
+}
+
+// RenderMath renders TeX display math to an image with MathJax. The theme has no text color, so math is near white
+// on dark terminals and near black on light ones.
 func RenderMath(tex string) (image.Image, error) {
-	root := filepath.Join(os.TempDir(), "friendly-math")
-	if err := os.MkdirAll(root, 0o700); err != nil {
-		return nil, fmt.Errorf("failed to create typst root: %w", err)
+	mathjax.once.Do(func() { mathjax.err = loadMathJax() })
+	if mathjax.err != nil {
+		return nil, mathjax.err
 	}
 
-	color := "#1E1E1E"
+	mathjax.mu.Lock()
+	defer mathjax.mu.Unlock()
+
+	svg, err := mathjax.render(tex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render math with mathjax: %w", err)
+	}
+
+	col := color.RGBA{0x1E, 0x1E, 0x1E, 0xFF}
 	if palette.dark {
-		color = "#E8E8E8"
+		col = color.RGBA{0xE8, 0xE8, 0xE8, 0xFF}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), mathTimeout)
-	defer cancel()
+	// MathJax measures in thousandths of an em
+	return drawSVG(svg, col, mathEmPixels/1000.0, mathMarginPixels)
+}
 
-	cmd := exec.CommandContext(ctx, "typst", "compile", "--root", root, "--ignore-system-fonts",
-		"--ppi", strconv.Itoa(mathPPI), "--input", "color="+color, "--input", "tex="+tex, "--format", "png", "-", "-")
-	cmd.Stdin = strings.NewReader(mathSource)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+// loadMathJax runs the MathJax bundle and gives it the functions its entry in gen_mathjax.go calls: loadFontFile,
+// which runs a glyph range of the font, and measureText, which measures text the font lacks.
+func loadMathJax() error {
+	vm := goja.New()
+	err := vm.Set("loadFontFile", func(file string) error {
+		src, err := gunzip(path.Join("mathjax", "fonts", path.Base(file)+".gz"))
+		// gen_mathjax.go leaves out ranges that system fonts shape
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		} else if err != nil {
+			return err
+		}
 
-	out, err := cmd.Output()
+		_, err = vm.RunScript(file, src)
+		return err
+	})
 	if err != nil {
-		// typst prints the error on the first line and its trace through mitex after it
-		problem, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
-		return nil, fmt.Errorf("failed to render math with typst: %w: %s", err, problem)
+		return fmt.Errorf("failed to load mathjax: %w", err)
 	}
 
-	img, err := png.Decode(bytes.NewReader(out))
+	err = vm.Set("measureText", func(text, family string, italic, bold bool) ([]float64, error) {
+		s, err := shapeText(textKey{text, family, italic, bold})
+		if err != nil {
+			return nil, err
+		}
+
+		return []float64{s.width / textSize, s.ascent / textSize, s.descent / textSize}, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode math image: %w", err)
+		return fmt.Errorf("failed to load mathjax: %w", err)
 	}
 
-	return img, nil
+	src, err := gunzip("mathjax/mathjax.js.gz")
+	if err != nil {
+		return err
+	}
+
+	if _, err := vm.RunScript("mathjax.js", src); err != nil {
+		return fmt.Errorf("failed to load mathjax: %w", err)
+	}
+
+	if err := vm.ExportTo(vm.Get("render"), &mathjax.render); err != nil {
+		return fmt.Errorf("failed to load mathjax: %w", err)
+	}
+
+	return nil
+}
+
+// gunzip returns the contents of gzipped file name of mathjaxFiles.
+func gunzip(name string) (string, error) {
+	data, err := mathjaxFiles.ReadFile(name)
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", name, err)
+	}
+
+	zr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", name, err)
+	}
+
+	src, err := io.ReadAll(zr)
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", name, err)
+	}
+
+	return string(src), nil
 }
 
 // MathCells returns the size in cells of math rendered by RenderMath at the size of the text around it, shrunk to

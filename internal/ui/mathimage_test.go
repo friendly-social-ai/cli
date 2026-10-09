@@ -1,9 +1,6 @@
 package ui
 
-import (
-	"os/exec"
-	"testing"
-)
+import "testing"
 
 func TestDisplayMath(t *testing.T) {
 	tests := []struct {
@@ -41,10 +38,6 @@ func TestDisplayMathCoversItsLines(t *testing.T) {
 }
 
 func TestRenderMathAtTextSize(t *testing.T) {
-	if _, err := exec.LookPath("typst"); err != nil {
-		t.Skip("typst is not installed")
-	}
-
 	tests := []struct {
 		tex  string
 		rows int
@@ -75,11 +68,44 @@ func TestRenderMathAtTextSize(t *testing.T) {
 }
 
 func TestRenderMathUnknownCommandFails(t *testing.T) {
-	if _, err := exec.LookPath("typst"); err != nil {
-		t.Skip("typst is not installed")
-	}
-
 	if _, err := RenderMath(`\notacommand{x}`); err == nil {
 		t.Error("RenderMath() = nil, want an error")
+	}
+}
+
+func TestRenderMathCommutativeDiagram(t *testing.T) {
+	img, err := RenderMath("\\begin{CD}\n   A @>a>> B \\\\\n@VbVV @AAcA \\\\\n   C @= D\n\\end{CD}")
+	if err != nil {
+		t.Fatalf("RenderMath() = %v", err)
+	}
+
+	if _, rows := MathCells(img, 80); rows < 3 {
+		t.Errorf("MathCells() rows = %d, want at least 3 for three rows of objects", rows)
+	}
+}
+
+func TestRenderMathColor(t *testing.T) {
+	img, err := RenderMath(`\color{red}{x}`)
+	if err != nil {
+		t.Fatalf("RenderMath() = %v", err)
+	}
+
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if r, g, bl, a := img.At(x, y).RGBA(); a == 0xFFFF && r > 0xC000 && g < 0x4000 && bl < 0x4000 {
+				return
+			}
+		}
+	}
+
+	t.Error("RenderMath(\\color{red}{x}) has no red")
+}
+
+func TestRenderMathAccentedText(t *testing.T) {
+	for _, tex := range []string{`\text{café naïve}`, `é`, `\text{Ωμέγα Привет}`} {
+		if _, err := RenderMath(tex); err != nil {
+			t.Errorf("RenderMath(%q) = %v", tex, err)
+		}
 	}
 }
