@@ -8,17 +8,17 @@ import (
 )
 
 var (
-	// fenceOpenPattern matches the opening fence of a code block and captures it.
-	fenceOpenPattern = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})")
+	// fenceOpenPattern matches the opening fence of a code block and captures it and its language.
+	fenceOpenPattern = regexp.MustCompile("^ {0,3}(`{3,}|~{3,}) *([^ `]*)")
 	// mathOpenPattern matches the opening fence of display math and captures it.
 	mathOpenPattern = regexp.MustCompile(`^ {0,3}(\$\$+)[^$]*$`)
 	// fenceClosePattern matches a closing fence of a code block or display math and captures it.
 	fenceClosePattern = regexp.MustCompile("^ {0,3}(`{3,}|~{3,}|\\$\\$+) *$")
 )
 
-// mathText replaces math in markdown text with Unicode. It finds math the way remark-math does on the web: inline
-// between matching runs of $ and display between lines of $$. Math that Unicode can't show stays as its source,
-// inline in a code span and display in a latex code block.
+// mathText replaces math in markdown text with Unicode. It finds math the way remark-math and rehype-katex do on the
+// web: inline between matching runs of $ and display between lines of $$ or in a math code block. Math that Unicode
+// can't show stays as its source, inline in a code span and display in a latex code block.
 func mathText(text string) string {
 	var out strings.Builder
 	// para is the start of the paragraph being collected, -1 between paragraphs
@@ -50,8 +50,8 @@ func mathText(text string) string {
 	return out.String()
 }
 
-// MathBlock is display math of markdown text: the TeX between lines of $$, and the bytes of text from the opening
-// line to the end of the closing one.
+// MathBlock is display math of markdown text: the TeX between lines of $$ or in a math code block, and the bytes of
+// text from the opening line to the end of the closing one.
 type MathBlock struct {
 	TeX        string
 	Start, End int
@@ -87,7 +87,7 @@ type block struct {
 }
 
 // blocks splits markdown text into lines of paragraphs, blank lines, code blocks and display math, the way
-// remark-math on the web reads it. A block without its closing fence runs to the end of text.
+// remark-math and rehype-katex on the web read it. A block without its closing fence runs to the end of text.
 func blocks(text string) []block {
 	var out []block
 	for start := 0; start < len(text); {
@@ -97,29 +97,16 @@ func blocks(text string) []block {
 		case strings.TrimSpace(line) == "":
 			b.kind = blankBlock
 		case fenceOpenPattern.MatchString(line):
+			m := fenceOpenPattern.FindStringSubmatch(line)
+			bodyEnd, next := closeFence(text, end, m[1])
 			b.kind = codeBlock
-			open := fenceOpenPattern.FindStringSubmatch(line)[1]
-			for end < len(text) {
-				line, end = lineAt(text, end)
-				if closesFence(line, open) {
-					break
-				}
+			if m[2] == "math" {
+				b.kind, b.tex = mathBlock, text[end:bodyEnd]
 			}
+			end = next
 		case mathOpenPattern.MatchString(line):
-			b.kind = mathBlock
-			open := mathOpenPattern.FindStringSubmatch(line)[1]
-			body, bodyEnd := end, -1
-			for end < len(text) && bodyEnd < 0 {
-				line, next := lineAt(text, end)
-				if closesFence(line, open) {
-					bodyEnd = end
-				}
-				end = next
-			}
-			if bodyEnd < 0 {
-				bodyEnd = end
-			}
-			b.tex = text[body:bodyEnd]
+			bodyEnd, next := closeFence(text, end, mathOpenPattern.FindStringSubmatch(line)[1])
+			b.kind, b.tex, end = mathBlock, text[end:bodyEnd], next
 		}
 
 		b.end = end
@@ -138,6 +125,20 @@ func lineAt(text string, start int) (string, int) {
 	}
 
 	return strings.TrimRight(text[start:end], "\r\n"), end
+}
+
+// closeFence returns the start and end of the line that closes a block opened with fence open, searching from byte
+// start of text. Both are the end of text when no line closes it.
+func closeFence(text string, start int, open string) (int, int) {
+	for start < len(text) {
+		line, next := lineAt(text, start)
+		if closesFence(line, open) {
+			return start, next
+		}
+		start = next
+	}
+
+	return len(text), len(text)
 }
 
 // closesFence reports whether line closes a block opened with fence open.

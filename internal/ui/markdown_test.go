@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -25,6 +26,8 @@ func TestMarkdownRendersMath(t *testing.T) {
 		{"unclosed dollar", "costs $5", "costs $5"},
 		{"display math", "$$\n\\sum_{i=1}^n i\n$$", "∑ᵢ₌₁ⁿ i"},
 		{"unsupported display shows source", "$$\na \\\\ b\n$$", `a \\ b`},
+		{"math code block", "```math\n\\sum_{i=1}^n i\n```", "∑ᵢ₌₁ⁿ i"},
+		{"other code block stays code", "```mathematica\n\\alpha\n```", `\alpha`},
 	}
 
 	m := NewMarkdown()
@@ -47,5 +50,24 @@ func TestMarkdownMathStopsAtParagraph(t *testing.T) {
 func TestPlainMathKeepsPunctuationUnescaped(t *testing.T) {
 	if got, want := PlainMath(`$\frac{a+b}{2}$ for \$5`), "(a+b)/2 for $5"; got != want {
 		t.Errorf("PlainMath() = %q, want %q", got, want)
+	}
+}
+
+func TestDisplayMathFindsBlocks(t *testing.T) {
+	tests := []struct {
+		name, text string
+		want       []MathBlock
+	}{
+		{"dollars", "before\n$$\nx^2\n$$\nafter", []MathBlock{{TeX: "x^2\n", Start: 7, End: 17}}},
+		{"math code block", "before\n```math\nx^2\n```\nafter", []MathBlock{{TeX: "x^2\n", Start: 7, End: 23}}},
+		{"other code block", "```tex\nx^2\n```", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := DisplayMath(tt.text); !slices.Equal(got, tt.want) {
+				t.Errorf("DisplayMath(%q) = %+v, want %+v", tt.text, got, tt.want)
+			}
+		})
 	}
 }
