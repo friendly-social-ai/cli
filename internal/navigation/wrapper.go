@@ -555,7 +555,7 @@ func (w Wrapper) content() string {
 		content = header + "\n" + w.helpView(w.width, w.height-lipgloss.Height(header)-lipgloss.Height(footer))
 	}
 
-	return ui.Clip(content, w.width, w.height-lipgloss.Height(footer)) + "\n" + footer
+	return ui.Clip(ui.SplitConjuncts(content), w.width, w.height-lipgloss.Height(footer)) + "\n" + footer
 }
 
 // tooSmall reports whether the terminal is smaller than the layout fits.
