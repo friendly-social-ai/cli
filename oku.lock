@@ -238,32 +238,3 @@ strategy = 'artifact'
 url = 'https://dl.google.com/go/go1.26.8.windows-amd64.zip'
 sha256 = 'b92c3b2adae85a11ba71fe7216daf0d84e82af4c8ab6c5625807f28622043a59'
 verified = 'checksum-file'
-
-[[package]]
-name = 'typst'
-ref = 'github:typst/typst'
-commit = 'e58a63af09032a486b12241d08ebd04131483221'
-manifest_sha256 = 'a4d2bf12da257db36f040e0ae94b3f494cbb54b6550fd75fbcb07e8c26a9866e'
-version = '0.15.1'
-tag = 'v0.15.1'
-inferred = true
-manifest = "[package]\nname = \"typst\"\nhomepage = \"https://github.com/typst/typst\"\n\n[version]\nfrom = \"github-releases\"\nrepo = \"typst/typst\"\nstrip_prefix = \"v\"\n\n[[artifact]]\nmatch = { os = \"linux\", arch = \"amd64\" }\nurl = \"https://github.com/typst/typst/releases/download/{{tag}}/typst-x86_64-unknown-linux-musl.tar.xz\"\nstrip = 1\nbin = [\"typst\"]\n\n[[artifact]]\nmatch = { os = \"darwin\", arch = \"amd64\" }\nurl = \"https://github.com/typst/typst/releases/download/{{tag}}/typst-x86_64-apple-darwin.tar.xz\"\nstrip = 1\nbin = [\"typst\"]\n\n[[artifact]]\nmatch = { os = \"windows\", arch = \"amd64\" }\nurl = \"https://github.com/typst/typst/releases/download/{{tag}}/typst-x86_64-pc-windows-msvc.zip\"\nstrip = 1\nbin = [\"typst.exe\"]\n\n[[artifact]]\nmatch = { os = \"linux\", arch = \"arm64\" }\nurl = \"https://github.com/typst/typst/releases/download/{{tag}}/typst-aarch64-unknown-linux-musl.tar.xz\"\nstrip = 1\nbin = [\"typst\"]\n\n[[artifact]]\nmatch = { os = \"darwin\", arch = \"arm64\" }\nurl = \"https://github.com/typst/typst/releases/download/{{tag}}/typst-aarch64-apple-darwin.tar.xz\"\nstrip = 1\nbin = [\"typst\"]\n\n[[artifact]]\nmatch = { os = \"windows\", arch = \"arm64\" }\nurl = \"https://github.com/typst/typst/releases/download/{{tag}}/typst-aarch64-pc-windows-msvc.zip\"\nstrip = 1\nbin = [\"typst.exe\"]\n\n[[artifact]]\nmatch = { os = \"linux\", arch = \"arm\" }\nurl = \"https://github.com/typst/typst/releases/download/{{tag}}/typst-armv7-unknown-linux-musleabi.tar.xz\"\nstrip = 1\nbin = [\"typst\"]\n"
-
-[package.platform]
-[package.platform.darwin-arm64]
-strategy = 'artifact'
-url = 'https://github.com/typst/typst/releases/download/v0.15.1/typst-aarch64-apple-darwin.tar.xz'
-sha256 = '48f62ed034aa3a7978309579ac6ca00045e2ef0da73114e8af27cfd8e74dc05a'
-verified = 'published'
-
-[package.platform.linux-amd64-glibc]
-strategy = 'artifact'
-url = 'https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz'
-sha256 = 'a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c'
-verified = 'published'
-
-[package.platform.windows-amd64]
-strategy = 'artifact'
-url = 'https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-pc-windows-msvc.zip'
-sha256 = '19ce3551153c2fe7ee9fa2f95208310c8f4d3209fedb699e0333faf8913f6736'
-verified = 'published'

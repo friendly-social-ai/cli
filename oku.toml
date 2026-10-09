@@ -12,4 +12,3 @@ golines = { ref = "github:golangci/golines", version = "~0.15" }
 gopls = "go:golang.org/x/tools/gopls"
 goimports = "go:golang.org/x/tools/cmd/goimports"
 golangci-lint-langserver = "github:nametake/golangci-lint-langserver"
-typst = { ref = "github:typst/typst", version = "~0.15" }

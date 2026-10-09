@@ -8,10 +8,6 @@ from = "git-branch"
 repo = "https://github.com/friendly-social-ai/cli"
 branch = "main"
 
-# typst renders display math, see docs/config.md
-[runtime]
-deps = [{ ref = "github:typst/typst", version = "~0.15" }]
-
 [host]
 git = { command = "git", apt = "git", dnf = "git", pacman = "git", when = { os = "linux" } }
 
@@ -44,8 +40,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 shell = "pwsh"
 env = { CGO_ENABLED = "0", GOFLAGS = "-buildvcs=false", PREFIX = "{{prefix}}" }
 
-# oku writes bin/friendly as a script that puts typst on PATH and runs lib/friendly. On Windows it writes a shim,
-# which runs lib/friendly.exe for the path lib/friendly.
+# oku writes bin/friendly as a script that runs lib/friendly. On Windows it writes a shim, which runs
+# lib/friendly.exe for the path lib/friendly.
 [[build.step]]
 install = { bin = [{ name = "friendly", run = "{{prefix}}/lib/friendly" }] }
 
