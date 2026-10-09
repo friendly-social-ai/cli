@@ -114,6 +114,7 @@ type (
 	imageMsg struct {
 		url        string
 		img        image.Image
+		math       bool
 		id         uint32
 		cols, rows int
 		upload     string
@@ -123,10 +124,11 @@ type (
 	failedMsg struct{ err error }
 )
 
-// picture is an image of a post. img is nil when the download failed. A non-zero id means terminal graphics holds
-// the upload and shows it as a cols x rows placeholder.
+// picture is an image or rendered display math of a post. img is nil when the download or render failed. A non-zero
+// id means terminal graphics holds the upload and shows it as a cols x rows placeholder.
 type picture struct {
 	img        image.Image
+	math       bool
 	done       bool
 	id         uint32
 	cols, rows int
@@ -160,7 +162,8 @@ type Screen struct {
 	replies     []sdk.CommunityPostReply
 	repliesNext *sdk.CursorId
 
-	// pictures holds post images by URL, rendered caches their half-block drawings by URL and size.
+	// pictures holds post images by URL and display math by mathKey, rendered caches half-block drawings of images by
+	// URL and size.
 	pictures map[string]*picture
 	rendered map[string]string
 
@@ -478,31 +481,39 @@ func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
 	return s.loadImages(post.Text.Value())
 }
 
-// loadImages downloads images of text that aren't loaded yet.
+// loadImages downloads images of text and renders its display math, skipping the ones loaded already. Math needs
+// terminal graphics, since half-blocks are too coarse for it, and shows as text without them.
 func (s Screen) loadImages(text string) tea.Cmd {
 	if s.hideImages {
 		return nil
 	}
 
 	var cmds []tea.Cmd
-	for _, match := range imagePattern.FindAllStringSubmatch(text, -1) {
-		url := match[1]
-		if _, ok := s.pictures[url]; ok {
+	for _, m := range media(text) {
+		if _, ok := s.pictures[m.key]; ok || m.math && s.graphics == nil {
 			continue
 		}
 
-		s.pictures[url] = &picture{}
+		s.pictures[m.key] = &picture{}
 		width, rows := s.textWidth(), s.imageRows()
 		cmds = append(cmds, func() tea.Msg {
-			msg := imageMsg{url: url}
-			msg.img, _ = s.service.image(url)
+			msg := imageMsg{url: m.key, math: m.math}
+			if m.math {
+				var err error
+				if msg.img, err = ui.RenderMath(m.tex); err != nil {
+					slog.Warn("math", "err", err)
+				}
+			} else {
+				msg.img, _ = s.service.image(m.key)
+			}
+
 			// draw or upload the image here, off the update loop, since both take milliseconds
 			switch {
 			case msg.img != nil && s.graphics != nil:
-				msg.cols, msg.rows = ui.Fit(msg.img, width, rows)
+				msg.cols, msg.rows = cells(msg.img, m.math, width, rows)
 				msg.id, msg.upload, _ = s.graphics.Upload(msg.img, msg.cols, msg.rows)
 			case msg.img != nil:
-				msg.drawing, msg.key = ui.RenderImage(msg.img, width, rows), renderedKey(url, width, rows)
+				msg.drawing, msg.key = ui.RenderImage(msg.img, width, rows), renderedKey(m.key, width, rows)
 			}
 
 			return router.TargetMsg{Type: screen.TypeCommunity, Inner: msg}
@@ -510,6 +521,16 @@ func (s Screen) loadImages(text string) tea.Cmd {
 	}
 
 	return tea.Batch(cmds...)
+}
+
+// cells returns the size in cells of a picture on a screen width cells wide. Math keeps the size of the text around
+// it, and an image fills the width up to rows.
+func cells(img image.Image, math bool, width, rows int) (int, int) {
+	if math {
+		return ui.MathCells(img, width)
+	}
+
+	return ui.Fit(img, width, rows)
 }
 
 func (s Screen) imageRows() int {
@@ -523,7 +544,7 @@ func (s Screen) place(p *picture) string {
 		return ""
 	}
 
-	cols, rows := ui.Fit(p.img, s.textWidth(), s.imageRows())
+	cols, rows := cells(p.img, p.math, s.textWidth(), s.imageRows())
 	if cols == p.cols && rows == p.rows {
 		return ""
 	}
@@ -536,8 +557,8 @@ func (s Screen) place(p *picture) string {
 func (s Screen) dropPictures(text *sdk.CommunityPostText) string {
 	keep := make(map[string]bool)
 	if text != nil {
-		for _, match := range imagePattern.FindAllStringSubmatch(text.Value(), -1) {
-			keep[match[1]] = true
+		for _, m := range media(text.Value()) {
+			keep[m.key] = true
 		}
 	}
 
@@ -1334,7 +1355,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
-		p := &picture{img: msg.img, done: true, id: msg.id, cols: msg.cols, rows: msg.rows}
+		p := &picture{img: msg.img, math: msg.math, done: true, id: msg.id, cols: msg.cols, rows: msg.rows}
 		s.pictures[msg.url] = p
 		if msg.drawing != "" {
 			s.rendered[msg.key] = msg.drawing

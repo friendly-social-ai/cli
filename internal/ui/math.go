@@ -50,6 +50,25 @@ func mathText(text string) string {
 	return out.String()
 }
 
+// MathBlock is display math of markdown text: the TeX between lines of $$, and the bytes of text from the opening
+// line to the end of the closing one.
+type MathBlock struct {
+	TeX        string
+	Start, End int
+}
+
+// DisplayMath returns the display math of markdown text in order, the blocks the web shows on their own line.
+func DisplayMath(text string) []MathBlock {
+	var out []MathBlock
+	for _, b := range blocks(text) {
+		if b.kind == mathBlock {
+			out = append(out, MathBlock{TeX: b.tex, Start: b.start, End: b.end})
+		}
+	}
+
+	return out
+}
+
 type blockKind int
 
 const (

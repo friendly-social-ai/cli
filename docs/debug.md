@@ -15,7 +15,7 @@ with `tail -f`.
 
 - The build revision, Go version, OS, `TERM`, `TERM_PROGRAM`, `COLORTERM` and whether tmux runs.
 - Each config file with its path, whether it exists, and what it set. It also logs whether images use terminal
-  graphics and whether the theme picked dark or light.
+  graphics, the path of typst for display math, and whether the theme picked dark or light.
 - Every request with its method, host, path, status and duration, or the error it failed with.
 - Every error the app shows, in full.
 - A panic while the app handles a message or draws, with its stack. A panic in a background request still prints

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -71,7 +72,9 @@ func run() int {
 	}
 
 	graphics := newGraphics(settings.Images)
-	slog.Info("images", "setting", settings.Images, "graphics", graphics != nil)
+	// display math needs graphics and typst to draw as an image, so log both
+	typst, _ := exec.LookPath("typst")
+	slog.Info("images", "setting", settings.Images, "graphics", graphics != nil, "typst", typst)
 
 	// the transport reports a rejected session to the program, which is assigned below before any request runs
 	var p *tea.Program

@@ -3,6 +3,7 @@ package community
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -503,17 +504,21 @@ func (s Screen) opened() string {
 	return ansi.Truncate(styledMeta(post), s.textWidth(), "…") + "\n" + body
 }
 
-// body renders post text as markdown wrapped to screen width and draws its images in place.
+// body renders post text as markdown wrapped to screen width and draws its images and display math in place.
 func (s Screen) body(text string) string {
 	var parts []string
 	last := 0
-	for _, match := range imagePattern.FindAllStringSubmatchIndex(text, -1) {
-		if segment := strings.TrimSpace(text[last:match[0]]); segment != "" {
+	for _, m := range media(text) {
+		if segment := strings.TrimSpace(text[last:m.start]); segment != "" {
 			parts = append(parts, s.markdown.Render(segment, s.textWidth()))
 		}
 
-		parts = append(parts, s.picture(text[match[2]:match[3]]))
-		last = match[1]
+		if m.math {
+			parts = append(parts, s.math(m.key, text[m.start:m.end]))
+		} else {
+			parts = append(parts, s.picture(m.key))
+		}
+		last = m.end
 	}
 
 	if segment := strings.TrimSpace(text[last:]); segment != "" {
@@ -521,6 +526,51 @@ func (s Screen) body(text string) string {
 	}
 
 	return strings.Join(parts, "\n")
+}
+
+// medium is an image or display math of post text, at bytes start to end. key is the image URL, or mathKey of the
+// TeX.
+type medium struct {
+	start, end int
+	key        string
+	math       bool
+	tex        string
+}
+
+// media returns the images and display math of text in order. An image inside display math belongs to the math.
+func media(text string) []medium {
+	var out []medium
+	blocks := ui.DisplayMath(text)
+	for _, b := range blocks {
+		out = append(out, medium{start: b.Start, end: b.End, key: mathKey(b.TeX), math: true, tex: b.TeX})
+	}
+
+	for _, match := range imagePattern.FindAllStringSubmatchIndex(text, -1) {
+		inside := func(b ui.MathBlock) bool { return match[0] < b.End && b.Start < match[1] }
+		if !slices.ContainsFunc(blocks, inside) {
+			out = append(out, medium{start: match[0], end: match[1], key: text[match[2]:match[3]]})
+		}
+	}
+
+	slices.SortFunc(out, func(a, b medium) int { return a.start - b.start })
+	return out
+}
+
+// mathKey returns the key of display math in pictures, apart from image URLs.
+func mathKey(tex string) string {
+	return "math:" + strings.TrimSpace(tex)
+}
+
+// math draws display math src centered, as the web does. It shows src rendered as markdown until the image is ready,
+// or when it can't be drawn.
+func (s Screen) math(key, src string) string {
+	p, ok := s.pictures[key]
+	if !ok || p.id == 0 {
+		return s.markdown.Render(src, s.textWidth())
+	}
+
+	indent := strings.Repeat(" ", max(s.textWidth()-p.cols, 0)/2)
+	return indent + strings.ReplaceAll(ui.Placeholder(p.id, p.cols, p.rows), "\n", "\n"+indent)
 }
 
 // renderedKey returns the key of the half-block drawing of url that fits width x rows cells.
