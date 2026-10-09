@@ -20,8 +20,6 @@ oku add github:friendly-social-ai/cli
 friendly
 ```
 
-It comes with [typst](https://typst.app), which draws display math.
-
 ## Build
 
 Requires Go 1.26.
@@ -41,8 +39,9 @@ make run
 - Pasting an image reads the clipboard with `osascript` on macOS, and `wl-paste` or `xclip` on Linux.
 - Emoji shortcode supports
 - LaTeX math, read the same way as on the web. Inline `$...$` becomes Unicode, so `$\alpha^2$` shows as α². Display
-  math goes between `$$` lines or in a ` ```math ` block. It draws as an image when the terminal has graphics and
-  [typst](https://typst.app) is installed, and as Unicode otherwise. Math that neither can show stays as its source
+  math goes between `$$` lines or in a ` ```math ` block. It draws as an image with MathJax when the terminal has
+  graphics, and as Unicode otherwise. Text the math font lacks, like CJK or emoji, draws with system fonts, which
+  the app indexes once into `friendly/fonts` of the user cache folder. Math that neither can show stays as its source
 - Drag, paste or attach (with auto path completion) for images
 - Change any key in `~/.config/friendly/keys.toml`, see [docs/keys.md](docs/keys.md)
 - Change the colors in `~/.config/friendly/theme.toml`, see [docs/theme.md](docs/theme.md)
