@@ -17,6 +17,8 @@ This project can be installed via [oku](https://github.com/y3owk1n/oku) with the
 oku add github:friendly-social-ai/cli
 ```
 
+It comes with [typst](https://typst.app), which draws display math.
+
 ## Build
 
 Requires Go 1.26.
