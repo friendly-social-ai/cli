@@ -30,3 +30,6 @@ type PollMsg struct{}
 
 // ReselectMsg reaches a tab screen when the user picks its tab while already on it, to go back to its first view.
 type ReselectMsg struct{}
+
+// ShownMsg reaches a screen when it becomes the current one.
+type ShownMsg struct{}
