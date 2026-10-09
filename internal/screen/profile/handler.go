@@ -1,6 +1,8 @@
 package profile
 
 import (
+	"fmt"
+	"log/slog"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -11,6 +13,7 @@ import (
 	"github.com/friendly-social-ai/cli/internal/router"
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/screen/auth"
+	"github.com/friendly-social-ai/cli/internal/screen/user"
 	"github.com/friendly-social-ai/cli/internal/ui"
 	sdk "github.com/friendly-social-ai/golang-sdk"
 )
@@ -25,10 +28,20 @@ type (
 	saveMsg         struct{}
 	// fieldMsg moves typing by step fields, down for a positive step and up for a negative one.
 	fieldMsg struct{ step int }
-	// loadedMsg carries profile of the logged in user. The request wraps it into router.TargetMsg so it reaches this screen.
+	// openFriendMsg opens the profile of the friend at index.
+	openFriendMsg struct{ index int }
+	// loadedMsg carries profile and friends of the logged in user. The request wraps it into router.TargetMsg so it
+	// reaches this screen. friendsErr is set when only the friends failed to load.
 	loadedMsg struct {
-		self *sdk.UserDetails
-		err  error
+		self       *sdk.UserDetails
+		friends    []sdk.UserDetails
+		err        error
+		friendsErr error
+	}
+	// friendsMsg carries the friends of user, reloaded when the screen shows again
+	friendsMsg struct {
+		user    *sdk.Authorization
+		friends []sdk.UserDetails
 	}
 	// savedMsg carries the profile reloaded after saving, or the error of saving
 	savedMsg struct {
@@ -48,11 +61,16 @@ type Screen struct {
 
 	// self is the loaded profile, nil until it loads
 	self *sdk.UserDetails
+	// friends are listed under the profile, nil until they load
+	friends []sdk.UserDetails
 	// showEmail reveals bound email, which is masked by default
 	showEmail bool
 
 	content struct {
 		status *ui.Status
+
+		// friends lists the friends to open. It is separate from list, which holds the edit form.
+		friends *ui.List
 
 		list   *ui.List
 		fields []*ui.Field
@@ -64,7 +82,8 @@ type Screen struct {
 		}
 	}
 
-	width int
+	width  int
+	height int
 }
 
 // field returns input labeled with its prompt, since its value hides a placeholder.
@@ -99,6 +118,7 @@ func New(service *Service) Screen {
 	}
 
 	result.content.list = ui.NewList()
+	result.content.friends = ui.NewList()
 	return result
 }
 
@@ -128,8 +148,12 @@ func (s Screen) actions() []ui.Action {
 		}
 	case s.user != nil:
 		var actions []ui.Action
+		if len(s.friends) > 0 {
+			actions = append(actions, ui.Action{Key: keys.Bind("open friend", keys.Navigation.Open)})
+		}
+
 		if s.self != nil {
-			actions = append(actions, ui.Action{Key: keys.Bind("edit", keys.Profile.Edit), Msg: editMsg{}})
+			actions = append(actions, ui.Action{Key: keys.Bind("edit profile", keys.Profile.Edit), Msg: editMsg{}})
 		}
 
 		if s.email() != "" {
@@ -204,6 +228,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
+		s.height = msg.Height
 		return s, nil
 	case editMsg:
 		interests := make([]string, len(s.self.Interests.Value()))
@@ -250,7 +275,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.stopEditing()
 		return s, s.content.status.Notice("profile saved")
 	case auth.LogoutMsg:
-		s.user, s.self, s.showEmail, s.editing = nil, nil, false, false
+		s.user, s.self, s.friends, s.showEmail, s.editing = nil, nil, nil, false, false
+		s.content.friends.Reset()
 		s.content.status.Set("")
 		return s, nil
 	case auth.LoginMsg:
@@ -258,7 +284,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.status.Busy("loading")
 		return s, func() tea.Msg {
 			self, err := s.service.get(msg.User)
-			return router.TargetMsg{Type: screen.TypeProfile, Inner: loadedMsg{self: self, err: err}}
+			if err != nil {
+				return router.TargetMsg{Type: screen.TypeProfile, Inner: loadedMsg{err: err}}
+			}
+
+			friends, friendsErr := s.service.friends(msg.User)
+			return router.TargetMsg{Type: screen.TypeProfile, Inner: loadedMsg{self: self, friends: friends, friendsErr: friendsErr}}
 		}
 	case loadedMsg:
 		if msg.err != nil {
@@ -266,17 +297,81 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
-		s.self = msg.self
+		s.self, s.friends = msg.self, msg.friends
+		s.content.friends.Reset(s.friendItems()...)
 		s.content.status.Set("")
+		if msg.friendsErr != nil {
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.friendsErr)))
+		}
+
+		return s, nil
+	case screen.ShownMsg:
+		return s, s.reloadFriends()
+	case friendsMsg:
+		// drop friends of a user who logged out before they arrived
+		if msg.user != s.user {
+			return s, nil
+		}
+
+		s.friends = msg.friends
+		s.content.friends.Set(s.friendItems()...)
+		return s, nil
+	case openFriendMsg:
+		s.confirmLogout = false
+		// a reload can shrink the friends before the open arrives
+		if msg.index >= len(s.friends) {
+			return s, nil
+		}
+
+		return s, tea.Sequence(
+			screen.Send(router.TargetMsg{Type: screen.TypeUser, Inner: user.OpenMsg{Person: s.friends[msg.index], From: screen.TypeProfile}}),
+			screen.Send(screen.ChangeMsg{NewType: screen.TypeUser}))
+	}
+
+	switch {
+	case s.editing && !s.saving:
+		_, cmd := s.content.list.Update(msg)
+		return s, cmd
+	case s.editing:
 		return s, nil
 	}
 
-	if s.editing && !s.saving {
-		_, cmd := s.content.list.Update(msg)
-		return s, cmd
+	// moving to another friend drops pending logout confirmation, like any other key
+	if ui.Moves(msg) {
+		s.confirmLogout = false
 	}
 
-	return s, nil
+	_, cmd := s.content.friends.Update(msg)
+	return s, cmd
+}
+
+// reloadFriends loads friends again, since they change on other screens. Like a poll, it logs a failure and keeps the
+// shown friends.
+func (s Screen) reloadFriends() tea.Cmd {
+	if s.self == nil {
+		return nil
+	}
+
+	current := s.user
+	return func() tea.Msg {
+		friends, err := s.service.friends(current)
+		if err != nil {
+			slog.Error("failed to reload friends", "err", err)
+			return nil
+		}
+
+		return router.TargetMsg{Type: screen.TypeProfile, Inner: friendsMsg{user: current, friends: friends}}
+	}
+}
+
+// friendItems builds a button for each friend. The button opens that friend's profile.
+func (s Screen) friendItems() []ui.Component {
+	items := make([]ui.Component, len(s.friends))
+	for i, friend := range s.friends {
+		items[i] = ui.NewButton(friend.Nickname.Value(), screen.Send(openFriendMsg{index: i}))
+	}
+
+	return items
 }
 
 // stopEditing hides the edit form and unfocuses its field.
@@ -354,7 +449,8 @@ func (s Screen) View() string {
 	}
 
 	var parts []string
-	if profile := s.profile(); profile != "" {
+	profile := s.profile()
+	if profile != "" {
 		parts = append(parts, profile)
 	}
 
@@ -371,5 +467,22 @@ func (s Screen) View() string {
 		parts = append(parts, ui.DangerStyle.Render(warning+" Press "+keys.Profile.Logout.Key()+" again to confirm."))
 	}
 
-	return strings.Join(parts, "\n\n")
+	if profile != "" {
+		parts = append(parts, ui.BoldStyle.Render(fmt.Sprintf("friends (%d)", len(s.friends))))
+		if len(s.friends) == 0 {
+			parts = append(parts, ui.MutedStyle.Render("no friends yet"))
+		}
+	}
+
+	header := strings.Join(parts, "\n\n")
+	if len(s.friends) == 0 {
+		return header
+	}
+
+	// the friends list fills the height left under everything else, so the logout warning stays on screen
+	s.content.friends.SetWidth(s.width)
+	s.content.friends.SetHeight(max(s.height-lipgloss.Height(header)-1, 3))
+	// the list starts below the header and the blank line after it
+	s.content.friends.SetTop(lipgloss.Height(header) + 1)
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", s.content.friends.View())
 }

@@ -90,3 +90,13 @@ func appendIf[T any](opts []T, changed bool, opt T) []T {
 
 	return opts
 }
+
+// friends returns friends of the user.
+func (s *Service) friends(user *sdk.Authorization) ([]sdk.UserDetails, error) {
+	network, err := s.client.GetNetworkDetails(context.Background(), user)
+	if err != nil {
+		return nil, err
+	}
+
+	return network.Friends, nil
+}
