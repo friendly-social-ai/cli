@@ -28,9 +28,10 @@ type (
 	cancelRemoveMsg struct{}
 	openSocialMsg   struct{}
 	backMsg         struct{}
-	// loadedMsg carries the profile of the shown person. The request wraps it into router.TargetMsg so it reaches
-	// this screen. notice tells what a finished request did.
+	// loadedMsg carries the profile of person. The request wraps it into router.TargetMsg so it reaches this screen.
+	// notice tells what a finished request did.
 	loadedMsg struct {
+		person  sdk.UserId
 		profile *sdk.UserProfile
 		err     error
 		notice  string
@@ -114,7 +115,7 @@ func (s Screen) load() tea.Cmd {
 	s.content.status.Busy("loading")
 	return func() tea.Msg {
 		profile, err := s.service.get(user, person)
-		return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{profile: profile, err: err}}
+		return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{person: person.Id, profile: profile, err: err}}
 	}
 }
 
@@ -124,11 +125,11 @@ func (s Screen) request(status, notice string, fn func(*sdk.Authorization, sdk.U
 	s.content.status.Busy(status)
 	return func() tea.Msg {
 		if err := fn(user, person); err != nil {
-			return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{err: err}}
+			return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{person: person.Id, err: err}}
 		}
 
 		profile, err := s.service.get(user, person)
-		return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{profile: profile, err: err, notice: notice}}
+		return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{person: person.Id, profile: profile, err: err, notice: notice}}
 	}
 }
 
@@ -155,6 +156,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.person, s.from, s.profile, s.confirmRemove = msg.Person, msg.From, nil, false
 		return s, s.load()
 	case loadedMsg:
+		// drop a response for a person left before it arrived
+		if msg.person != s.person.Id {
+			return s, nil
+		}
+
 		if msg.err != nil {
 			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
 			return s, nil
@@ -183,10 +189,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case cancelRemoveMsg:
 		s.confirmRemove = false
 	case openSocialMsg:
-		link := s.profile.User.SocialLink.Value()
+		link, person := s.profile.User.SocialLink.Value(), s.person.Id
 		return s, func() tea.Msg {
 			if err := browser.Open(link); err != nil {
-				return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{err: err}}
+				return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{person: person, err: err}}
 			}
 
 			return nil
