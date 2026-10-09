@@ -1363,8 +1363,9 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, s.reload()
 	case deletedMsg:
 		s.confirmDelete = false
-		// a deleted reply or parent stays in the thread marked as deleted, and so does a deleted post with replies
-		if msg.id != s.details.Post.Id || len(s.replies) > 0 {
+		// a deleted reply or parent stays in the thread marked as deleted, and so does a deleted post with replies.
+		// Leaving the post before the delete finishes only reloads the list.
+		if s.mode == modeList || msg.id != s.details.Post.Id || len(s.replies) > 0 {
 			return s, s.reload()
 		}
 
