@@ -9,7 +9,7 @@ import (
 )
 
 // Markdown renders markdown with glamour in the theme colors. It keeps one renderer for the last wrap width. Like
-// the web, it keeps single line breaks and turns emoji shortcodes into emoji.
+// the web, it keeps single line breaks, turns emoji shortcodes into emoji and shows LaTeX math, here as Unicode.
 type Markdown struct {
 	style    ansi.StyleConfig
 	width    int
@@ -53,7 +53,7 @@ func (m *Markdown) Render(text string, width int) string {
 		m.renderer, m.width = renderer, width
 	}
 
-	out, err := m.renderer.Render(text)
+	out, err := m.renderer.Render(mathText(text))
 	if err != nil {
 		return text
 	}
