@@ -51,6 +51,16 @@ make run
 - Start with another config folder through `FRIENDLY_CONFIG_DIR`
 - [config/](config) holds every default config file, ready to copy to `~/.config/friendly`
 
+## Floating friendly within tmux
+
+Bind the following to your tmux config:
+
+```txt
+bind C-d display-popup -T "Friendly" -w 90% -h 80% -d "#{pane_current_path}" -E "friendly"
+```
+
+And you now have access to friendly anywhere within tmux.
+
 ## Development
 
 ```bash
