@@ -75,6 +75,8 @@ screen, or a screen key that a navigation key would take first. Nothing from the
 | | `attach` | `a` |
 | | `paste_image` | `v` |
 | | `discard` | `x` |
+| | `indent` | `tab` |
+| | `outdent` | `shift+tab` |
 | `activity` | `next_unread` | `n` |
 | | `read_all` | `m` |
 | `people` | `connect` | `a` |

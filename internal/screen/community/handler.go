@@ -62,6 +62,8 @@ type (
 	closeMsg         struct{}
 	previewMsg       struct{}
 	editorMsg        struct{}
+	indentMsg        struct{}
+	outdentMsg       struct{}
 	menuMsg          struct{}
 	closeMenuMsg     struct{}
 	discardMsg       struct{}
@@ -1128,6 +1130,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case hideEmojiMsg:
 		s.hidden = s.shortcodeQuery()
+		return s, nil
+	case indentMsg:
+		s.content.field.Indent()
+		return s, nil
+	case outdentMsg:
+		s.content.field.Outdent()
 		return s, nil
 	case editorMsg:
 		return s, s.openEditor()

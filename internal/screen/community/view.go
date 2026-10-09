@@ -153,6 +153,8 @@ func (s Screen) actions() []ui.Action {
 		}
 
 		return append(actions,
+			ui.Action{Key: keys.Bind("indent", keys.Community.Indent), Msg: indentMsg{}},
+			ui.Action{Key: keys.Bind("outdent", keys.Community.Outdent), Msg: outdentMsg{}},
 			ui.Action{Key: keys.Bind("menu", keys.Community.Menu), Msg: menuMsg{}},
 			ui.Action{Key: keys.Bind("close", keys.Common.Cancel), Msg: closeMsg{}})
 	}

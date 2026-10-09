@@ -148,7 +148,7 @@ var Common = struct {
 // Community holds keys of the community screen, with its composer and its menu.
 var Community = struct {
 	NewPost, Reply, Links, Copy, Author, Edit, Delete, NextReply, PreviousReply, Root *Action
-	Menu, Post, Editor, Preview, Attach, PasteImage, Discard                          *Action
+	Menu, Post, Editor, Preview, Attach, PasteImage, Discard, Indent, Outdent         *Action
 }{
 	NewPost:       define("community", "new_post", "n"),
 	Reply:         define("community", "reply", "r"),
@@ -167,6 +167,8 @@ var Community = struct {
 	Attach:        define("community", "attach", "a"),
 	PasteImage:    define("community", "paste_image", "v"),
 	Discard:       define("community", "discard", "x"),
+	Indent:        define("community", "indent", "tab"),
+	Outdent:       define("community", "outdent", "shift+tab"),
 }
 
 // Activity holds keys of the activity screen.

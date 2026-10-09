@@ -49,6 +49,8 @@ preview             = "p"
 attach              = "a"
 paste_image         = "v"
 discard             = "x"
+indent              = "tab"
+outdent             = "shift+tab"
 
 # Activity lists replies to your posts.
 [activity]
