@@ -1,0 +1,15 @@
+[lock]
+platforms = ["darwin-arm64", "linux-amd64-glibc", "windows-amd64"]
+
+[runtimes]
+go = { ref = "./.oku/go.toml", version = "1.26" }
+
+[packages]
+go = { ref = "./.oku/go.toml", version = "1.26" }
+golangci-lint = { ref = "github:golangci/golangci-lint", version = "^2" }
+gofumpt = { ref = "github:mvdan/gofumpt", version = "~0.10" }
+golines = { ref = "github:golangci/golines", version = "~0.15" }
+gopls = "go:golang.org/x/tools/gopls"
+goimports = "go:golang.org/x/tools/cmd/goimports"
+golangci-lint-langserver = "github:nametake/golangci-lint-langserver"
+typst = { ref = "github:typst/typst", version = "~0.15" }
