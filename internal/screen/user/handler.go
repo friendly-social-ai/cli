@@ -49,6 +49,8 @@ type Screen struct {
 
 	// confirmRemove asks to press the key again before ending the friendship
 	confirmRemove bool
+	// sending hides connect and remove while one of them runs
+	sending bool
 
 	content struct {
 		status *ui.Status
@@ -89,14 +91,16 @@ func (s Screen) actions() []ui.Action {
 	}
 
 	var actions []ui.Action
-	switch s.profile.User.Friendship {
-	case sdk.FriendshipFriends:
-		actions = append(actions, ui.Action{Key: keys.Bind("remove friend", keys.User.Remove), Msg: removeMsg{}})
-	case sdk.FriendshipIncomingRequest:
-		actions = append(actions, ui.Action{Key: keys.Bind("accept", keys.User.Connect), Msg: connectMsg{}})
-	case sdk.FriendshipOutgoingRequest:
-	default:
-		actions = append(actions, ui.Action{Key: keys.Bind("connect", keys.User.Connect), Msg: connectMsg{}})
+	if !s.sending {
+		switch s.profile.User.Friendship {
+		case sdk.FriendshipFriends:
+			actions = append(actions, ui.Action{Key: keys.Bind("remove friend", keys.User.Remove), Msg: removeMsg{}})
+		case sdk.FriendshipIncomingRequest:
+			actions = append(actions, ui.Action{Key: keys.Bind("accept", keys.User.Connect), Msg: connectMsg{}})
+		case sdk.FriendshipOutgoingRequest:
+		default:
+			actions = append(actions, ui.Action{Key: keys.Bind("connect", keys.User.Connect), Msg: connectMsg{}})
+		}
 	}
 
 	if s.profile.User.SocialLink.Value() != "" {
@@ -153,7 +157,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.user, s.profile, s.confirmRemove = nil, nil, false
 		s.content.status.Set("")
 	case OpenMsg:
-		s.person, s.from, s.profile, s.confirmRemove = msg.Person, msg.From, nil, false
+		s.person, s.from, s.profile, s.confirmRemove, s.sending = msg.Person, msg.From, nil, false, false
 		return s, s.load()
 	case loadedMsg:
 		// drop a response for a person left before it arrived
@@ -161,6 +165,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
+		s.sending = false
 		if msg.err != nil {
 			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
 			return s, nil
@@ -177,6 +182,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			notice = "accepted"
 		}
 
+		s.sending = true
 		return s, s.request("sending request", notice, s.service.connect)
 	case removeMsg:
 		if !s.confirmRemove {
@@ -184,7 +190,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, nil
 		}
 
-		s.confirmRemove = false
+		s.confirmRemove, s.sending = false, true
 		return s, s.request("removing", "removed from friends", s.service.remove)
 	case cancelRemoveMsg:
 		s.confirmRemove = false
