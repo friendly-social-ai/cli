@@ -32,9 +32,10 @@ const (
 	modePost
 )
 
-// OpenMsg asks community screen to open post. From is the screen that asked, empty for the community screen itself.
+// OpenMsg asks community screen to open post. It shows right away, and its details load after. From is the screen
+// that asked, empty for the community screen itself.
 type OpenMsg struct {
-	Post sdk.CommunityPostDescriptor
+	Post sdk.CommunityPost
 	From screen.Type
 }
 
@@ -435,27 +436,6 @@ func (s *Screen) selectPending() {
 	}
 
 	s.pending = nil
-}
-
-// known returns post with id from what the screen already has loaded.
-func (s Screen) known(id sdk.CommunityPostId) (sdk.CommunityPost, bool) {
-	candidates := append([]sdk.CommunityPost{}, s.posts...)
-	for _, reply := range s.replies {
-		candidates = append(candidates, reply.Posts()...)
-	}
-
-	if s.details != nil {
-		candidates = append(candidates, s.details.Post)
-		candidates = append(candidates, s.details.Upstream...)
-	}
-
-	for _, post := range candidates {
-		if post.Id == id {
-			return post, true
-		}
-	}
-
-	return sdk.CommunityPost{}, false
 }
 
 // open shows post right away. upstream holds its parents when they are known, or nil. Its replies, and its parents
@@ -1019,12 +999,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			s.stack = append(s.stack, postView{s.details, s.replies, s.repliesNext, cursor, offset})
 		}
 
-		if post, ok := s.known(msg.Post.Id); ok {
-			freed := s.open(post, nil)
-			return s, tea.Batch(raw(freed), s.loadPictures(post), s.loadDetails(msg.Post))
-		}
-
-		return s, s.loadDetails(msg.Post)
+		freed := s.open(msg.Post, nil)
+		return s, tea.Batch(raw(freed), s.loadPictures(msg.Post), s.loadDetails(msg.Post.Descriptor()))
 	case pickMsg:
 		s.picking = true
 		s.content.list.Reset(s.items()...)

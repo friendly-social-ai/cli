@@ -265,13 +265,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 	case openMsg:
 		activity := &s.activities[msg.index]
-		cmds := []tea.Cmd{
+		// the post opens before the screen changes, so the previous view of community never shows
+		cmds := []tea.Cmd{tea.Sequence(
 			screen.Send(router.TargetMsg{Type: screen.TypeCommunity, Inner: community.OpenMsg{
-				Post: activity.Post.Descriptor(),
+				Post: *activity.Post,
 				From: screen.TypeActivity,
 			}}),
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeCommunity}),
-		}
+		)}
 
 		// like the web, opening marks it read right away, and a failed read is ignored like a missed notification
 		if !activity.IsRead {

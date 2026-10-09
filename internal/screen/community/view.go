@@ -379,7 +379,7 @@ func (s Screen) postButton(post sdk.CommunityPost, indent string) *ui.Button {
 	title := indent + ansi.Truncate(styledMeta(post), width, "…") + "\n" +
 		indent + ansi.Truncate(line, width, "…")
 
-	return ui.NewButton(title, screen.Send(OpenMsg{Post: post.Descriptor()}))
+	return ui.NewButton(title, screen.Send(OpenMsg{Post: post}))
 }
 
 // styledMeta returns author and details of post, with the author in bold.
