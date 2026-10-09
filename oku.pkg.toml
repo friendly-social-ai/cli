@@ -24,6 +24,7 @@ source = { git = "https://github.com/friendly-social-ai/cli", tag = "{{tag}}" }
 vendor = "go"
 
 [[build.step]]
+when = [{ os = "darwin" }, { os = "linux" }]
 run = """
 set -eu
 mkdir -p "$PREFIX/lib"
@@ -32,7 +33,19 @@ go build -mod=vendor -trimpath -ldflags="-s -w" -o "$PREFIX/lib/friendly" ./cmd
 shell = "sh"
 env = { CGO_ENABLED = "0", GOFLAGS = "-buildvcs=false", PREFIX = "{{prefix}}" }
 
-# oku writes bin/friendly as a script that puts typst on PATH and runs lib/friendly
+# Windows has no sh, and runs a program only with .exe
+[[build.step]]
+when = { os = "windows" }
+run = """
+New-Item -ItemType Directory -Force -Path "$env:PREFIX/lib" | Out-Null
+go build -mod=vendor -trimpath '-ldflags=-s -w' -o "$env:PREFIX/lib/friendly.exe" ./cmd
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+"""
+shell = "pwsh"
+env = { CGO_ENABLED = "0", GOFLAGS = "-buildvcs=false", PREFIX = "{{prefix}}" }
+
+# oku writes bin/friendly as a script that puts typst on PATH and runs lib/friendly. On Windows it writes a shim,
+# which runs lib/friendly.exe for the path lib/friendly.
 [[build.step]]
 install = { bin = [{ name = "friendly", run = "{{prefix}}/lib/friendly" }] }
 
