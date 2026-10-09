@@ -23,26 +23,25 @@ vendor = "go"
 when = [{ os = "darwin" }, { os = "linux" }]
 run = """
 set -eu
-mkdir -p "$PREFIX/lib"
-go build -mod=vendor -trimpath -ldflags="-s -w" -o "$PREFIX/lib/friendly" ./cmd
+go build -mod=vendor -trimpath -ldflags="-s -w" -o friendly ./cmd
 """
 shell = "sh"
-env = { CGO_ENABLED = "0", GOFLAGS = "-buildvcs=false", PREFIX = "{{prefix}}" }
+env = { CGO_ENABLED = "0", GOFLAGS = "-buildvcs=false" }
+
+[[build.step]]
+when = [{ os = "darwin" }, { os = "linux" }]
+install = { bin = ["friendly"] }
 
 # Windows has no sh, and runs a program only with .exe
 [[build.step]]
 when = { os = "windows" }
 run = """
-New-Item -ItemType Directory -Force -Path "$env:PREFIX/lib" | Out-Null
-go build -mod=vendor -trimpath '-ldflags=-s -w' -o "$env:PREFIX/lib/friendly.exe" ./cmd
+go build -mod=vendor -trimpath '-ldflags=-s -w' -o friendly.exe ./cmd
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 """
 shell = "pwsh"
-env = { CGO_ENABLED = "0", GOFLAGS = "-buildvcs=false", PREFIX = "{{prefix}}" }
+env = { CGO_ENABLED = "0", GOFLAGS = "-buildvcs=false" }
 
-# oku writes bin/friendly as a script that runs lib/friendly. On Windows it writes a shim, which runs
-# lib/friendly.exe for the path lib/friendly.
 [[build.step]]
-install = { bin = [{ name = "friendly", run = "{{prefix}}/lib/friendly" }] }
-
-
+when = { os = "windows" }
+install = { bin = ["friendly.exe"] }
