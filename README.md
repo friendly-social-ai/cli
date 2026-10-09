@@ -15,6 +15,9 @@ This project can be installed via [oku](https://github.com/y3owk1n/oku) with the
 
 ```bash
 oku add github:friendly-social-ai/cli
+
+# then you can run it with
+friendly
 ```
 
 It comes with [typst](https://typst.app), which draws display math.
