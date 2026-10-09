@@ -1305,31 +1305,20 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.selectPending()
 		return s, nil
 	case detailsMsg:
-		// details of the post already open update it in place. The cursor and any draft stay.
-		same := s.mode == modePost && s.details != nil && s.details.Post.Id == msg.details.Post.Id
-
-		var freed string
-		if !same {
-			freed = s.dropPictures(msg.details.Post.Text)
-			s.closeComposer()
-			s.confirmDelete = false
-			s.content.field.Raw().SetValue("")
+		// drop details of a post left before they arrived. The post still open updates in place, so the cursor and any
+		// draft stay.
+		if s.mode != modePost || s.details.Post.Id != msg.details.Post.Id {
+			return s, nil
 		}
 
-		s.mode = modePost
 		s.picking = false
 		s.details = msg.details
 		s.replies = msg.details.Replies.Data
 		s.repliesNext = msg.details.Replies.NextId
 		s.content.status.Set("")
-		if same {
-			s.content.list.Set(s.items()...)
-		} else {
-			s.content.list.Reset(s.items()...)
-		}
-
+		s.content.list.Set(s.items()...)
 		s.selectPending()
-		return s, tea.Batch(raw(freed), s.loadPictures(msg.details.Post))
+		return s, s.loadPictures(msg.details.Post)
 	case imageMsg:
 		// drop uploads of pictures that were left before downloading or got downloaded twice
 		if p, ok := s.pictures[msg.url]; !ok || p.done {
@@ -1373,7 +1362,9 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		if n := len(s.details.Upstream); n > 0 {
-			return s, s.loadDetails(s.details.Upstream[n-1].Descriptor())
+			parent := s.details.Upstream[n-1]
+			freed := s.open(parent, s.details.Upstream[:n-1])
+			return s, tea.Batch(raw(freed), s.loadPictures(parent), s.loadDetails(parent.Descriptor()))
 		}
 
 		model, back := s.Update(backMsg{})
