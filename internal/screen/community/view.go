@@ -408,14 +408,19 @@ func metaParts(post sdk.CommunityPost) (string, string) {
 }
 
 // FirstLine returns the first line of post text for previews. It shows images as [image], removes markdown marks,
-// shows math as Unicode and turns shortcodes into emoji.
+// shows math as Unicode and turns shortcodes into emoji. A post that starts with display math shows that math on one
+// line.
 func FirstLine(post sdk.CommunityPost) string {
 	if post.Deleted() {
 		return "this post was deleted"
 	}
 
-	text := imagePattern.ReplaceAllString(post.Text.Value(), "[image]")
-	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	text := strings.TrimSpace(imagePattern.ReplaceAllString(post.Text.Value(), "[image]"))
+	if blocks := ui.DisplayMath(text); len(blocks) > 0 && blocks[0].Start == 0 {
+		return ui.PlainDisplayMath(blocks[0].TeX)
+	}
+
+	line, _, _ := strings.Cut(text, "\n")
 	line = blockMarkPattern.ReplaceAllString(line, "")
 	return ui.Emojize(inlineMarks.Replace(ui.PlainMath(inlineLinkPattern.ReplaceAllString(line, "$1"))))
 }

@@ -153,6 +153,16 @@ func PlainMath(line string) string {
 	return inlineMath(line, func(math string) string { return math })
 }
 
+// PlainDisplayMath returns display math tex on one line for plain text, like a preview. It shows Unicode, or the TeX
+// when Unicode can't show it.
+func PlainDisplayMath(tex string) string {
+	if math, ok := unicodeMath(tex); ok {
+		tex = math
+	}
+
+	return strings.Join(strings.Fields(tex), " ")
+}
+
 // inlineMath replaces inline math in paragraph text with Unicode passed through show, skipping escapes and code
 // spans.
 func inlineMath(s string, show func(string) string) string {
