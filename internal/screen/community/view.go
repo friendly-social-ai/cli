@@ -80,17 +80,17 @@ func (s Screen) items() []ui.Component {
 
 // actions builds keys available in the current state. While typing, only the keys that can't be text work.
 func (s Screen) actions() []ui.Action {
-	if s.attaching {
-		var actions []ui.Action
-		// enter is hidden while an upload runs
-		if s.uploads == 0 {
-			desc := "attach"
-			if strings.HasSuffix(s.promptPath(), "/") {
-				desc = "open"
-			}
+	if s.composing && s.locked() {
+		return nil
+	}
 
-			actions = append(actions, ui.Action{Key: keys.Bind(desc, keys.Common.Confirm), Msg: attachDoneMsg{}})
+	if s.attaching {
+		desc := "attach"
+		if strings.HasSuffix(s.promptPath(), "/") {
+			desc = "open"
 		}
+
+		actions := []ui.Action{{Key: keys.Bind(desc, keys.Common.Confirm), Msg: attachDoneMsg{}}}
 
 		if len(s.files) > 0 {
 			actions = append(actions,

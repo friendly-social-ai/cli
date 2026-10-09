@@ -98,8 +98,11 @@ type (
 		post sdk.CommunityPostId
 		page *sdk.Cursor[sdk.CommunityPostReply]
 	}
-	// doneMsg reports a finished write. posted is the new post, if any.
-	doneMsg struct{ posted *sdk.CommunityPostDescriptor }
+	// doneMsg reports a finished post, reply or edit. posted is the new post, if any. On err the draft stays to try again.
+	doneMsg struct {
+		posted *sdk.CommunityPostDescriptor
+		err    error
+	}
 	// openedMsg reports that an image was opened in the image viewer.
 	openedMsg struct{}
 	// editedMsg reports that the external editor exited. path is the file holding the draft.
@@ -194,6 +197,8 @@ type Screen struct {
 	images    map[int]string
 	nextImage int
 	uploads   int
+	// submitting is true while the draft posts. The composer takes no keys while it posts or an upload runs.
+	submitting bool
 	// files are completions of the path typed into the attach prompt, and fileInfo describes the file it points to.
 	// The prompt starts in attachDir, the directory of the last attached file.
 	files     []string
@@ -328,20 +333,20 @@ func (s Screen) submit() tea.Cmd {
 	if s.mode == modeList {
 		return s.request("posting", func() (tea.Msg, error) {
 			posted, err := s.service.post(s.user, text, nil)
-			return doneMsg{posted: posted}, err
+			return doneMsg{posted: posted, err: err}, nil
 		})
 	}
 
 	if id := s.editing; id != nil {
 		return s.request("saving", func() (tea.Msg, error) {
-			return doneMsg{}, s.service.edit(s.user, *id, text)
+			return doneMsg{err: s.service.edit(s.user, *id, text)}, nil
 		})
 	}
 
 	replyTo := s.replyTo.Descriptor()
 	return s.request("replying", func() (tea.Msg, error) {
 		posted, err := s.service.post(s.user, text, &replyTo)
-		return doneMsg{posted: posted}, err
+		return doneMsg{posted: posted, err: err}, nil
 	})
 }
 
@@ -577,6 +582,33 @@ func (s *Screen) stopPicking() {
 	s.content.list.Reset(s.items()...)
 }
 
+// locked reports whether an upload or the post is running. A locked composer takes no keys.
+func (s Screen) locked() bool {
+	return s.submitting || s.uploads > 0
+}
+
+// unfocusComposer dims the text field and path prompt while the composer is locked.
+func (s *Screen) unfocusComposer() {
+	s.content.field.Update(ui.UnfocusMsg{})
+	s.content.prompt.Update(ui.UnfocusMsg{})
+}
+
+// focusComposer moves typing back once the composer unlocks. It focuses the path prompt while attaching, and the text
+// field otherwise.
+func (s *Screen) focusComposer() tea.Cmd {
+	if !s.composing || s.locked() {
+		return nil
+	}
+
+	if s.attaching {
+		_, cmd := s.content.prompt.Update(ui.FocusMsg{})
+		return cmd
+	}
+
+	_, cmd := s.content.field.Update(ui.FocusMsg{})
+	return cmd
+}
+
 // stopAttaching hides path prompt and moves typing back to the text field.
 func (s *Screen) stopAttaching() tea.Cmd {
 	s.attaching = false
@@ -613,6 +645,7 @@ func (s *Screen) attach(prompt bool, upload func() (string, error)) tea.Cmd {
 	field.InsertString(token)
 	s.images[n] = ""
 	s.uploads++
+	s.unfocusComposer()
 	return s.request("uploading image", func() (tea.Msg, error) {
 		url, err := upload()
 		return attachedMsg{n: n, url: url, err: err, prompt: prompt}, nil
@@ -1226,7 +1259,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		})
 	case tea.PasteMsg:
 		// image files dropped onto the composer upload in place of pasting their paths
-		if !s.composing || s.previewing {
+		if !s.composing || s.previewing || s.locked() {
 			break
 		}
 
@@ -1269,24 +1302,26 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			s.removeToken(msg.n)
 			delete(s.images, msg.n)
 			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
-			return s, nil
+			return s, s.focusComposer()
 		}
 
 		s.images[msg.n] = "![](" + msg.url + ")"
 		if msg.prompt && s.attaching {
-			return s, s.stopAttaching()
+			s.stopAttaching()
 		}
 
-		return s, nil
+		return s, s.focusComposer()
 	case cancelDeleteMsg:
 		s.confirmDelete = false
 		return s, nil
 	case submitMsg:
-		if s.uploads > 0 {
-			return s, s.content.status.Notice("wait for images to upload")
+		cmd := s.submit()
+		if cmd != nil {
+			s.submitting = true
+			s.unfocusComposer()
 		}
 
-		return s, s.submit()
+		return s, cmd
 	case listMsg:
 		s.loadingMore = false
 		s.next = msg.page.NextId
@@ -1353,6 +1388,12 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.content.list.Set(s.items()...)
 		return s, nil
 	case doneMsg:
+		s.submitting = false
+		if msg.err != nil {
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
+			return s, s.focusComposer()
+		}
+
 		s.content.field.Raw().SetValue("")
 		s.closeComposer()
 		// a new post or reply gets selected once it loads
@@ -1398,6 +1439,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	if s.composing {
 		// the preview has no field to type in, so moves and scrolls scroll a long draft
 		if s.previewing && s.scrollPreview(msg) {
+			return s, nil
+		}
+
+		if s.locked() {
 			return s, nil
 		}
 
