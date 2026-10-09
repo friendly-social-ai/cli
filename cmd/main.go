@@ -70,6 +70,8 @@ func run() int {
 		return 1
 	}
 
+	// without a home folder, Indentation skips EditorConfig
+	homeDir, _ := os.UserHomeDir()
 	graphics := newGraphics(settings.Images)
 	// display math needs graphics to draw as an image
 	slog.Info("images", "setting", settings.Images, "graphics", graphics != nil)
@@ -84,7 +86,7 @@ func run() int {
 	})
 	screens := []screen.Model{
 		home.New(),
-		community.New(community.NewService(client), graphics, settings.Images == "off"),
+		community.New(community.NewService(client), graphics, settings.Images == "off", settings.Indentation(homeDir)),
 		activity.New(activity.NewService(client)),
 		people.New(people.NewService(client)),
 		profile.New(profile.NewService(client)),

@@ -42,7 +42,7 @@ func TestLoadTurnsRefreshOff(t *testing.T) {
 }
 
 func TestLoadRejectsMistakes(t *testing.T) {
-	_, err := loadSettings(t, "images = \"sixel\"\nrefresh = \"5\"\ntheme = \"dark\"\n")
+	_, err := loadSettings(t, "images = \"sixel\"\nrefresh = \"5\"\nindent = 9\ntheme = \"dark\"\n")
 	if err == nil {
 		t.Fatal("Load() = nil error, want an error")
 	}
@@ -50,6 +50,7 @@ func TestLoadRejectsMistakes(t *testing.T) {
 	for _, want := range []string{
 		`images: "sixel" is not auto, graphics, blocks or off`,
 		`refresh: "5" is not a duration`,
+		"indent: 9 is not between 1 and 8",
 		"unknown setting theme",
 	} {
 		if !strings.Contains(err.Error(), want) {
@@ -76,7 +77,7 @@ func TestDefaultConfigListsDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, name := range []string{"images", "refresh"} {
+	for _, name := range []string{"images", "refresh", "indent"} {
 		if _, ok := file[name]; !ok {
 			t.Errorf("config/config.toml misses %s", name)
 		}

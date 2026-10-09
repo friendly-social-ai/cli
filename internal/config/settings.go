@@ -19,10 +19,15 @@ type Settings struct {
 	Images string
 	// Refresh is how often the app checks for new posts and activity. Zero turns the checks off.
 	Refresh time.Duration
+	// Indent is how many spaces the composer indents by. Zero takes it from EditorConfig, see Settings.Indentation.
+	Indent int
 }
 
 // Defaults are the settings without a config file.
 var Defaults = Settings{Images: "auto", Refresh: time.Minute}
+
+// maxIndent is the widest indent, a limit that catches a typo like 44.
+const maxIndent = 8
 
 // minRefresh is the shortest refresh, so the checks don't flood the server.
 const minRefresh = 30 * time.Second
@@ -43,6 +48,7 @@ func Load(path string) (Settings, error) {
 	var file struct {
 		Images  string `toml:"images"`
 		Refresh string `toml:"refresh"`
+		Indent  int    `toml:"indent"`
 	}
 
 	meta, err := toml.Decode(string(data), &file)
@@ -77,10 +83,20 @@ func Load(path string) (Settings, error) {
 		settings.Refresh = refresh
 	}
 
+	if meta.IsDefined("indent") {
+		if file.Indent < 0 || file.Indent > maxIndent {
+			problems = append(problems, fmt.Sprintf("indent: %d is not between 1 and %d, or 0 for EditorConfig",
+				file.Indent, maxIndent))
+		}
+
+		settings.Indent = file.Indent
+	}
+
 	if problems != nil {
 		return Defaults, fmt.Errorf("config: %s:\n  %s", path, strings.Join(problems, "\n  "))
 	}
 
-	slog.Info("settings", "path", path, "found", true, "images", settings.Images, "refresh", settings.Refresh)
+	slog.Info("settings", "path", path, "found", true, "images", settings.Images, "refresh", settings.Refresh,
+		"indent", settings.Indent)
 	return settings, nil
 }

@@ -11,6 +11,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/dop251/goja v0.0.0-20260923012348-67663e7a3b97
+	github.com/editorconfig/editorconfig-core-go/v2 v2.6.5
 	github.com/friendly-social-ai/golang-sdk v0.0.0-20261007143324-81f5abcb4d14
 	github.com/go-text/typesetting v0.3.5
 	github.com/yuin/goldmark-emoji v1.0.5
@@ -40,8 +41,10 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
+	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
+	gopkg.in/ini.v1 v1.67.3 // indirect
 )

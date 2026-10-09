@@ -11,7 +11,7 @@ import (
 func newTestArea(text string) *TextArea {
 	input := textarea.New()
 	input.SetWidth(40)
-	area := NewTextArea(input)
+	area := NewTextArea(input, 4)
 	area.Update(FocusMsg{})
 	area.Raw().SetValue(text)
 	return area
@@ -80,7 +80,7 @@ func TestOutdentWithoutSelectionMovesCursorWithText(t *testing.T) {
 func TestIndentPastLimitChangesNothing(t *testing.T) {
 	input := textarea.New()
 	input.CharLimit = 6
-	area := NewTextArea(input)
+	area := NewTextArea(input, 4)
 	area.Update(FocusMsg{})
 	area.Raw().SetValue("a\nb")
 	selectDown(area, 1)
@@ -107,6 +107,41 @@ func TestNewlineOverSelectedLinesKeepsIndentation(t *testing.T) {
 	press(area, tea.KeyDown, tea.ModShift)
 	press(area, tea.KeyEnter, 0)
 	if got, want := area.Value(), "    a\n    "; got != want {
+		t.Errorf("Value() = %q, want %q", got, want)
+	}
+}
+
+func TestPastedTabIndentsByIndent(t *testing.T) {
+	input := textarea.New()
+	area := NewTextArea(input, 2)
+	area.Update(FocusMsg{})
+	area.Update(tea.PasteMsg{Content: "\tx"})
+	if got, want := area.Value(), "  x"; got != want {
+		t.Errorf("Value() = %q, want %q", got, want)
+	}
+}
+
+func TestOutdentAfterTextUndoesIndent(t *testing.T) {
+	area := newTestArea("lol")
+	area.Indent()
+	area.Indent()
+	area.Indent()
+	if got, want := area.Value(), "lol         "; got != want {
+		t.Fatalf("Value() = %q, want %q", got, want)
+	}
+
+	for _, want := range []string{"lol     ", "lol ", "lol", "lol"} {
+		area.Outdent()
+		if got := area.Value(); got != want {
+			t.Errorf("Value() = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestOutdentAfterIndentedTextOutdentsLine(t *testing.T) {
+	area := newTestArea("    foo")
+	area.Outdent()
+	if got, want := area.Value(), "foo"; got != want {
 		t.Errorf("Value() = %q, want %q", got, want)
 	}
 }

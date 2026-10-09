@@ -16,6 +16,7 @@ refresh = "5m"
 |---|---|---|
 | `images` | `auto` draws images with terminal graphics in Ghostty and Kitty, and with colored blocks elsewhere. `graphics` skips the detection, for a terminal that supports them but isn't detected. `blocks` always uses colored blocks. `off` shows `[image]` and downloads nothing. The links key, `o` by default, still opens an image. Display math between `$$` lines draws as an image only with terminal graphics, and shows as Unicode otherwise. | `auto` |
 | `refresh` | How often the app checks for new posts and activity, like `30s` or `5m`. The shortest is `30s`. `"0"` turns the checks off, and the refresh key, `R` by default, still works. Relative times like "5m ago" update every minute either way. | `1m` |
+| `indent` | How many spaces tab indents by in the composer, from `1` to `8`. `0` takes `indent_size` from the EditorConfig of a markdown file in your home folder, so `~/.editorconfig` and its `[*]` and `[*.md]` sections apply. `indent_size = tab` uses `tab_width`. The composer always indents with spaces, so `indent_style = tab` indents by `tab_width` spaces. Without an EditorConfig indent it is `4`. | `0` |
 
 A file with mistakes stops the app before it starts and lists every mistake. Nothing from the file applies until you
 fix it.

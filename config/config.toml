@@ -6,3 +6,7 @@ images = "auto"
 
 # How often to check for new posts and activity, like 30s or 5m. "0" turns the checks off.
 refresh = "1m"
+
+# How many spaces tab indents by in the composer, from 1 to 8. 0 takes indent_size from ~/.editorconfig, or 4 when it
+# sets none.
+indent = 0

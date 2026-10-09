@@ -12,10 +12,12 @@ import (
 // TextArea is an abstraction over textarea.Model for embedding multi-line input into ui package contract.
 type TextArea struct {
 	input *textarea.Model
+	// indent is the width of one level of indentation, in spaces
+	indent int
 }
 
-// NewTextArea creates new TextArea based on provided textarea.Model.
-func NewTextArea(input textarea.Model) *TextArea {
+// NewTextArea creates new TextArea based on provided textarea.Model, indenting by indent spaces.
+func NewTextArea(input textarea.Model, indent int) *TextArea {
 	input.Blur()
 	styles := input.Styles()
 	for _, state := range []*textarea.StyleState{&styles.Focused, &styles.Blurred} {
@@ -26,7 +28,8 @@ func NewTextArea(input textarea.Model) *TextArea {
 	input.SetStyles(styles)
 
 	return &TextArea{
-		input: &input,
+		input:  &input,
+		indent: indent,
 	}
 }
 
@@ -37,6 +40,11 @@ func (a *TextArea) Update(msg tea.Msg) (Component, tea.Cmd) {
 	case UnfocusMsg:
 		a.input.Blur()
 		return a, nil
+	}
+
+	if paste, ok := msg.(tea.PasteMsg); ok {
+		paste.Content = a.untab(paste.Content)
+		msg = paste
 	}
 
 	k, newline := msg.(tea.KeyPressMsg)
@@ -59,24 +67,47 @@ func (a *TextArea) Update(msg tea.Msg) (Component, tea.Cmd) {
 	return a, cmd
 }
 
-// indent is the width of one level of indentation. textarea also turns a pasted tab into this many spaces.
-const indent = 4
+// SetValue replaces the text, with each tab as a level of indentation.
+func (a *TextArea) SetValue(text string) {
+	a.input.SetValue(a.untab(text))
+}
+
+// untab turns each tab of text into a level of indentation, since textarea would make it 4 spaces.
+func (a *TextArea) untab(text string) string {
+	return strings.ReplaceAll(text, "\t", strings.Repeat(" ", a.indent))
+}
 
 // Indent adds a level of indentation to the lines the selection covers. Without a selection it adds spaces at the
 // cursor up to the next level.
 func (a *TextArea) Indent() {
 	if _, _, ok := a.input.Selection(); !ok {
-		a.input.InsertString(strings.Repeat(" ", indent-a.input.Column()%indent))
+		a.input.InsertString(strings.Repeat(" ", a.indent-a.input.Column()%a.indent))
 		return
 	}
 
-	a.shiftLines(func(string) int { return indent })
+	a.shiftLines(func(string) int { return a.indent })
 }
 
 // Outdent removes up to a level of indentation from the lines the selection covers, or from the line of the cursor.
+// Without a selection, it treats spaces between text and the cursor as ones Indent added, and deletes them back to the
+// previous level.
 func (a *TextArea) Outdent() {
+	if _, _, ok := a.input.Selection(); !ok {
+		line := []rune(strings.Split(a.input.Value(), "\n")[a.input.Line()])
+		before := string(line[:a.input.Column()])
+		text := strings.TrimRight(before, " ")
+		if strings.TrimSpace(text) != "" && text != before {
+			for range min(len(before)-len(text), (a.input.Column()-1)%a.indent+1) {
+				model, _ := a.input.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+				*a.input = model
+			}
+
+			return
+		}
+	}
+
 	a.shiftLines(func(line string) int {
-		return -min(indent, len(line)-len(strings.TrimLeft(line, " ")))
+		return -min(a.indent, len(line)-len(strings.TrimLeft(line, " ")))
 	})
 }
 

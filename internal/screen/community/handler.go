@@ -223,8 +223,8 @@ type Screen struct {
 }
 
 // New creates new Screen from Service. It draws images with graphics when it is not nil, and with half-blocks
-// otherwise. With hideImages it shows no images.
-func New(service *Service, graphics *ui.Graphics, hideImages bool) Screen {
+// otherwise. With hideImages it shows no images. The composer indents by indent spaces.
+func New(service *Service, graphics *ui.Graphics, hideImages bool, indent int) Screen {
 	result := Screen{
 		service:    service,
 		graphics:   graphics,
@@ -244,7 +244,7 @@ func New(service *Service, graphics *ui.Graphics, hideImages bool) Screen {
 
 	result.content.status = ui.NewStatus()
 	result.content.filter = ui.NewFilter()
-	result.content.field = ui.NewTextArea(input)
+	result.content.field = ui.NewTextArea(input, indent)
 
 	prompt := textinput.New()
 	prompt.Prompt = ""
@@ -662,7 +662,7 @@ func (s *Screen) setDraft(text string) {
 		s.nextImage = 0
 	}
 
-	s.content.field.Raw().SetValue(imagePattern.ReplaceAllStringFunc(text, func(markdown string) string {
+	s.content.field.SetValue(imagePattern.ReplaceAllStringFunc(text, func(markdown string) string {
 		s.nextImage++
 		s.images[s.nextImage] = markdown
 		return fmt.Sprintf("[image %d]", s.nextImage)
