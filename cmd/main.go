@@ -101,7 +101,7 @@ func run() int {
 	// tmux draws emoji at their grapheme width, which is how lipgloss measures them. It doesn't answer the query for
 	// mode 2027, so the renderer would measure with wcwidth and draw updates one cell off after an emoji with a
 	// variation selector or a skin tone. This message switches the renderer to grapheme width.
-	if os.Getenv("TMUX") != "" {
+	if ui.InTmux() {
 		go p.Send(tea.ModeReportMsg{Mode: ansi.ModeUnicodeCore, Value: ansi.ModeSet})
 	}
 

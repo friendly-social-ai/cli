@@ -33,9 +33,15 @@ type Graphics struct {
 	ids map[uint32]struct{}
 }
 
+// InTmux reports whether the program runs inside tmux. tmux sets both TMUX and TERM_PROGRAM. A terminal opened from
+// a tmux shell inherits TMUX but sets TERM_PROGRAM to its own name.
+func InTmux() bool {
+	return os.Getenv("TMUX") != "" && os.Getenv("TERM_PROGRAM") == "tmux"
+}
+
 // NewGraphics returns Graphics, or nil when terminal doesn't support Unicode placeholders.
 func NewGraphics() *Graphics {
-	tmux := os.Getenv("TMUX") != ""
+	tmux := InTmux()
 
 	term := os.Getenv("TERM_PROGRAM")
 	if os.Getenv("TERM") == "xterm-kitty" {
@@ -68,7 +74,7 @@ func NewGraphics() *Graphics {
 // knows it does.
 func ForceGraphics() *Graphics {
 	return &Graphics{
-		tmux: os.Getenv("TMUX") != "",
+		tmux: InTmux(),
 		ids:  make(map[uint32]struct{}),
 	}
 }
