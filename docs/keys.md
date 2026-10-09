@@ -42,8 +42,8 @@ screen, or a screen key that a navigation key would take first. Nothing from the
 | | `help` | `?` |
 | | `open` | `l`, `enter`, `right` |
 | | `back` | `h`, `left` |
-| | `down` | `j`, `down` |
-| | `up` | `k`, `up` |
+| | `down` | `j`, `down`, `ctrl+n` |
+| | `up` | `k`, `up`, `ctrl+p` |
 | | `first` | `g g` |
 | | `last` | `G` |
 | | `half_page_down` | `ctrl+d` |
