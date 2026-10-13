@@ -2,7 +2,6 @@ package activity
 
 import (
 	"log/slog"
-	"strconv"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -24,14 +23,19 @@ type (
 	readAllMsg struct{}
 	// nextUnreadMsg selects the next unread activity after the cursor. Past the last one it starts again from the top.
 	nextUnreadMsg struct{}
-	// loadedMsg carries a page of activity. Requests wrap it into router.TargetMsg so it reaches this screen anywhere.
+	// loadedMsg carries a page of activity. For the first page it also tells whether an unseen activity is waiting.
+	// Requests wrap it into router.TargetMsg so it reaches this screen anywhere.
 	loadedMsg struct {
 		page   *sdk.Cursor[sdk.Activity]
 		append bool
+		unseen bool
 		err    error
 	}
-	// polledMsg carries the first page of activity checked in the background
-	polledMsg struct{ page *sdk.Cursor[sdk.Activity] }
+	// polledMsg carries the first page of activity checked in the background, and whether an unseen activity is waiting
+	polledMsg struct {
+		page   *sdk.Cursor[sdk.Activity]
+		unseen bool
+	}
 )
 
 // Screen is a model of activity screen, which lists replies to user's posts.
@@ -42,6 +46,11 @@ type Screen struct {
 	activities  []sdk.Activity
 	next        *sdk.CursorId
 	loadingMore bool
+
+	// shown tells that the screen is the current one. unseen tells that an unread activity arrived since the last
+	// acknowledge. The tab shows it as a dot.
+	shown  bool
+	unseen bool
 
 	content struct {
 		status *ui.Status
@@ -117,7 +126,8 @@ func (s Screen) load(cursor *sdk.CursorId) tea.Cmd {
 	user := s.user
 	return func() tea.Msg {
 		page, err := s.service.list(user, cursor)
-		return router.TargetMsg{Type: screen.TypeActivity, Inner: loadedMsg{page: page, append: cursor != nil, err: err}}
+		unseen := err == nil && cursor == nil && s.checkUnseen(user)
+		return router.TargetMsg{Type: screen.TypeActivity, Inner: loadedMsg{page: page, append: cursor != nil, unseen: unseen, err: err}}
 	}
 }
 
@@ -135,7 +145,38 @@ func (s Screen) poll() tea.Cmd {
 			return nil
 		}
 
-		return router.TargetMsg{Type: screen.TypeActivity, Inner: polledMsg{page: page}}
+		return router.TargetMsg{Type: screen.TypeActivity, Inner: polledMsg{page: page, unseen: s.checkUnseen(user)}}
+	}
+}
+
+// checkUnseen reports whether user has an unseen activity. On failure it logs and reports none, and the next refresh
+// checks again.
+func (s Screen) checkUnseen(user *sdk.Authorization) bool {
+	unseen, err := s.service.unseen(user)
+	if err != nil {
+		slog.Error("failed to check unseen activity", "err", err)
+	}
+
+	return unseen
+}
+
+// notice shows the dot for an unseen activity, or acknowledges it right away while the screen is the current one.
+func (s *Screen) notice(unseen bool) tea.Cmd {
+	s.unseen = unseen && !s.shown
+	if unseen && s.shown {
+		return s.acknowledge()
+	}
+
+	return nil
+}
+
+// acknowledge marks the unseen activity as seen. Like a failed read, a failed acknowledge is ignored, and the dot
+// comes back at the next refresh.
+func (s Screen) acknowledge() tea.Cmd {
+	user := s.user
+	return func() tea.Msg {
+		_ = s.service.acknowledge(user)
+		return nil
 	}
 }
 
@@ -151,10 +192,10 @@ func (s Screen) unreadCount() int {
 	return count
 }
 
-// Badge returns number of unread activities for the tab, empty when all are read.
+// Badge returns a dot for the tab when an unseen activity is waiting, like the web.
 func (s Screen) Badge() string {
-	if count := s.unreadCount(); count > 0 {
-		return strconv.Itoa(count)
+	if s.unseen {
+		return "●"
 	}
 
 	return ""
@@ -175,7 +216,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.user = msg.User
 		return s, s.load(nil)
 	case auth.LogoutMsg:
-		s.user, s.activities, s.next = nil, nil, nil
+		s.user, s.activities, s.next, s.unseen = nil, nil, nil, false
 		s.content.status.Set("")
 		s.content.list.Reset(s.items()...)
 		return s, nil
@@ -186,7 +227,15 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case screen.PollMsg:
 		return s, s.poll()
+	case screen.ShownMsg:
+		s.shown = true
+		return s, s.notice(s.unseen)
+	case screen.HiddenMsg:
+		s.shown = false
+		return s, nil
 	case polledMsg:
+		cmd := s.notice(msg.unseen)
+
 		// new activities go on top and the cursor stays on the same one
 		known := make(map[sdk.ActivityId]bool, len(s.activities))
 		for _, activity := range s.activities {
@@ -201,14 +250,14 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		if len(fresh) == 0 {
-			return s, nil
+			return s, cmd
 		}
 
 		cursor, offset := s.content.list.Position()
 		s.activities = append(fresh, s.activities...)
 		s.content.list.Set(s.items()...)
 		s.content.list.SetPosition(cursor+len(fresh), offset)
-		return s, nil
+		return s, cmd
 	case moreMsg:
 		if s.loadingMore || s.next == nil {
 			return s, nil
@@ -224,16 +273,18 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		s.next = msg.page.NextId
+		var cmd tea.Cmd
 		if msg.append {
 			s.activities = append(s.activities, msg.page.Data...)
 			s.content.list.Set(s.items()...)
 		} else {
 			s.activities = msg.page.Data
 			s.content.list.Reset(s.items()...)
+			cmd = s.notice(msg.unseen)
 		}
 
 		s.content.status.Set("")
-		return s, nil
+		return s, cmd
 	case nextUnreadMsg:
 		cursor := s.content.list.Cursor()
 		for i := 1; i <= len(s.activities); i++ {

@@ -25,3 +25,12 @@ func (s *Service) list(user *sdk.Authorization, cursor *sdk.CursorId) (*sdk.Curs
 func (s *Service) read(user *sdk.Authorization, id sdk.ActivityId) error {
 	return s.client.ReadActivity(context.Background(), user, id)
 }
+
+func (s *Service) unseen(user *sdk.Authorization) (bool, error) {
+	id, err := s.client.GetNewUnreadActivity(context.Background(), user)
+	return id != nil, err
+}
+
+func (s *Service) acknowledge(user *sdk.Authorization) error {
+	return s.client.AcknowledgeUnreadActivity(context.Background(), user)
+}

@@ -12,7 +12,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/dop251/goja v0.0.0-20260923012348-67663e7a3b97
 	github.com/editorconfig/editorconfig-core-go/v2 v2.6.5
-	github.com/friendly-social-ai/golang-sdk v0.0.0-20261007143324-81f5abcb4d14
+	github.com/friendly-social-ai/golang-sdk v0.0.0-20261013031944-09c6e69a514b
 	github.com/go-text/typesetting v0.3.5
 	github.com/yuin/goldmark-emoji v1.0.5
 	golang.org/x/image v0.46.0
