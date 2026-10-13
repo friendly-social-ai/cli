@@ -151,8 +151,7 @@ func (r Router) update(msg tea.Msg) (Router, tea.Cmd) {
 		msg.Height -= lipgloss.Height(r.Header())
 		return r.broadcast(msg)
 	case screen.ChangeMsg:
-		r.current = msg.NewType
-		return r.target(r.current, screen.ShownMsg{})
+		return r.show(msg.NewType)
 	case TargetMsg:
 		return r.target(msg.Type, msg.Inner)
 	case BroadcastMsg:
@@ -238,14 +237,25 @@ func (r Router) Position() (int, int) {
 	return holder.Position()
 }
 
-// pick switches to tab and sends it screen.ShownMsg. Picking the current tab again sends it screen.ReselectMsg.
+// pick switches to tab. Picking the current tab again sends it screen.ReselectMsg.
 func (r Router) pick(tab screen.Type) (Router, tea.Cmd) {
 	if tab == r.current {
 		return r.target(tab, screen.ReselectMsg{})
 	}
 
-	r.current = tab
-	return r.target(tab, screen.ShownMsg{})
+	return r.show(tab)
+}
+
+// show switches the current screen to next and sends it screen.ShownMsg. The screen it replaces gets screen.HiddenMsg.
+func (r Router) show(next screen.Type) (Router, tea.Cmd) {
+	var hidden tea.Cmd
+	if next != r.current {
+		r, hidden = r.target(r.current, screen.HiddenMsg{})
+	}
+
+	r.current = next
+	r, shown := r.target(next, screen.ShownMsg{})
+	return r, tea.Batch(hidden, shown)
 }
 
 // OnTab reports whether the current screen is one of tabs, which digit keys switch.

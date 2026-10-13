@@ -33,3 +33,6 @@ type ReselectMsg struct{}
 
 // ShownMsg reaches a screen when it becomes the current one.
 type ShownMsg struct{}
+
+// HiddenMsg reaches a screen when another one replaces it as the current one.
+type HiddenMsg struct{}
