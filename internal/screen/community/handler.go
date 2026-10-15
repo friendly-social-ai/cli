@@ -317,11 +317,28 @@ func (s Screen) poll() tea.Cmd {
 	}
 }
 
+// loadDetails loads details of post and marks it as viewed, like the web does each time it shows a post.
 func (s Screen) loadDetails(post sdk.CommunityPostDescriptor) tea.Cmd {
-	return s.request("loading post", func() (tea.Msg, error) {
+	return tea.Batch(s.view(post), s.request("loading post", func() (tea.Msg, error) {
 		details, err := s.service.details(s.user, post)
 		return detailsMsg{details: details}, err
-	})
+	}))
+}
+
+// view marks post as viewed. On failure it only logs the error, and the dot stays until a later view.
+func (s Screen) view(post sdk.CommunityPostDescriptor) tea.Cmd {
+	if s.user == nil {
+		return nil
+	}
+
+	user := s.user
+	return func() tea.Msg {
+		if err := s.service.view(user, post); err != nil {
+			slog.Error("failed to view post", "err", err)
+		}
+
+		return nil
+	}
 }
 
 func (s Screen) loadReplies() tea.Cmd {
@@ -462,9 +479,20 @@ func (s *Screen) open(post sdk.CommunityPost, upstream []sdk.CommunityPost) stri
 	s.picking, s.confirmDelete = false, false
 	s.details = &sdk.CommunityPostDetails{Post: post, Upstream: upstream}
 	s.replies, s.repliesNext = nil, nil
+	s.clearNewReply(post.Id)
 	s.content.field.Raw().SetValue("")
 	s.content.list.Reset(s.items()...)
 	return freed
+}
+
+// clearNewReply clears the new reply of listed posts that opening post id views, as the web does. It clears post id
+// itself when its new reply is direct, and any post whose new reply is post id.
+func (s *Screen) clearNewReply(id sdk.CommunityPostId) {
+	for i, post := range s.posts {
+		if reply := post.NewReply; reply != nil && (post.Id == id && !reply.Transitive || reply.Id == id) {
+			s.posts[i].NewReply = nil
+		}
+	}
 }
 
 func (s Screen) loadPictures(post sdk.CommunityPost) tea.Cmd {
@@ -1002,16 +1030,23 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case screen.PollMsg:
 		return s, s.poll()
 	case polledMsg:
-		known := make(map[sdk.CommunityPostId]bool, len(s.posts))
-		for _, post := range s.posts {
-			known[post.Id] = true
+		// known posts take their new reply from the poll, so the dot shows without a refresh
+		known := make(map[sdk.CommunityPostId]int, len(s.posts))
+		for i, post := range s.posts {
+			known[post.Id] = i
 		}
 
 		s.fresh = 0
 		for _, post := range msg.page.Data {
-			if !known[post.Id] {
+			if i, ok := known[post.Id]; ok {
+				s.posts[i].NewReply = post.NewReply
+			} else {
 				s.fresh++
 			}
+		}
+
+		if s.mode == modeList {
+			s.content.list.Set(s.items()...)
 		}
 
 		return s, nil

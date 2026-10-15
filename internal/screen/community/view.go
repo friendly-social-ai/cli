@@ -379,7 +379,13 @@ func (s Screen) postButton(post sdk.CommunityPost, indent string) *ui.Button {
 		line = ui.MutedStyle.Render(line)
 	}
 
-	title := indent + ansi.Truncate(styledMeta(post), width, "…") + "\n" +
+	// a new reply shows as a dot after the meta, like the web. The meta truncates 2 cells earlier to make room for it.
+	meta := styledMeta(post)
+	if post.NewReply != nil {
+		meta = ansi.Truncate(meta, width-2, "…") + " " + ui.AccentStyle.Render("●")
+	}
+
+	title := indent + ansi.Truncate(meta, width, "…") + "\n" +
 		indent + ansi.Truncate(line, width, "…")
 
 	return ui.NewButton(title, screen.Send(OpenMsg{Post: post}))
