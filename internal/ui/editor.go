@@ -336,9 +336,8 @@ func (e *Editor) View() string {
 	switch {
 	case t.Len() == 0 && e.Placeholder != "":
 		lines[0] = MutedStyle.Render(e.Placeholder)
-		if e.focused {
-			first, rest := firstCluster(e.Placeholder)
-			lines[0] = cursorStyle.Render(first) + MutedStyle.Render(rest)
+		if e.focused && e.vim.Mode() != vim.Cmdline {
+			lines[0] = cursorMark(e.shape()) + lines[0]
 		}
 	default:
 		cursor := rowOf(rows, e.cursor)
@@ -378,16 +377,6 @@ var (
 	selectionStyle = lipgloss.NewStyle().Reverse(true).Faint(true)
 )
 
-// firstCluster splits s after its first grapheme cluster.
-func firstCluster(s string) (string, string) {
-	g := graphemes.FromString(s)
-	if !g.Next() {
-		return " ", ""
-	}
-
-	return g.Value(), s[len(g.Value()):]
-}
-
 // row renders the text from start to end as one screen row. It draws the cursor when the row holds it, the other
 // cursors while a change types into several regions, and the selection.
 func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
@@ -406,10 +395,10 @@ func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 		return pos >= selection.Start && pos < selection.End && (!selection.Block || col >= selection.Left && col <= selection.Right)
 	}
 
+	// the row marks the cursor for the terminal to draw, unless the command line has it. Other cursors are reversed cells.
+	main := func(pos int) bool { return e.focused && cursor && pos == e.cursor && e.vim.Mode() != vim.Cmdline }
 	others := e.vim.Cursors()
-	cursorAt := func(pos int) bool {
-		return e.focused && (cursor && pos == e.cursor || slices.Contains(others, pos))
-	}
+	other := func(pos int) bool { return e.focused && slices.Contains(others, pos) }
 
 	var b strings.Builder
 	pos := start
@@ -425,10 +414,14 @@ func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 		}
 
 		switch {
-		case cursorAt(pos):
+		case other(pos):
 			cluster = cursorStyle.Render(cluster)
 		case selected(pos):
 			cluster = selectionStyle.Render(cluster)
+		}
+
+		if main(pos) {
+			cluster = cursorMark(e.shape()) + cluster
 		}
 
 		b.WriteString(cluster)
@@ -439,7 +432,9 @@ func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 	// the end of a line has a cell for the cursor and for a selected line break
 	if pos == vim.LineEnd(t, start) {
 		switch {
-		case cursorAt(pos):
+		case main(pos):
+			b.WriteString(cursorMark(e.shape()))
+		case other(pos):
 			b.WriteString(cursorStyle.Render(" "))
 		case selected(pos) && pos < t.Len():
 			b.WriteString(selectionStyle.Render(" "))
@@ -454,8 +449,11 @@ func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 func (e *Editor) status() string {
 	if e.vim.Mode() == vim.Cmdline {
 		line, at := e.vim.Line(), e.vim.LineCursor()
-		cell, rest := firstCluster(line[at:])
-		return ansi.Truncate(line[:at]+cursorStyle.Render(cell)+rest, e.width+4, "…")
+		if e.focused {
+			line = line[:at] + cursorMark(tea.CursorBar) + line[at:]
+		}
+
+		return ansi.Truncate(line, e.width+4, "…")
 	}
 
 	parts := []string{MutedStyle.Render(e.modeName())}
@@ -475,6 +473,19 @@ func (e *Editor) status() string {
 	}
 
 	return ansi.Truncate(strings.Join(parts, "  "), e.width+4, "…")
+}
+
+// shape returns the cursor shape of the mode, as Neovim draws it. It is a bar in insert mode, an underline in replace
+// mode and a block otherwise.
+func (e *Editor) shape() tea.CursorShape {
+	switch e.vim.Mode() {
+	case vim.Insert:
+		return tea.CursorBar
+	case vim.Replace:
+		return tea.CursorUnderline
+	}
+
+	return tea.CursorBlock
 }
 
 // modeName names the mode for the status line.

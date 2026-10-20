@@ -218,7 +218,46 @@ func TestEditorDrawsEveryRegionAndCursor(t *testing.T) {
 		t.Fatalf("Value() = %q, want %q", got, want)
 	}
 
-	if got := strings.Count(e.View(), cursorStyle.Render(" ")); got != 3 {
-		t.Errorf("View() draws %d cursors, want 3", got)
+	// the terminal draws the main cursor, and the other two draw as cells
+	view, cursor := TakeCursor(e.View())
+	if got := strings.Count(view, cursorStyle.Render(" ")); got != 2 || cursor == nil {
+		t.Errorf("View() draws %d cursors and the terminal cursor %v, want 2 and one", got, cursor)
+	}
+}
+
+func TestEditorPlacesTerminalCursorByMode(t *testing.T) {
+	e := newTestEditor(100)
+	typeText(e, "ab\ncd")
+	// the box draws a border row and a border and padding column before the text
+	_, cursor := TakeCursor(e.View())
+	if cursor == nil || cursor.X != 4 || cursor.Y != 2 || cursor.Shape != tea.CursorBar {
+		t.Errorf("cursor in insert mode = %+v, want a bar at 4, 2", cursor)
+	}
+
+	e.Update(esc)
+	_, cursor = TakeCursor(e.View())
+	if cursor == nil || cursor.X != 3 || cursor.Y != 2 || cursor.Shape != tea.CursorBlock {
+		t.Errorf("cursor in normal mode = %+v, want a block at 3, 2", cursor)
+	}
+
+	typeText(e, ":s")
+	_, cursor = TakeCursor(e.View())
+	if cursor == nil || cursor.X != 2 || cursor.Y != 5 || cursor.Shape != tea.CursorBar {
+		t.Errorf("cursor on the command line = %+v, want a bar at 2, 5", cursor)
+	}
+
+	e.Update(UnfocusMsg{})
+	if view, cursor := TakeCursor(e.View()); cursor != nil || strings.Contains(view, markStart) {
+		t.Errorf("unfocused cursor = %+v, want none", cursor)
+	}
+}
+
+func TestEditorMovesCursorToCommandLineOnEmptyDraft(t *testing.T) {
+	e := newTestEditor(100)
+	e.Placeholder = "Write a post"
+	e.Update(esc)
+	typeText(e, ":")
+	if _, cursor := TakeCursor(e.View()); cursor == nil || cursor.Y != 5 {
+		t.Errorf("cursor = %+v, want it on the command line", cursor)
 	}
 }

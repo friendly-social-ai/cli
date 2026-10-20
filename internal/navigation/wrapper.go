@@ -534,7 +534,9 @@ func (w Wrapper) footer() string {
 
 func (w Wrapper) View() tea.View {
 	defer logging.Recover()
-	view := tea.NewView(w.content())
+	content, cursor := ui.TakeCursor(w.content())
+	view := tea.NewView(content)
+	view.Cursor = cursor
 	view.AltScreen = true
 	view.MouseMode = tea.MouseModeCellMotion
 	return view
