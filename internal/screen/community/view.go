@@ -629,6 +629,8 @@ func (s Screen) picture(url string) string {
 func (s Screen) composer() string {
 	// leave room for input border and padding
 	s.content.field.SetWidth(s.textWidth() - 4)
+	// the draft grows up to the rows the preview shows
+	s.content.field.SetMaxRows(s.previewRows())
 	// one cell narrower than the text field, since a single line input draws an extra cell for the cursor
 	s.content.prompt.Raw().SetWidth(s.textWidth() - 5)
 

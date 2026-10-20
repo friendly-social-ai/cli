@@ -15,8 +15,8 @@ import (
 	"github.com/y3owk1n/fude/vim"
 )
 
-// editorRows is how many rows of text Editor shows at once.
-const editorRows = 3
+// minRows is the fewest rows of text Editor shows.
+const minRows = 3
 
 // origin is the kernel origin of every edit, since one person types in an Editor.
 const origin kernel.Origin = "me"
@@ -36,6 +36,8 @@ type Editor struct {
 	head    kernel.NodeID
 	// top is the first row shown, counted over the rows of the whole text
 	top int
+	// maxRows is the most rows of text that show before the text scrolls
+	maxRows int
 	// width is the columns of text, indent the columns of one level of indentation, and limit the most characters the
 	// text may have
 	width, indent, limit int
@@ -48,7 +50,7 @@ type Editor struct {
 
 // NewEditor creates an empty Editor that indents by indent spaces and holds up to limit characters.
 func NewEditor(indent, limit int) *Editor {
-	e := &Editor{indent: indent, limit: limit, width: 40}
+	e := &Editor{indent: indent, limit: limit, width: 40, maxRows: minRows}
 	e.reset("")
 	e.vim = vim.New(host{e: e})
 	e.vim.ExpandTab(true)
@@ -276,6 +278,17 @@ func (e *Editor) SetWidth(width int) {
 	e.scroll()
 }
 
+// SetMaxRows sets the most rows of text that show. The editor grows with its text up to that many rows, then scrolls.
+func (e *Editor) SetMaxRows(rows int) {
+	e.maxRows = rows
+	e.scroll()
+}
+
+// height returns how many rows show for text of n rows.
+func (e *Editor) height(n int) int {
+	return min(max(n, minRows), e.maxRows)
+}
+
 // cols returns the columns rows wrap at. One column stays free for the cursor after a full row.
 func (e *Editor) cols() int {
 	return e.width - 1
@@ -310,14 +323,15 @@ func rowOf(rows []int, pos int) int {
 func (e *Editor) scroll() {
 	rows := e.rows()
 	at := rowOf(rows, e.cursor)
-	e.top = min(e.top, max(len(rows)-editorRows, 0))
-	e.top = min(max(e.top, at-editorRows+1), at)
+	h := e.height(len(rows))
+	e.top = min(e.top, max(len(rows)-h, 0))
+	e.top = min(max(e.top, at-h+1), at)
 }
 
 func (e *Editor) View() string {
 	t := e.buf.Snapshot()
 	rows := e.rows()
-	lines := make([]string, editorRows)
+	lines := make([]string, e.height(len(rows)))
 	switch {
 	case t.Len() == 0 && e.Placeholder != "":
 		lines[0] = MutedStyle.Render(e.Placeholder)
@@ -544,7 +558,7 @@ func (h host) Mark(name rune) (int, bool) {
 func (h host) Viewport() (int, int, int) {
 	t := h.e.buf.Snapshot()
 	rows := h.e.rows()
-	return vim.LineStart(t, rows[min(h.e.top, len(rows)-1)]), editorRows, h.e.cols()
+	return vim.LineStart(t, rows[min(h.e.top, len(rows)-1)]), h.e.height(len(rows)), h.e.cols()
 }
 
 // SetTop shows the line at top from its first row.

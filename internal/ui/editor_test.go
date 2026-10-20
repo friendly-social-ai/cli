@@ -184,3 +184,18 @@ func TestEditorMarksWrappedRowsOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestEditorGrowsUpToMaxRows(t *testing.T) {
+	e := newTestEditor(100)
+	e.SetMaxRows(4)
+	typeText(e, "1\n2\n3\n4\n5")
+	view := ansi.Strip(e.View())
+	// the box adds a border row above and below the text, and the status line goes under it
+	if got, want := strings.Count(view, "\n")+1, 4+3; got != want {
+		t.Errorf("View() has %d lines, want %d:\n%s", got, want, view)
+	}
+
+	if strings.Contains(view, "1") || !strings.Contains(view, "5") {
+		t.Errorf("View() = %q, want 2 to 5", view)
+	}
+}
