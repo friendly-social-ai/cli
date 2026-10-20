@@ -199,3 +199,26 @@ func TestEditorGrowsUpToMaxRows(t *testing.T) {
 		t.Errorf("View() = %q, want 2 to 5", view)
 	}
 }
+
+func TestEditorDrawsEveryRegionAndCursor(t *testing.T) {
+	e := newTestEditor(100)
+	typeText(e, "foo x foo y foo")
+	e.Update(esc)
+	typeText(e, "0")
+	for range 3 {
+		e.Update(tea.KeyPressMsg{Code: 'n', Mod: tea.ModCtrl})
+	}
+
+	if got := strings.Count(e.View(), selectionStyle.Render("f")); got != 3 {
+		t.Errorf("View() selects %d regions, want 3", got)
+	}
+
+	typeText(e, "cbar")
+	if got, want := e.Value(), "bar x bar y bar"; got != want {
+		t.Fatalf("Value() = %q, want %q", got, want)
+	}
+
+	if got := strings.Count(e.View(), cursorStyle.Render(" ")); got != 3 {
+		t.Errorf("View() draws %d cursors, want 3", got)
+	}
+}

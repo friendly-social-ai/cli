@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -387,18 +388,27 @@ func firstCluster(s string) (string, string) {
 	return g.Value(), s[len(g.Value()):]
 }
 
-// row renders the text from start to end as one screen row, with the cursor when it holds it, and the selection.
+// row renders the text from start to end as one screen row. It draws the cursor when the row holds it, the other
+// cursors while a change types into several regions, and the selection.
 func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 	selection, selecting := e.vim.Selection()
 	// col is the display column from the start of the line, counted as vim counts a block selection
 	line := vim.LineStart(t, start)
 	col := vim.Column(t, line, start, e.indent, nil)
 	selected := func(pos int) bool {
-		if !selecting || pos < selection.Start || pos >= selection.End {
+		switch {
+		case !selecting:
 			return false
+		case len(selection.Regions) > 0:
+			return slices.ContainsFunc(selection.Regions, func(r [2]int) bool { return pos >= r[0] && pos < r[1] })
 		}
 
-		return !selection.Block || col >= selection.Left && col <= selection.Right
+		return pos >= selection.Start && pos < selection.End && (!selection.Block || col >= selection.Left && col <= selection.Right)
+	}
+
+	others := e.vim.Cursors()
+	cursorAt := func(pos int) bool {
+		return e.focused && (cursor && pos == e.cursor || slices.Contains(others, pos))
 	}
 
 	var b strings.Builder
@@ -415,7 +425,7 @@ func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 		}
 
 		switch {
-		case cursor && e.focused && pos == e.cursor:
+		case cursorAt(pos):
 			cluster = cursorStyle.Render(cluster)
 		case selected(pos):
 			cluster = selectionStyle.Render(cluster)
@@ -429,7 +439,7 @@ func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 	// the end of a line has a cell for the cursor and for a selected line break
 	if pos == vim.LineEnd(t, start) {
 		switch {
-		case cursor && e.focused && pos == e.cursor:
+		case cursorAt(pos):
 			b.WriteString(cursorStyle.Render(" "))
 		case selected(pos) && pos < t.Len():
 			b.WriteString(selectionStyle.Render(" "))
