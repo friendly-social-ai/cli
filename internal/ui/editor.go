@@ -339,6 +339,10 @@ func (e *Editor) View() string {
 			}
 
 			lines[i] = e.row(t, rows[row], end, row == cursor)
+			// a row that wraps onto the next ends in a marker, in the column kept free for the cursor at a line end
+			if end < t.Len() && t.Slice(end-1, end) != "\n" {
+				lines[i] = pad(lines[i], e.cols()) + MutedStyle.Render("↩")
+			}
 		}
 	}
 

@@ -168,3 +168,19 @@ func TestEditorPastesWithTabsAsIndent(t *testing.T) {
 		t.Errorf("Value() = %q, want %q", got, want)
 	}
 }
+
+func TestEditorMarksWrappedRowsOnly(t *testing.T) {
+	e := newTestEditor(100)
+	typeText(e, "one two three four five six\nseven")
+	lines := strings.Split(ansi.Strip(e.View()), "\n")
+	// the box draws a border row first, and the text wraps at 19 columns
+	if !strings.HasSuffix(lines[1], "↩ │") {
+		t.Errorf("wrapped row = %q, want a marker", lines[1])
+	}
+
+	for _, line := range lines[2:4] {
+		if strings.Contains(line, "↩") {
+			t.Errorf("row %q ends a line, want no marker", line)
+		}
+	}
+}
