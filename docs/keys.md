@@ -28,7 +28,7 @@ delete = []               # unbinds the action
   `g g` and `g t` share their start and work.
 - Sequences don't work while you type, in the composer and in forms.
 - `navigation` and `common` actions need at least one key. Other actions can be unbound with `[]`.
-- Keys the composer and forms use while you type must not be text, so pick one with `ctrl` or `alt`.
+- Keys the composer and forms use while you type must not be text, so pick one with `ctrl` or `alt`. The composer's `cancel` works only in normal mode, so `esc` leaves insert mode first.
 - `ctrl+c` always quits.
 
 A file with mistakes stops the app before it starts and lists every mistake. Examples are a key used twice on one
@@ -70,13 +70,10 @@ screen, or a screen key that a navigation key would take first. Nothing from the
 | | `root` | `H` |
 | | `menu` | `ctrl+o` |
 | | `post` | `alt+enter` |
-| | `editor` | `e` |
 | | `preview` | `p` |
 | | `attach` | `a` |
 | | `paste_image` | `v` |
 | | `discard` | `x` |
-| | `indent` | `tab` |
-| | `outdent` | `shift+tab` |
 | `activity` | `next_unread` | `n` |
 | | `read_all` | `m` |
 | `people` | `connect` | `a` |

@@ -4,15 +4,11 @@ import (
 	"fmt"
 	"image"
 	"log/slog"
-	"os"
-	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
-	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -61,9 +57,6 @@ type (
 	composeMsg       struct{}
 	closeMsg         struct{}
 	previewMsg       struct{}
-	editorMsg        struct{}
-	indentMsg        struct{}
-	outdentMsg       struct{}
 	menuMsg          struct{}
 	closeMenuMsg     struct{}
 	discardMsg       struct{}
@@ -105,11 +98,6 @@ type (
 	}
 	// openedMsg reports that an image was opened in the image viewer.
 	openedMsg struct{}
-	// editedMsg reports that the external editor exited. path is the file holding the draft.
-	editedMsg struct {
-		path string
-		err  error
-	}
 	// deletedMsg reports that deleting post id finished, or failed with err.
 	deletedMsg struct {
 		id  sdk.CommunityPostId
@@ -225,7 +213,7 @@ type Screen struct {
 	content struct {
 		status *ui.Status
 		filter *ui.Filter
-		field  *ui.TextArea
+		field  *ui.Editor
 		prompt *ui.Field
 		list   *ui.List
 	}
@@ -248,15 +236,9 @@ func New(service *Service, graphics *ui.Graphics, hideImages bool, indent int) S
 		attachDir:  "~/",
 	}
 
-	input := textarea.New()
-	input.Prompt = ""
-	input.ShowLineNumbers = false
-	input.CharLimit = 4096
-	input.SetHeight(3)
-
 	result.content.status = ui.NewStatus()
 	result.content.filter = ui.NewFilter()
-	result.content.field = ui.NewTextArea(input, indent)
+	result.content.field = ui.NewEditor(indent, charLimit)
 
 	prompt := textinput.New()
 	prompt.Prompt = ""
@@ -480,7 +462,7 @@ func (s *Screen) open(post sdk.CommunityPost, upstream []sdk.CommunityPost) stri
 	s.details = &sdk.CommunityPostDetails{Post: post, Upstream: upstream}
 	s.replies, s.repliesNext = nil, nil
 	s.clearNewReply(post.Id)
-	s.content.field.Raw().SetValue("")
+	s.content.field.SetValue("")
 	s.content.list.Reset(s.items()...)
 	return freed
 }
@@ -657,9 +639,10 @@ func (s *Screen) attach(prompt bool, upload func() (string, error)) tea.Cmd {
 		return nil
 	}
 
-	field := s.content.field.Raw()
+	field := s.content.field
+	text, cursor := field.Value(), field.Cursor()
 	// numbering starts over once the draft has no images
-	if s.uploads == 0 && !tokenPattern.MatchString(field.Value()) {
+	if s.uploads == 0 && !tokenPattern.MatchString(text) {
 		clear(s.images)
 		s.nextImage = 0
 	}
@@ -667,15 +650,14 @@ func (s *Screen) attach(prompt bool, upload func() (string, error)) tea.Cmd {
 	s.nextImage++
 	n := s.nextImage
 	token := fmt.Sprintf("[image %d]\n", n)
-	if field.Column() > 0 {
+	if cursor > 0 && text[cursor-1] != '\n' {
 		token = "\n" + token
 	}
 
-	if field.Length()+utf8.RuneCountInString(token) > field.CharLimit {
+	if err := field.Replace(cursor, cursor, token); err != nil {
 		return screen.Send(failedMsg{err: fmt.Errorf("draft too long for another image")})
 	}
 
-	field.InsertString(token)
 	s.images[n] = ""
 	s.uploads++
 	s.unfocusComposer()
@@ -687,28 +669,10 @@ func (s *Screen) attach(prompt bool, upload func() (string, error)) tea.Cmd {
 
 // removeToken removes the token of image n from the draft, with the line break after it, keeping the cursor in place.
 func (s *Screen) removeToken(n int) {
-	field := s.content.field.Raw()
-	text := []rune(field.Value())
-	cursor := field.Column()
-	for _, line := range strings.Split(field.Value(), "\n")[:field.Line()] {
-		cursor += utf8.RuneCountInString(line) + 1
-	}
-
 	pattern := regexp.MustCompile(fmt.Sprintf(`\[image %d\]\n?`, n))
-	if !pattern.MatchString(field.Value()) {
-		return
+	if found := pattern.FindStringIndex(s.content.field.Value()); found != nil {
+		s.content.field.Replace(found[0], found[1], "") //nolint:errcheck
 	}
-
-	before, after := string(text[:cursor]), string(text[cursor:])
-	// with the cursor inside the token, it ends up at the end
-	if !pattern.MatchString(before) && !pattern.MatchString(after) {
-		field.SetValue(pattern.ReplaceAllString(field.Value(), ""))
-		return
-	}
-
-	field.SetValue(pattern.ReplaceAllString(after, ""))
-	field.MoveToBegin()
-	field.InsertString(pattern.ReplaceAllString(before, ""))
 }
 
 // draft returns the text of the draft with image tokens replaced by their markdown. Tokens of uploads in flight stay.
@@ -857,7 +821,7 @@ func (s *Screen) restore() tea.Cmd {
 	s.closeComposer()
 	s.picking, s.confirmDelete = false, false
 	s.details, s.replies, s.repliesNext = view.details, view.replies, view.repliesNext
-	s.content.field.Raw().SetValue("")
+	s.content.field.SetValue("")
 	s.content.list.Reset(s.items()...)
 	s.content.list.SetPosition(view.cursor, view.offset)
 	return tea.Batch(raw(freed), s.loadPictures(view.details.Post), s.loadDetails(view.details.Post.Descriptor()))
@@ -875,7 +839,7 @@ func (s *Screen) leave() tea.Cmd {
 	s.details = nil
 	freed := s.dropPictures(nil)
 	s.closeComposer()
-	s.content.field.Raw().SetValue("")
+	s.content.field.SetValue("")
 	s.content.status.Set("")
 	s.content.list.Reset(s.items()...)
 	s.content.list.SetPosition(s.listCursor, s.listOffset)
@@ -910,47 +874,11 @@ func (s *Screen) scrollPreview(msg tea.Msg) bool {
 	return true
 }
 
-// openComposer shows the composer, and typing goes to its text field.
+// openComposer shows the composer, and typing goes to its text field in insert mode.
 func (s *Screen) openComposer() {
 	s.composing = true
+	s.content.field.StartInsert()
 	_, s.composeOffset = s.content.list.Position()
-}
-
-// openEditor writes the draft to a file and opens it in $VISUAL or $EDITOR, or in vi when neither is set.
-func (s Screen) openEditor() tea.Cmd {
-	f, err := os.CreateTemp("", "friendly-*.md")
-	if err != nil {
-		return screen.Send(failedMsg{err: fmt.Errorf("failed to create draft file: %w", err)})
-	}
-
-	_, err = f.WriteString(s.draft())
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-
-	if err != nil {
-		os.Remove(f.Name()) //nolint:errcheck
-		return screen.Send(failedMsg{err: fmt.Errorf("failed to write draft file: %w", err)})
-	}
-
-	editor := os.Getenv("VISUAL")
-	if editor == "" {
-		editor = os.Getenv("EDITOR")
-	}
-
-	if editor == "" {
-		editor = "vi"
-	}
-
-	// the shell splits editors with arguments, like code --wait
-	cmd := exec.Command("sh", "-c", editor+` "$1"`, "sh", f.Name())
-	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		if err != nil {
-			err = fmt.Errorf("editor %q failed: %w", editor, err)
-		}
-
-		return router.TargetMsg{Type: screen.TypeCommunity, Inner: editedMsg{path: f.Name(), err: err}}
-	})
 }
 
 // closeComposer hides the composer. Its draft stays for the next one, except for an edit.
@@ -966,7 +894,7 @@ func (s *Screen) closeComposer() {
 	s.content.field.Update(ui.UnfocusMsg{})
 	if s.editing != nil {
 		s.editing = nil
-		s.content.field.Raw().SetValue("")
+		s.content.field.SetValue("")
 	}
 }
 
@@ -1014,7 +942,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.details, s.replies, s.repliesNext = nil, nil, nil
 		s.closeComposer()
 		s.confirmDelete, s.loadingMore = false, false
-		s.content.field.Raw().SetValue("")
+		s.content.field.SetValue("")
 		s.content.status.Set("")
 		s.content.filter.Clear()
 		s.content.list.Reset(s.items()...)
@@ -1184,12 +1112,9 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case completeMsg:
 		found := s.suggestions()
-		// backspaces remove the typed name after its colon, so the cursor ends up after the inserted shortcode
-		for range utf8.RuneCountInString(s.shortcodeQuery()) {
-			s.content.field.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
-		}
-
-		s.content.field.Raw().InsertString(found[min(s.suggestion, len(found)-1)].Name + ":")
+		// the shortcode replaces the typed name after its colon, so the cursor ends up after it
+		cursor := s.content.field.Cursor()
+		s.content.field.Replace(cursor-len(s.shortcodeQuery()), cursor, found[min(s.suggestion, len(found)-1)].Name+":") //nolint:errcheck
 		s.suggestion = 0
 		return s, nil
 	case chooseMsg:
@@ -1206,41 +1131,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case hideEmojiMsg:
 		s.hidden = s.shortcodeQuery()
 		return s, nil
-	case indentMsg:
-		s.content.field.Indent()
-		return s, nil
-	case outdentMsg:
-		s.content.field.Outdent()
-		return s, nil
-	case editorMsg:
-		return s, s.openEditor()
-	case editedMsg:
-		data, err := os.ReadFile(msg.path)
-		os.Remove(msg.path) //nolint:errcheck
-		if msg.err != nil {
-			err = msg.err
-		}
-
-		text := strings.TrimSuffix(string(data), "\n")
-		if n, limit := utf8.RuneCountInString(text), s.content.field.Raw().CharLimit; err == nil && n > limit {
-			err = fmt.Errorf("draft too long, %d / %d", n, limit)
-		}
-
-		if err != nil {
-			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(err)))
-			return s, nil
-		}
-
-		// an empty file leaves the draft as it was. The menu discards it with x.
-		if text != "" {
-			s.setDraft(text)
-		}
-
-		return s, nil
 	case discardMsg:
 		if s.confirmDiscard {
 			s.confirmDiscard = false
-			s.content.field.Raw().SetValue("")
+			s.content.field.SetValue("")
 			return s, nil
 		}
 
@@ -1435,7 +1329,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 			return s, s.focusComposer()
 		}
 
-		s.content.field.Raw().SetValue("")
+		s.content.field.SetValue("")
 		s.closeComposer()
 		// a new post or reply gets selected once it loads
 		if msg.posted != nil {

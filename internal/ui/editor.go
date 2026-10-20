@@ -1,0 +1,555 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/clipperhouse/uax29/v2/graphemes"
+	"github.com/y3owk1n/fude/core/kernel"
+	"github.com/y3owk1n/fude/vim"
+)
+
+// editorRows is how many rows of text Editor shows at once.
+const editorRows = 3
+
+// origin is the kernel origin of every edit, since one person types in an Editor.
+const origin kernel.Origin = "me"
+
+// Editor is a multi-line text field with Vim's keys. A kernel buffer holds the text and its undo history, and a vim
+// machine turns keys into edits. It wraps at words and scrolls to keep the cursor in view.
+type Editor struct {
+	buf    *kernel.Buffer
+	vim    *vim.Machine
+	cursor int
+	marks  map[rune]kernel.MarkID
+	// before holds the cursor from before each undo step by its node. pending is the cursor when the step being made
+	// began, depth counts open groups, and head is the newest node that before has a cursor for.
+	before  map[kernel.NodeID]int
+	pending int
+	depth   int
+	head    kernel.NodeID
+	// top is the first row shown, counted over the rows of the whole text
+	top int
+	// width is the columns of text, indent the columns of one level of indentation, and limit the most characters the
+	// text may have
+	width, indent, limit int
+	focused              bool
+	// err is why the last key failed, shown until the next key
+	err string
+	// Placeholder shows while the text is empty.
+	Placeholder string
+}
+
+// NewEditor creates an empty Editor that indents by indent spaces and holds up to limit characters.
+func NewEditor(indent, limit int) *Editor {
+	e := &Editor{indent: indent, limit: limit, width: 40}
+	e.reset("")
+	e.vim = vim.New(host{e: e})
+	e.vim.ExpandTab(true)
+	// shift+tab outdents in insert mode, as tab indents
+	e.vim.Map(vim.Insert, "<S-Tab>", "<C-d>")
+	return e
+}
+
+func (e *Editor) Update(msg tea.Msg) (Component, tea.Cmd) {
+	switch msg := msg.(type) {
+	case FocusMsg:
+		e.focused = true
+	case UnfocusMsg:
+		e.focused = false
+	case tea.PasteMsg:
+		if e.focused {
+			e.settle(e.vim.Paste(e.untab(msg.Content)))
+		}
+	case tea.KeyPressMsg:
+		if e.focused {
+			e.settle(e.feed(keys(msg)))
+		}
+	}
+
+	return e, nil
+}
+
+// feed feeds ks to the machine, stopping at the first that fails.
+func (e *Editor) feed(ks []vim.Key) error {
+	for _, k := range ks {
+		if err := e.vim.Feed(k); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// settle keeps err for the status line until the next key, and scrolls to the cursor.
+func (e *Editor) settle(err error) {
+	e.err = ""
+	if err != nil {
+		e.err = err.Error()
+	}
+
+	e.scroll()
+}
+
+// namedKeys holds the keys without text by their code, in Vim notation.
+var namedKeys = map[rune]vim.Key{
+	tea.KeyEnter: "<CR>", tea.KeyEscape: "<Esc>", tea.KeyBackspace: "<BS>", tea.KeyTab: "\t", tea.KeySpace: " ",
+	tea.KeyLeft: "<Left>", tea.KeyRight: "<Right>", tea.KeyUp: "<Up>", tea.KeyDown: "<Down>",
+	tea.KeyHome: "<Home>", tea.KeyEnd: "<End>", tea.KeyDelete: "<Del>", tea.KeyInsert: "<Insert>",
+	tea.KeyPgUp: "<PageUp>", tea.KeyPgDown: "<PageDown>",
+}
+
+// keys returns msg in Vim notation, or nothing for a key Vim has no use for. An alt chord is <Esc> and the key, as a
+// terminal without the kitty protocol sends it.
+func keys(msg tea.KeyPressMsg) []vim.Key {
+	mod := msg.Mod &^ tea.ModShift
+	switch {
+	case msg.Code == tea.KeyTab && msg.Mod&tea.ModShift != 0:
+		return []vim.Key{"<S-Tab>"}
+	case mod == tea.ModAlt:
+		msg.Mod &^= tea.ModAlt
+		if k := keys(msg); k != nil {
+			return append([]vim.Key{"<Esc>"}, k...)
+		}
+
+		return nil
+	case mod == 0 && msg.Text != "":
+		var ks []vim.Key
+		for _, r := range msg.Text {
+			ks = append(ks, vim.Key(r))
+		}
+
+		return ks
+	case mod == tea.ModCtrl && msg.Code >= 'a' && msg.Code <= 'z':
+		return []vim.Key{vim.Key("<C-" + string(msg.Code) + ">")}
+	case mod != 0:
+		return nil
+	}
+
+	if k, ok := namedKeys[msg.Code]; ok {
+		return []vim.Key{k}
+	}
+
+	return nil
+}
+
+// untab turns each tab of text into a level of indentation and each line break into \n.
+func (e *Editor) untab(text string) string {
+	return strings.NewReplacer("\r\n", "\n", "\r", "\n", "\t", strings.Repeat(" ", e.indent)).Replace(text)
+}
+
+// reset replaces the text with a fresh history, with the cursor at its end.
+func (e *Editor) reset(text string) {
+	e.buf = kernel.New(text, nil)
+	e.marks, e.before = make(map[rune]kernel.MarkID), make(map[kernel.NodeID]int)
+	e.head, e.depth, e.top = kernel.NodeID{}, 0, 0
+	e.cursor = len(text)
+}
+
+// leave ends what the machine is doing, such as insert mode or a command being typed, and returns to normal mode.
+func (e *Editor) leave() {
+	e.vim.Cancel()
+	for range 3 {
+		if e.vim.Mode() == vim.Normal {
+			break
+		}
+
+		e.vim.Feed("<Esc>") //nolint:errcheck
+	}
+}
+
+// SetValue replaces the text, with each tab as a level of indentation, and starts its undo history over. The cursor
+// goes to the end, and insert mode stays on.
+func (e *Editor) SetValue(text string) {
+	inserting := e.Inserting()
+	e.leave()
+	e.reset(e.untab(text))
+	e.err = ""
+	if inserting {
+		e.StartInsert()
+	}
+}
+
+// StartInsert ends what the machine is doing and starts insert mode at the cursor, or at the end when the cursor is
+// there. It does nothing in insert or replace mode.
+func (e *Editor) StartInsert() {
+	if e.Inserting() {
+		return
+	}
+
+	e.leave()
+	k := vim.Key("i")
+	if e.cursor == e.buf.Snapshot().Len() {
+		k = "A"
+	}
+
+	e.vim.Feed(k) //nolint:errcheck
+	e.scroll()
+}
+
+// Replace replaces the text from start to end, in bytes, as one change. A cursor after end moves with the text after
+// it, and one inside goes to start. It fails when the text would pass the limit.
+func (e *Editor) Replace(start, end int, text string) error {
+	if err := e.apply([]vim.Edit{{Start: start, End: end, Text: text}}, "replace"); err != nil {
+		return err
+	}
+
+	switch {
+	case e.cursor >= end:
+		e.cursor += len(text) - (end - start)
+	case e.cursor > start:
+		e.cursor = start
+	}
+
+	e.scroll()
+	return nil
+}
+
+// apply makes edits as one transaction, unless the text would pass the limit.
+func (e *Editor) apply(edits []vim.Edit, label string) error {
+	t := e.buf.Snapshot()
+	n := utf8.RuneCountInString(t.Slice(0, t.Len()))
+	for _, edit := range edits {
+		n += utf8.RuneCountInString(edit.Text) - utf8.RuneCountInString(t.Slice(edit.Start, edit.End))
+	}
+
+	if n > e.limit {
+		return fmt.Errorf("draft too long, %d / %d", n, e.limit)
+	}
+
+	transaction := kernel.Transaction{Base: t.Version(), Origin: origin, Label: label, Time: time.Now()}
+	for _, edit := range edits {
+		transaction.Edits = append(transaction.Edits, kernel.Edit(edit))
+	}
+
+	e.begin()
+	err := e.buf.Apply(transaction)
+	e.end()
+	return err
+}
+
+// begin notes the cursor when a new undo step may begin.
+func (e *Editor) begin() {
+	if e.depth == 0 {
+		e.pending = e.cursor
+	}
+}
+
+// end keeps the noted cursor for the step just made, if there is one.
+func (e *Editor) end() {
+	if head := e.buf.Head(); head != e.head {
+		e.before[head] = e.pending
+		e.head = head
+	}
+}
+
+// Value returns the text.
+func (e *Editor) Value() string {
+	t := e.buf.Snapshot()
+	return t.Slice(0, t.Len())
+}
+
+// Cursor returns the cursor as a byte offset into Value.
+func (e *Editor) Cursor() int {
+	return e.cursor
+}
+
+// Inserting reports whether keys type text, in insert or replace mode.
+func (e *Editor) Inserting() bool {
+	return e.vim.Mode() == vim.Insert || e.vim.Mode() == vim.Replace
+}
+
+// Idle reports whether the editor is in normal mode with no command being typed, so esc has nothing to cancel.
+func (e *Editor) Idle() bool {
+	return e.vim.Idle()
+}
+
+// SetWidth sets the columns of text.
+func (e *Editor) SetWidth(width int) {
+	e.width = width
+	e.scroll()
+}
+
+// cols returns the columns rows wrap at. One column stays free for the cursor after a full row.
+func (e *Editor) cols() int {
+	return e.width - 1
+}
+
+// rows returns where each screen row of the text starts.
+func (e *Editor) rows() []int {
+	t := e.buf.Snapshot()
+	var rows []int
+	for start := 0; ; {
+		rows = append(rows, vim.WordRows(t, start, e.cols(), e.indent, nil)...)
+		end := vim.LineEnd(t, start)
+		if end >= t.Len() {
+			return rows
+		}
+
+		start = end + 1
+	}
+}
+
+// rowOf returns the row that holds pos.
+func rowOf(rows []int, pos int) int {
+	row := 0
+	for row+1 < len(rows) && rows[row+1] <= pos {
+		row++
+	}
+
+	return row
+}
+
+// scroll moves top so the cursor's row shows. It leaves no empty rows below the text when earlier rows could fill them.
+func (e *Editor) scroll() {
+	rows := e.rows()
+	at := rowOf(rows, e.cursor)
+	e.top = min(e.top, max(len(rows)-editorRows, 0))
+	e.top = min(max(e.top, at-editorRows+1), at)
+}
+
+func (e *Editor) View() string {
+	t := e.buf.Snapshot()
+	rows := e.rows()
+	lines := make([]string, editorRows)
+	switch {
+	case t.Len() == 0 && e.Placeholder != "":
+		lines[0] = MutedStyle.Render(e.Placeholder)
+		if e.focused {
+			first, rest := firstCluster(e.Placeholder)
+			lines[0] = cursorStyle.Render(first) + MutedStyle.Render(rest)
+		}
+	default:
+		cursor := rowOf(rows, e.cursor)
+		for i := range lines {
+			row := e.top + i
+			if row >= len(rows) {
+				break
+			}
+
+			end := t.Len()
+			if row+1 < len(rows) {
+				end = rows[row+1]
+			}
+
+			lines[i] = e.row(t, rows[row], end, row == cursor)
+		}
+	}
+
+	for i, line := range lines {
+		lines[i] = pad(ansi.Truncate(line, e.width, ""), e.width)
+	}
+
+	return inputView(strings.Join(lines, "\n"), e.focused) + "\n" + e.status()
+}
+
+// pad adds spaces to line up to width columns.
+func pad(line string, width int) string {
+	return line + strings.Repeat(" ", max(width-lipgloss.Width(line), 0))
+}
+
+var (
+	cursorStyle    = lipgloss.NewStyle().Reverse(true)
+	selectionStyle = lipgloss.NewStyle().Reverse(true).Faint(true)
+)
+
+// firstCluster splits s after its first grapheme cluster.
+func firstCluster(s string) (string, string) {
+	g := graphemes.FromString(s)
+	if !g.Next() {
+		return " ", ""
+	}
+
+	return g.Value(), s[len(g.Value()):]
+}
+
+// row renders the text from start to end as one screen row, with the cursor when it holds it, and the selection.
+func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
+	selection, selecting := e.vim.Selection()
+	// col is the display column from the start of the line, counted as vim counts a block selection
+	line := vim.LineStart(t, start)
+	col := vim.Column(t, line, start, e.indent, nil)
+	selected := func(pos int) bool {
+		if !selecting || pos < selection.Start || pos >= selection.End {
+			return false
+		}
+
+		return !selection.Block || col >= selection.Left && col <= selection.Right
+	}
+
+	var b strings.Builder
+	pos := start
+	for g := graphemes.FromString(t.Slice(start, end)); g.Next(); {
+		cluster := g.Value()
+		if cluster == "\n" {
+			break
+		}
+
+		w := vim.Column(t, line, pos+len(cluster), e.indent, nil) - col
+		if cluster == "\t" {
+			cluster = strings.Repeat(" ", w)
+		}
+
+		switch {
+		case cursor && e.focused && pos == e.cursor:
+			cluster = cursorStyle.Render(cluster)
+		case selected(pos):
+			cluster = selectionStyle.Render(cluster)
+		}
+
+		b.WriteString(cluster)
+		pos += len(g.Value())
+		col += w
+	}
+
+	// the end of a line has a cell for the cursor and for a selected line break
+	if pos == vim.LineEnd(t, start) {
+		switch {
+		case cursor && e.focused && pos == e.cursor:
+			b.WriteString(cursorStyle.Render(" "))
+		case selected(pos) && pos < t.Len():
+			b.WriteString(selectionStyle.Render(" "))
+		}
+	}
+
+	return b.String()
+}
+
+// status renders the line below the text: the command line while it is typed, and otherwise the mode, the keys of a
+// command being typed and why the last key failed.
+func (e *Editor) status() string {
+	if e.vim.Mode() == vim.Cmdline {
+		line, at := e.vim.Line(), e.vim.LineCursor()
+		cell, rest := firstCluster(line[at:])
+		return ansi.Truncate(line[:at]+cursorStyle.Render(cell)+rest, e.width+4, "…")
+	}
+
+	parts := []string{MutedStyle.Render(e.modeName())}
+	if r := e.vim.Recording(); r != 0 {
+		parts = append(parts, MutedStyle.Render("recording @"+string(r)))
+	}
+
+	if shown := e.vim.Shown(); shown != "" {
+		parts = append(parts, shown)
+	}
+
+	switch {
+	case e.err != "":
+		parts = append(parts, DangerStyle.Render(e.err))
+	case e.vim.Message() != "":
+		parts = append(parts, MutedStyle.Render(e.vim.Message()))
+	}
+
+	return ansi.Truncate(strings.Join(parts, "  "), e.width+4, "…")
+}
+
+// modeName names the mode for the status line.
+func (e *Editor) modeName() string {
+	switch e.vim.Mode() {
+	case vim.Insert:
+		return "insert"
+	case vim.Replace:
+		return "replace"
+	case vim.Visual:
+		selection, _ := e.vim.Selection()
+		switch selection.Kind {
+		case "V":
+			return "visual line"
+		case "<C-v>":
+			return "visual block"
+		}
+
+		return "visual"
+	}
+
+	return "normal"
+}
+
+// host implements vim.Host for an Editor.
+type host struct {
+	vim.Defaults
+	e *Editor
+}
+
+func (h host) Text() vim.Text    { return h.e.buf.Snapshot() }
+func (h host) Cursor() int       { return h.e.cursor }
+func (h host) SetCursor(pos int) { h.e.cursor = pos }
+
+func (h host) Apply(edits []vim.Edit, label string) error {
+	return h.e.apply(edits, label)
+}
+
+func (h host) BeginGroup() {
+	h.e.begin()
+	h.e.depth++
+	h.e.buf.BeginGroup(origin)
+}
+
+func (h host) EndGroup() {
+	h.e.depth--
+	h.e.buf.EndGroup(origin)
+	h.e.end()
+}
+
+func (h host) Undo() (int, int, error) {
+	head := h.e.buf.Head()
+	start, ok := h.e.buf.Undo()
+	if !ok {
+		return 0, 0, vim.ErrNoStep
+	}
+
+	h.e.head = h.e.buf.Head()
+	return start, h.e.before[head], nil
+}
+
+func (h host) Redo() (int, int, error) {
+	start, ok := h.e.buf.Redo()
+	if !ok {
+		return 0, 0, vim.ErrNoStep
+	}
+
+	h.e.head = h.e.buf.Head()
+	return start, h.e.before[h.e.head], nil
+}
+
+func (h host) SetMark(name rune, pos int) {
+	if id, ok := h.e.marks[name]; ok {
+		h.e.buf.MoveMark(id, pos)
+		return
+	}
+
+	h.e.marks[name] = h.e.buf.SetMark(pos, kernel.Right)
+}
+
+func (h host) Mark(name rune) (int, bool) {
+	id, ok := h.e.marks[name]
+	if !ok {
+		return 0, false
+	}
+
+	return h.e.buf.Mark(id), true
+}
+
+// Viewport returns the start of the line of the first row shown.
+func (h host) Viewport() (int, int, int) {
+	t := h.e.buf.Snapshot()
+	rows := h.e.rows()
+	return vim.LineStart(t, rows[min(h.e.top, len(rows)-1)]), editorRows, h.e.cols()
+}
+
+// SetTop shows the line at top from its first row.
+func (h host) SetTop(top int) {
+	h.e.top = rowOf(h.e.rows(), vim.LineStart(h.e.buf.Snapshot(), top))
+}
+
+func (h host) WordWrap() bool                 { return true }
+func (h host) IndentWidth() int               { return h.e.indent }
+func (h host) TabWidth() int                  { return h.e.indent }
+func (h host) Clipboard() (string, error)     { return clipboard.ReadAll() }
+func (h host) SetClipboard(text string) error { return clipboard.WriteAll(text) }

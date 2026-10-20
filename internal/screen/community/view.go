@@ -35,8 +35,12 @@ var (
 	tokenPattern = regexp.MustCompile(`\[image (\d+)\]`)
 )
 
-// suggestionLimit is the number of shortcodes the composer suggests at once.
-const suggestionLimit = 6
+const (
+	// suggestionLimit is the number of shortcodes the composer suggests at once.
+	suggestionLimit = 6
+	// charLimit is the most characters a post may have.
+	charLimit = 4096
+)
 
 // items builds elements of the current mode. List mode shows posts. Post mode shows the opened post and its replies.
 // View shows the parents above the list.
@@ -152,11 +156,13 @@ func (s Screen) actions() []ui.Action {
 			actions = append(actions, post)
 		}
 
-		return append(actions,
-			ui.Action{Key: keys.Bind("indent", keys.Community.Indent), Msg: indentMsg{}},
-			ui.Action{Key: keys.Bind("outdent", keys.Community.Outdent), Msg: outdentMsg{}},
-			ui.Action{Key: keys.Bind("menu", keys.Community.Menu), Msg: menuMsg{}},
-			ui.Action{Key: keys.Bind("close", keys.Common.Cancel), Msg: closeMsg{}})
+		actions = append(actions, ui.Action{Key: keys.Bind("menu", keys.Community.Menu), Msg: menuMsg{}})
+		// esc goes to the text field until it is in normal mode with no command typed
+		if s.content.field.Idle() {
+			actions = append(actions, ui.Action{Key: keys.Bind("close", keys.Common.Cancel), Msg: closeMsg{}})
+		}
+
+		return actions
 	}
 
 	var actions []ui.Action
@@ -280,7 +286,7 @@ func (s Screen) Keys() []key.Binding {
 
 // menuActions builds keys of the composer menu. Preview and discard need a draft.
 func (s Screen) menuActions() []ui.Action {
-	actions := []ui.Action{{Key: keys.Bind("editor", keys.Community.Editor), Msg: editorMsg{}}}
+	var actions []ui.Action
 	if s.content.field.Value() != "" {
 		actions = append(actions, ui.Action{Key: keys.Bind("preview", keys.Community.Preview), Msg: previewMsg{}})
 	}
@@ -622,7 +628,7 @@ func (s Screen) picture(url string) string {
 // composer renders the text field pinned above the list, and the path prompt or the menu below it.
 func (s Screen) composer() string {
 	// leave room for input border and padding
-	s.content.field.Raw().SetWidth(s.textWidth() - 4)
+	s.content.field.SetWidth(s.textWidth() - 4)
 	// one cell narrower than the text field, since a single line input draws an extra cell for the cursor
 	s.content.prompt.Raw().SetWidth(s.textWidth() - 5)
 
@@ -638,10 +644,10 @@ func (s Screen) composer() string {
 	// the length shows past 4000 characters, as on the web
 	text := s.draft()
 	if n := utf8.RuneCountInString(text); n > 4000 {
-		title += fmt.Sprintf(" · %d / %d", n, s.content.field.Raw().CharLimit)
+		title += fmt.Sprintf(" · %d / %d", n, charLimit)
 	}
 
-	s.content.field.Raw().Placeholder = placeholder
+	s.content.field.Placeholder = placeholder
 	field := s.content.field.View()
 	if s.previewing {
 		title += " · preview"
@@ -675,9 +681,8 @@ func (s Screen) composer() string {
 // shortcodeQuery returns the name of the shortcode being typed before the cursor, like sm for :sm, or "" when there is
 // none. It needs two characters, as one would match too many.
 func (s Screen) shortcodeQuery() string {
-	field := s.content.field.Raw()
-	line := []rune(strings.Split(field.Value(), "\n")[field.Line()])
-	match := shortcodeQueryPattern.FindStringSubmatch(string(line[:field.Column()]))
+	text, cursor := s.content.field.Value(), s.content.field.Cursor()
+	match := shortcodeQueryPattern.FindStringSubmatch(text[strings.LastIndexByte(text[:cursor], '\n')+1 : cursor])
 	if match == nil {
 		return ""
 	}
@@ -685,9 +690,9 @@ func (s Screen) shortcodeQuery() string {
 	return match[1]
 }
 
-// suggestions returns shortcodes for the one being typed in the text field, unless esc hid them.
+// suggestions returns shortcodes for the one being typed in insert mode, unless esc hid them.
 func (s Screen) suggestions() []ui.Shortcode {
-	if !s.composing || s.previewing || s.menu || s.confirmDiscard || s.attaching {
+	if !s.composing || s.previewing || s.menu || s.confirmDiscard || s.attaching || !s.content.field.Inserting() {
 		return nil
 	}
 

@@ -44,13 +44,10 @@ previous_reply      = "K"
 root                = "H"
 menu                = "ctrl+o"
 post                = "alt+enter"
-editor              = "e"
 preview             = "p"
 attach              = "a"
 paste_image         = "v"
 discard             = "x"
-indent              = "tab"
-outdent             = "shift+tab"
 
 # Activity lists replies to your posts.
 [activity]
