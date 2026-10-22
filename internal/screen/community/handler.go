@@ -299,24 +299,24 @@ func (s Screen) poll() tea.Cmd {
 	}
 }
 
-// loadDetails loads details of post and marks it as viewed, like the web does each time it shows a post.
+// loadDetails loads details of post and marks it as read, like the web does each time it shows a post.
 func (s Screen) loadDetails(post sdk.CommunityPostDescriptor) tea.Cmd {
-	return tea.Batch(s.view(post), s.request("loading post", func() (tea.Msg, error) {
+	return tea.Batch(s.read(post), s.request("loading post", func() (tea.Msg, error) {
 		details, err := s.service.details(s.user, post)
 		return detailsMsg{details: details}, err
 	}))
 }
 
-// view marks post as viewed. On failure it only logs the error, and the dot stays until a later view.
-func (s Screen) view(post sdk.CommunityPostDescriptor) tea.Cmd {
+// read marks post as read. On failure it only logs the error, and the dot stays until a later read.
+func (s Screen) read(post sdk.CommunityPostDescriptor) tea.Cmd {
 	if s.user == nil {
 		return nil
 	}
 
 	user := s.user
 	return func() tea.Msg {
-		if err := s.service.view(user, post); err != nil {
-			slog.Error("failed to view post", "err", err)
+		if err := s.service.read(user, post); err != nil {
+			slog.Error("failed to read post", "err", err)
 		}
 
 		return nil

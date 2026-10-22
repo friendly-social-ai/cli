@@ -57,8 +57,8 @@ func (s *Service) details(user *sdk.Authorization, post sdk.CommunityPostDescrip
 	return s.client.GetCommunityPost(context.Background(), user, post)
 }
 
-func (s *Service) view(user *sdk.Authorization, post sdk.CommunityPostDescriptor) error {
-	return s.client.ViewCommunityPost(context.Background(), user, post)
+func (s *Service) read(user *sdk.Authorization, post sdk.CommunityPostDescriptor) error {
+	return s.client.ReadCommunityPost(context.Background(), user, post)
 }
 
 func (s *Service) replies(user *sdk.Authorization, post sdk.CommunityPostDescriptor, cursor *sdk.CursorId) (*sdk.Cursor[sdk.CommunityPostReply], error) {
