@@ -7,8 +7,8 @@ go = { ref = "./.oku/go.toml", version = "1.27" }
 [packages]
 go = { ref = "./.oku/go.toml", version = "1.27" }
 golangci-lint = { ref = "github:golangci/golangci-lint", version = "^2" }
-gofumpt = { ref = "github:mvdan/gofumpt", version = "~0.10" }
-golines = { ref = "github:golangci/golines", version = "~0.15" }
+gofumpt = "github:mvdan/gofumpt"
+golines = "github:golangci/golines"
 gopls = "go:golang.org/x/tools/gopls"
 goimports = "go:golang.org/x/tools/cmd/goimports"
 golangci-lint-langserver = "github:nametake/golangci-lint-langserver"
