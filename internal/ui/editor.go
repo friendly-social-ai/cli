@@ -48,7 +48,7 @@ type Editor struct {
 	err string
 	// Placeholder shows while the text is empty.
 	Placeholder string
-	// Title shows in the top border, and Note on the right of the bottom border.
+	// Title shows in the top border, and Note in the bottom border before the cursor position.
 	Title, Note string
 }
 
@@ -518,7 +518,7 @@ func (e *Editor) status() string {
 	return strings.Join(parts, MutedStyle.Render(" · "))
 }
 
-// info renders the right of the bottom border: the rows hidden below and Note.
+// info renders the right of the bottom border: the rows hidden below, Note and the cursor position.
 func (e *Editor) info(below int) string {
 	var parts []string
 	if below > 0 {
@@ -529,6 +529,10 @@ func (e *Editor) info(below int) string {
 		parts = append(parts, e.Note)
 	}
 
+	t := e.buf.Snapshot()
+	line := strings.Count(t.Slice(0, e.cursor), "\n") + 1
+	col := vim.Column(t, vim.LineStart(t, e.cursor), e.cursor, e.indent, nil) + 1
+	parts = append(parts, fmt.Sprintf("%d:%d", line, col))
 	return MutedStyle.Render(strings.Join(parts, " · "))
 }
 
