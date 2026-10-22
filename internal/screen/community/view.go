@@ -650,6 +650,10 @@ func (s Screen) composer() string {
 		count = fmt.Sprintf("%d / %d", n, charLimit)
 	}
 
+	if k := keys.Community.Post.Key(); k != "" {
+		placeholder += " · " + k + " to post"
+	}
+
 	s.content.field.Title, s.content.field.Note, s.content.field.Placeholder = title, count, placeholder
 	parts := []string{s.content.field.View()}
 	// the preview has no box, so its title goes above it
