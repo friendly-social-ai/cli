@@ -15,6 +15,7 @@ var (
 	ColorMuted   color.Color
 	ColorDanger  color.Color
 	ColorBorder  color.Color
+	ColorVisual  color.Color
 )
 
 var (
@@ -40,18 +41,20 @@ func init() {
 }
 
 // colors are the theme colors for one terminal background, as hex strings or ANSI numbers. Selection is the background
-// of the selected item.
+// of the selected item, and visual colors the editor's mode name in visual mode.
 type colors struct {
-	primary, muted, danger, border, selection string
+	primary, muted, danger, border, selection, visual string
 }
 
 // lightColors and darkColors are the default themes for light and dark terminal backgrounds.
 var (
 	lightColors = colors{
 		primary: "#0060D0", muted: "#646464", danger: "#C4391D", border: "#C8C8C8", selection: "#E8EDF9",
+		visual: "#7A3EC8",
 	}
 	darkColors = colors{
 		primary: "#6E8BFF", muted: "#B4B4B4", danger: "#F0715A", border: "#4E4E4E", selection: "#232A3B",
+		visual: "#B48CFF",
 	}
 )
 
@@ -82,6 +85,7 @@ func apply(dark bool, c colors) {
 	ColorMuted = lipgloss.Color(c.muted)
 	ColorDanger = lipgloss.Color(c.danger)
 	ColorBorder = lipgloss.Color(c.border)
+	ColorVisual = lipgloss.Color(c.visual)
 
 	MutedStyle = lipgloss.NewStyle().Foreground(ColorMuted)
 	AccentStyle = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)

@@ -82,6 +82,7 @@ func override(c colors, section string, set map[string]string) (colors, []string
 		"danger":    &c.danger,
 		"border":    &c.border,
 		"selection": &c.selection,
+		"visual":    &c.visual,
 	}
 
 	var problems []string

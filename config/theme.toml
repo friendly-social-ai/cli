@@ -11,6 +11,7 @@ muted     = "#B4B4B4"
 danger    = "#F0715A"
 border    = "#4E4E4E"
 selection = "#232A3B"
+visual    = "#B48CFF"
 
 # Colors on a light background.
 [light]
@@ -19,3 +20,4 @@ muted     = "#646464"
 danger    = "#C4391D"
 border    = "#C8C8C8"
 selection = "#E8EDF9"
+visual    = "#7A3EC8"

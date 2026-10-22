@@ -32,3 +32,4 @@ selection = "#313244"
 | `danger` | errors and confirmations | `#F0715A` | `#C4391D` |
 | `border` | lines under the header and over the footer, input borders and the help panel | `#4E4E4E` | `#C8C8C8` |
 | `selection` | background of the selected item | `#232A3B` | `#E8EDF9` |
+| `visual` | the composer's mode name in visual mode | `#B48CFF` | `#7A3EC8` |

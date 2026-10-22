@@ -117,7 +117,7 @@ func TestDefaultThemeListsDefaults(t *testing.T) {
 		defaults colors
 	}{{"light", file.Light, lightColors}, {"dark", file.Dark, darkColors}} {
 		got, problems := override(section.defaults, section.name, section.set)
-		if problems != nil || got != section.defaults || len(section.set) != 5 {
+		if problems != nil || got != section.defaults || len(section.set) != 6 {
 			t.Errorf("config/theme.toml [%s] = %v, want every color at its default %+v", section.name, section.set,
 				section.defaults)
 		}
