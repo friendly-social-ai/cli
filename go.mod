@@ -14,7 +14,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0
 	github.com/dop251/goja v0.0.0-20260923012348-67663e7a3b97
 	github.com/editorconfig/editorconfig-core-go/v2 v2.6.5
-	github.com/friendly-social-ai/golang-sdk v0.0.0-20261015014022-96ed1d75be7a
+	github.com/friendly-social-ai/golang-sdk v0.0.0-20261022121859-ee3e0eb37cdb
 	github.com/go-text/typesetting v0.3.5
 	github.com/y3owk1n/fude/core v0.2.0
 	github.com/y3owk1n/fude/vim v0.2.0

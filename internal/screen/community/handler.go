@@ -461,18 +461,17 @@ func (s *Screen) open(post sdk.CommunityPost, upstream []sdk.CommunityPost) stri
 	s.picking, s.confirmDelete = false, false
 	s.details = &sdk.CommunityPostDetails{Post: post, Upstream: upstream}
 	s.replies, s.repliesNext = nil, nil
-	s.clearNewReply(post.Id)
+	s.clearNewUnread(post.Id)
 	s.content.field.SetValue("")
 	s.content.list.Reset(s.items()...)
 	return freed
 }
 
-// clearNewReply clears the new reply of listed posts that opening post id views, as the web does. It clears post id
-// itself when its new reply is direct, and any post whose new reply is post id.
-func (s *Screen) clearNewReply(id sdk.CommunityPostId) {
+// clearNewUnread clears the new unread reply of listed post id when opening it, as the web does.
+func (s *Screen) clearNewUnread(id sdk.CommunityPostId) {
 	for i, post := range s.posts {
-		if reply := post.NewReply; reply != nil && (post.Id == id && !reply.Transitive || reply.Id == id) {
-			s.posts[i].NewReply = nil
+		if post.Id == id {
+			s.posts[i].NewUnreadId = nil
 		}
 	}
 }
@@ -967,7 +966,7 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.fresh = 0
 		for _, post := range msg.page.Data {
 			if i, ok := known[post.Id]; ok {
-				s.posts[i].NewReply = post.NewReply
+				s.posts[i].NewUnreadId = post.NewUnreadId
 			} else {
 				s.fresh++
 			}

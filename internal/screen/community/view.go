@@ -387,7 +387,7 @@ func (s Screen) postButton(post sdk.CommunityPost, indent string) *ui.Button {
 
 	// a new reply shows as a dot after the meta, like the web. The meta truncates 2 cells earlier to make room for it.
 	meta := styledMeta(post)
-	if post.NewReply != nil {
+	if post.NewUnreadId != nil {
 		meta = ansi.Truncate(meta, width-2, "…") + " " + ui.AccentStyle.Render("●")
 	}
 
