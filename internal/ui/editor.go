@@ -372,9 +372,10 @@ func (e *Editor) View() string {
 		style = inputFocusedStyle
 	}
 
-	return e.edge("╭", "╮", MutedStyle.Render(e.Title), "") + "\n" +
+	below := len(rows) - e.top - len(lines)
+	return e.edge("╭", "╮", MutedStyle.Render(e.Title), MutedStyle.Render(more("↑", e.top))) + "\n" +
 		style.BorderTop(false).BorderBottom(false).Render(strings.Join(lines, "\n")) + "\n" +
-		e.edge("╰", "╯", e.status(), MutedStyle.Render(e.Note))
+		e.edge("╰", "╯", e.status(), e.info(below))
 }
 
 // edge renders the top or bottom border of the box from corner l to corner r, with left and right set into it. It
@@ -398,6 +399,15 @@ func (e *Editor) edge(l, r, left, right string) string {
 
 	fill := max(inner-2-lipgloss.Width(left)-lipgloss.Width(right), 0)
 	return border.Render(l+"─") + left + border.Render(strings.Repeat("─", fill)) + right + border.Render("─"+r)
+}
+
+// more tells how many rows are hidden in the direction of arrow, or nothing when none are.
+func more(arrow string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%s %d more", arrow, n)
 }
 
 // pad adds spaces to line up to width columns.
@@ -506,6 +516,20 @@ func (e *Editor) status() string {
 	}
 
 	return strings.Join(parts, MutedStyle.Render(" · "))
+}
+
+// info renders the right of the bottom border: the rows hidden below and Note.
+func (e *Editor) info(below int) string {
+	var parts []string
+	if below > 0 {
+		parts = append(parts, more("↓", below))
+	}
+
+	if e.Note != "" {
+		parts = append(parts, e.Note)
+	}
+
+	return MutedStyle.Render(strings.Join(parts, " · "))
 }
 
 // modeStyle colors the mode name like a Neovim statusline, and mutes it while the editor is unfocused.

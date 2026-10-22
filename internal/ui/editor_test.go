@@ -199,6 +199,10 @@ func TestEditorGrowsUpToMaxRows(t *testing.T) {
 	if strings.Contains(text, "1") || !strings.Contains(text, "5") {
 		t.Errorf("text rows = %q, want 2 to 5", text)
 	}
+
+	if !strings.Contains(lines[0], "↑ 1 more") {
+		t.Errorf("top border = %q, want the hidden row counted", lines[0])
+	}
 }
 
 func TestEditorDrawsEveryRegionAndCursor(t *testing.T) {
