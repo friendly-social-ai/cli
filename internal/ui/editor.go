@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -300,7 +301,7 @@ func (e *Editor) rows() []int {
 	t := e.buf.Snapshot()
 	var rows []int
 	for start := 0; ; {
-		rows = append(rows, vim.WordRows(t, start, e.cols(), e.indent, nil)...)
+		rows = append(rows, vim.WordRows(t, start, math.MaxInt, e.cols(), 0, e.indent, nil)...)
 		end := vim.LineEnd(t, start)
 		if end >= t.Len() {
 			return rows
@@ -564,6 +565,13 @@ func (h host) SetMark(name rune, pos int) {
 	}
 
 	h.e.marks[name] = h.e.buf.SetMark(pos, kernel.Right)
+}
+
+func (h host) DeleteMark(name rune) {
+	if id, ok := h.e.marks[name]; ok {
+		h.e.buf.DeleteMark(id)
+		delete(h.e.marks, name)
+	}
 }
 
 func (h host) Mark(name rune) (int, bool) {
