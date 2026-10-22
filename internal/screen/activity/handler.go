@@ -38,7 +38,7 @@ type (
 	}
 )
 
-// Screen is a model of activity screen, which lists replies to user's posts.
+// Screen is a model of activity screen, which lists replies to user's posts and to threads user subscribes to.
 type Screen struct {
 	service *Service
 	user    *sdk.Authorization
@@ -316,10 +316,16 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 	case openMsg:
 		activity := &s.activities[msg.index]
+		// new replies under a post open at their common denominator, like the web
+		post := *activity.Post
+		if activity.CommonDenominator != nil {
+			post = *activity.CommonDenominator
+		}
+
 		// the post opens before the screen changes, so the previous view of community never shows
 		cmds := []tea.Cmd{tea.Sequence(
 			screen.Send(router.TargetMsg{Type: screen.TypeCommunity, Inner: community.OpenMsg{
-				Post: *activity.Post,
+				Post: post,
 				From: screen.TypeActivity,
 			}}),
 			screen.Send(screen.ChangeMsg{NewType: screen.TypeCommunity}),
@@ -359,12 +365,20 @@ func (s Screen) items() []ui.Component {
 
 	items := make([]ui.Component, len(s.activities))
 	for i, activity := range s.activities {
-		if activity.Type != "reply" || activity.Post == nil || activity.Post.Owner == nil {
+		var prefix string
+		switch activity.Type {
+		case "reply":
+			prefix = "Reply from "
+		case "indirect_replies":
+			prefix = "New replies under post from "
+		}
+
+		if prefix == "" || activity.Post == nil || activity.Post.Owner == nil {
 			items[i] = ui.NewLabel(ui.MutedStyle.Render("unsupported activity"))
 			continue
 		}
 
-		title := "Reply from " + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value()) +
+		title := prefix + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value()) +
 			ui.MutedStyle.Render(" · "+community.Ago(activity.Instant))
 		if activity.IsRead {
 			title = ansi.Truncate(title, width, "…")
