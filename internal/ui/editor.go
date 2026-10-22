@@ -48,6 +48,8 @@ type Editor struct {
 	err string
 	// Placeholder shows while the text is empty.
 	Placeholder string
+	// Title shows in the top border, and Note on the right of the bottom border.
+	Title, Note string
 }
 
 // NewEditor creates an empty Editor that indents by indent spaces and holds up to limit characters.
@@ -365,7 +367,37 @@ func (e *Editor) View() string {
 		lines[i] = pad(ansi.Truncate(line, e.width, ""), e.width)
 	}
 
-	return inputView(strings.Join(lines, "\n"), e.focused) + "\n" + e.status()
+	style := inputStyle
+	if e.focused {
+		style = inputFocusedStyle
+	}
+
+	return e.edge("╭", "╮", MutedStyle.Render(e.Title), "") + "\n" +
+		style.BorderTop(false).BorderBottom(false).Render(strings.Join(lines, "\n")) + "\n" +
+		e.edge("╰", "╯", e.status(), MutedStyle.Render(e.Note))
+}
+
+// edge renders the top or bottom border of the box from corner l to corner r, with left and right set into it. It
+// leaves out a label without text.
+func (e *Editor) edge(l, r, left, right string) string {
+	border := lipgloss.NewStyle().Foreground(ColorBorder)
+	if e.focused {
+		border = border.Foreground(ColorPrimary)
+	}
+
+	// between the corners the border spans the text and its padding. It keeps a line at each end, and a space on each
+	// side of a label.
+	inner := e.width + 2
+	if lipgloss.Width(right) > 0 {
+		right = " " + ansi.Truncate(right, max(inner-4, 0), "…") + " "
+	}
+
+	if lipgloss.Width(left) > 0 {
+		left = " " + ansi.Truncate(left, max(inner-4-lipgloss.Width(right), 0), "…") + " "
+	}
+
+	fill := max(inner-2-lipgloss.Width(left)-lipgloss.Width(right), 0)
+	return border.Render(l+"─") + left + border.Render(strings.Repeat("─", fill)) + right + border.Render("─"+r)
 }
 
 // pad adds spaces to line up to width columns.
@@ -445,8 +477,8 @@ func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 	return b.String()
 }
 
-// status renders the line below the text: the command line while it is typed, and otherwise the mode, the keys of a
-// command being typed and why the last key failed.
+// status renders the left of the bottom border. While the user types a command line, it shows that line. Otherwise it
+// shows the mode, the register a macro records into, the keys of a pending command and why the last key failed.
 func (e *Editor) status() string {
 	if e.vim.Mode() == vim.Cmdline {
 		line, at := e.vim.Line(), e.vim.LineCursor()
@@ -454,12 +486,12 @@ func (e *Editor) status() string {
 			line = line[:at] + cursorMark(tea.CursorBar) + line[at:]
 		}
 
-		return ansi.Truncate(line, e.width+4, "…")
+		return line
 	}
 
-	parts := []string{MutedStyle.Render(e.modeName())}
+	parts := []string{e.modeStyle().Render(e.modeName())}
 	if r := e.vim.Recording(); r != 0 {
-		parts = append(parts, MutedStyle.Render("recording @"+string(r)))
+		parts = append(parts, MutedStyle.Render("@"+string(r)))
 	}
 
 	if shown := e.vim.Shown(); shown != "" {
@@ -473,7 +505,25 @@ func (e *Editor) status() string {
 		parts = append(parts, MutedStyle.Render(e.vim.Message()))
 	}
 
-	return ansi.Truncate(strings.Join(parts, "  "), e.width+4, "…")
+	return strings.Join(parts, MutedStyle.Render(" · "))
+}
+
+// modeStyle colors the mode name like a Neovim statusline, and mutes it while the editor is unfocused.
+func (e *Editor) modeStyle() lipgloss.Style {
+	if !e.focused {
+		return MutedStyle
+	}
+
+	switch e.vim.Mode() {
+	case vim.Insert:
+		return AccentStyle
+	case vim.Visual:
+		return BoldStyle.Foreground(ColorVisual)
+	case vim.Replace:
+		return DangerStyle.Bold(true)
+	}
+
+	return MutedStyle.Bold(true)
 }
 
 // shape returns the cursor shape of the mode, as Neovim draws it. It is a bar in insert mode, an underline in replace
@@ -493,22 +543,22 @@ func (e *Editor) shape() tea.CursorShape {
 func (e *Editor) modeName() string {
 	switch e.vim.Mode() {
 	case vim.Insert:
-		return "insert"
+		return "INSERT"
 	case vim.Replace:
-		return "replace"
+		return "REPLACE"
 	case vim.Visual:
 		selection, _ := e.vim.Selection()
 		switch selection.Kind {
 		case "V":
-			return "visual line"
+			return "V-LINE"
 		case "<C-v>":
-			return "visual block"
+			return "V-BLOCK"
 		}
 
-		return "visual"
+		return "VISUAL"
 	}
 
-	return "normal"
+	return "NORMAL"
 }
 
 // host implements vim.Host for an Editor.

@@ -645,18 +645,23 @@ func (s Screen) composer() string {
 
 	// the length shows past 4000 characters, as on the web
 	text := s.draft()
+	count := ""
 	if n := utf8.RuneCountInString(text); n > 4000 {
-		title += fmt.Sprintf(" · %d / %d", n, charLimit)
+		count = fmt.Sprintf("%d / %d", n, charLimit)
 	}
 
-	s.content.field.Placeholder = placeholder
-	field := s.content.field.View()
+	s.content.field.Title, s.content.field.Note, s.content.field.Placeholder = title, count, placeholder
+	parts := []string{s.content.field.View()}
+	// the preview has no box, so its title goes above it
 	if s.previewing {
 		title += " · preview"
-		field = s.preview(text)
+		if count != "" {
+			title += " · " + count
+		}
+
+		parts = []string{ui.MutedStyle.Render(title), s.preview(text)}
 	}
 
-	parts := []string{ui.MutedStyle.Render(title), field}
 	switch {
 	case s.attaching:
 		parts = append(parts, s.content.prompt.View())

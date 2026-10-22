@@ -189,14 +189,15 @@ func TestEditorGrowsUpToMaxRows(t *testing.T) {
 	e := newTestEditor(100)
 	e.SetMaxRows(4)
 	typeText(e, "1\n2\n3\n4\n5")
-	view := ansi.Strip(e.View())
-	// the box adds a border row above and below the text, and the status line goes under it
-	if got, want := strings.Count(view, "\n")+1, 4+3; got != want {
-		t.Errorf("View() has %d lines, want %d:\n%s", got, want, view)
+	lines := strings.Split(ansi.Strip(e.View()), "\n")
+	// the box adds a border row above and below the text
+	if got, want := len(lines), 4+2; got != want {
+		t.Fatalf("View() has %d lines, want %d:\n%s", got, want, strings.Join(lines, "\n"))
 	}
 
-	if strings.Contains(view, "1") || !strings.Contains(view, "5") {
-		t.Errorf("View() = %q, want 2 to 5", view)
+	text := strings.Join(lines[1:len(lines)-1], "\n")
+	if strings.Contains(text, "1") || !strings.Contains(text, "5") {
+		t.Errorf("text rows = %q, want 2 to 5", text)
 	}
 }
 
@@ -240,10 +241,11 @@ func TestEditorPlacesTerminalCursorByMode(t *testing.T) {
 		t.Errorf("cursor in normal mode = %+v, want a block at 3, 2", cursor)
 	}
 
+	// the command line starts in the bottom border, after its corner, a line and a space
 	typeText(e, ":s")
 	_, cursor = TakeCursor(e.View())
-	if cursor == nil || cursor.X != 2 || cursor.Y != 5 || cursor.Shape != tea.CursorBar {
-		t.Errorf("cursor on the command line = %+v, want a bar at 2, 5", cursor)
+	if cursor == nil || cursor.X != 5 || cursor.Y != 4 || cursor.Shape != tea.CursorBar {
+		t.Errorf("cursor on the command line = %+v, want a bar at 5, 4", cursor)
 	}
 
 	e.Update(UnfocusMsg{})
@@ -257,7 +259,8 @@ func TestEditorMovesCursorToCommandLineOnEmptyDraft(t *testing.T) {
 	e.Placeholder = "Write a post"
 	e.Update(esc)
 	typeText(e, ":")
-	if _, cursor := TakeCursor(e.View()); cursor == nil || cursor.Y != 5 {
+	if _, cursor := TakeCursor(e.View()); cursor == nil || cursor.Y != 4 {
 		t.Errorf("cursor = %+v, want it on the command line", cursor)
 	}
 }
+
