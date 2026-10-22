@@ -13,7 +13,7 @@ git = { command = "git", apt = "git", dnf = "git", pacman = "git", when = { os =
 
 [build]
 needs = ["git"]
-deps = [{ ref = "./.oku/go.toml", version = "~1.26" }]
+deps = [{ ref = "./.oku/go.toml", version = "~1.27" }]
 source = { git = "https://github.com/friendly-social-ai/cli", tag = "{{tag}}" }
 
 [[build.step]]

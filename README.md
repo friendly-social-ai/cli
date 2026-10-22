@@ -22,7 +22,7 @@ friendly
 
 ## Build
 
-Requires Go 1.26.
+Requires Go 1.27.
 
 ```bash
 git clone https://github.com/friendly-social-ai/cli.git
