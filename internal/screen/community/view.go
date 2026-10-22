@@ -650,9 +650,12 @@ func (s Screen) composer() string {
 		count = fmt.Sprintf("%d / %d", n, charLimit)
 	}
 
+	post := ":w"
 	if k := keys.Community.Post.Key(); k != "" {
-		placeholder += " · " + k + " to post"
+		post = k + " or :w"
 	}
+
+	placeholder += " · " + post + " to post"
 
 	s.content.field.Title, s.content.field.Note, s.content.field.Placeholder = title, count, placeholder
 	parts := []string{s.content.field.View()}

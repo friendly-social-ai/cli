@@ -268,3 +268,68 @@ func TestEditorMovesCursorToCommandLineOnEmptyDraft(t *testing.T) {
 	}
 }
 
+// command types line on the command line from normal mode and returns the message its enter sends, or nil.
+func command(e *Editor, line string) tea.Msg {
+	e.Update(esc)
+	typeText(e, line)
+	_, cmd := e.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		return nil
+	}
+
+	return cmd()
+}
+
+func TestEditorWritesAndQuits(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		want tea.Msg
+	}{
+		{":w", WriteMsg{}},
+		{":wq", WriteMsg{}},
+		{":x", WriteMsg{}},
+		{":q", QuitMsg{}},
+		{":q!", QuitMsg{Discard: true}},
+	} {
+		e := newTestEditor(100)
+		typeText(e, "draft")
+		if got := command(e, tc.line); got != tc.want {
+			t.Errorf("%s sends %#v, want %#v", tc.line, got, tc.want)
+		}
+	}
+}
+
+func TestEditorWritesAndQuitsWithZ(t *testing.T) {
+	for _, tc := range []struct {
+		keys string
+		want tea.Msg
+	}{{"ZZ", WriteMsg{}}, {"ZQ", QuitMsg{Discard: true}}} {
+		e := newTestEditor(100)
+		typeText(e, "draft")
+		e.Update(esc)
+		e.Update(tea.KeyPressMsg{Code: 'Z', Text: "Z"})
+		_, cmd := e.Update(tea.KeyPressMsg{Code: rune(tc.keys[1]), Text: tc.keys[1:]})
+		if cmd == nil || cmd() != tc.want {
+			t.Errorf("%s sends %v, want %#v", tc.keys, cmd, tc.want)
+		}
+	}
+}
+
+func TestEditorRefusesOtherCommands(t *testing.T) {
+	for _, tc := range []struct{ draft, line, want string }{
+		{"", ":w", "the draft is empty"},
+		{"draft", ":e notes.md", "not available here: :e notes.md"},
+	} {
+		e := newTestEditor(100)
+		// wide enough for the error in the bottom border
+		e.SetWidth(60)
+		typeText(e, tc.draft)
+		if got := command(e, tc.line); got != nil {
+			t.Errorf("%s sends %#v, want nothing", tc.line, got)
+		}
+
+		if view := ansi.Strip(e.View()); !strings.Contains(view, tc.want) {
+			t.Errorf("View() after %s = %q, want %q", tc.line, view, tc.want)
+		}
+	}
+}

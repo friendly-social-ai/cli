@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -22,6 +23,12 @@ const minRows = 3
 
 // origin is the kernel origin of every edit, since one person types in an Editor.
 const origin kernel.Origin = "me"
+
+// WriteMsg asks to send the draft, from :w, :wq, :x or ZZ.
+type WriteMsg struct{}
+
+// QuitMsg asks to close the editor, from :q. :q! and ZQ set Discard to throw the draft away too.
+type QuitMsg struct{ Discard bool }
 
 // Editor is a multi-line text field with Vim's keys. A kernel buffer holds the text and its undo history, and a vim
 // machine turns keys into edits. It wraps at words and scrolls to keep the cursor in view.
@@ -46,6 +53,8 @@ type Editor struct {
 	focused              bool
 	// err is why the last key failed, shown until the next key
 	err string
+	// command is the WriteMsg or QuitMsg of the last key, which Update returns
+	command tea.Msg
 	// Placeholder shows while the text is empty.
 	Placeholder string
 	// Title shows in the top border, and Note in the bottom border before the cursor position.
@@ -77,6 +86,11 @@ func (e *Editor) Update(msg tea.Msg) (Component, tea.Cmd) {
 		if e.focused {
 			e.settle(e.feed(keys(msg)))
 		}
+	}
+
+	if command := e.command; command != nil {
+		e.command = nil
+		return e, func() tea.Msg { return command }
 	}
 
 	return e, nil
@@ -671,6 +685,27 @@ func (h host) Viewport() (int, int, int) {
 // SetTop shows the line at top from its first row.
 func (h host) SetTop(top int) {
 	h.e.top = rowOf(h.e.rows(), vim.LineStart(h.e.buf.Snapshot(), top))
+}
+
+// Unhandled turns the ex commands that write or quit into the WriteMsg or QuitMsg that Update returns. Other commands
+// fail, and writing an empty draft fails too.
+func (h host) Unhandled(keys string) error {
+	switch strings.TrimSpace(strings.TrimPrefix(keys, ":")) {
+	case "w", "w!", "write", "wq", "wq!", "x", "x!", "xit":
+		if h.e.buf.Snapshot().Len() == 0 {
+			return errors.New("the draft is empty")
+		}
+
+		h.e.command = WriteMsg{}
+	case "q", "quit":
+		h.e.command = QuitMsg{}
+	case "q!", "quit!":
+		h.e.command = QuitMsg{Discard: true}
+	default:
+		return fmt.Errorf("not available here: %s", keys)
+	}
+
+	return nil
 }
 
 func (h host) WordWrap() bool                 { return true }

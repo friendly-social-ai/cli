@@ -35,7 +35,7 @@ make run
 ## Nice supports
 
 - Images render in Ghostty and Kitty, also inside tmux with `allow-passthrough` on. With a low resolution fallback.
-- The composer has Vim keys, from [fude](https://github.com/y3owk1n/fude). It opens in insert mode, and `esc` in normal mode closes it.
+- The composer has Vim keys, from [fude](https://github.com/y3owk1n/fude). It opens in insert mode, and `esc` in normal mode closes it. `:w` posts the draft, `:q` closes and keeps it, and `:q!` throws it away.
 - Pasting an image reads the clipboard with `osascript` on macOS, and `wl-paste` or `xclip` on Linux.
 - Emoji shortcode supports
 - LaTeX math, read the same way as on the web. Inline `$...$` becomes Unicode, so `$\alpha^2$` shows as α². Display

@@ -1092,6 +1092,15 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case closeMsg:
 		s.closeComposer()
 		return s, nil
+	case ui.WriteMsg:
+		return s.Update(submitMsg{})
+	case ui.QuitMsg:
+		if msg.Discard {
+			s.content.field.SetValue("")
+		}
+
+		s.closeComposer()
+		return s, nil
 	case filterMsg:
 		s.content.filter.Start()
 		return s, nil
