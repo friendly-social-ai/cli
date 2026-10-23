@@ -11,6 +11,7 @@ import (
 	"github.com/friendly-social-ai/cli/internal/screen"
 	"github.com/friendly-social-ai/cli/internal/screen/auth"
 	"github.com/friendly-social-ai/cli/internal/screen/community"
+	"github.com/friendly-social-ai/cli/internal/screen/user"
 	"github.com/friendly-social-ai/cli/internal/ui"
 	sdk "github.com/friendly-social-ai/golang-sdk"
 )
@@ -38,7 +39,8 @@ type (
 	}
 )
 
-// Screen is a model of activity screen, which lists replies to user's posts and to threads user subscribes to.
+// Screen is a model of activity screen, which lists replies to user's posts and to threads user subscribes to. It
+// also lists friend requests.
 type Screen struct {
 	service *Service
 	user    *sdk.Authorization
@@ -316,19 +318,25 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 	case openMsg:
 		activity := &s.activities[msg.index]
-		// new replies under a post open at their common denominator, like the web
-		post := *activity.Post
-		if activity.CommonDenominator != nil {
-			post = *activity.CommonDenominator
+		var target screen.Type
+		var open tea.Msg
+		if activity.From != nil {
+			// a friend request opens the profile of its sender, like the web
+			target, open = screen.TypeUser, user.OpenMsg{Person: *activity.From, From: screen.TypeActivity}
+		} else {
+			// new replies under a post open at their common denominator, like the web
+			post := *activity.Post
+			if activity.CommonDenominator != nil {
+				post = *activity.CommonDenominator
+			}
+
+			target, open = screen.TypeCommunity, community.OpenMsg{Post: post, From: screen.TypeActivity}
 		}
 
-		// the post opens before the screen changes, so the previous view of community never shows
+		// the target opens before the screen changes, so its previous view never shows
 		cmds := []tea.Cmd{tea.Sequence(
-			screen.Send(router.TargetMsg{Type: screen.TypeCommunity, Inner: community.OpenMsg{
-				Post: post,
-				From: screen.TypeActivity,
-			}}),
-			screen.Send(screen.ChangeMsg{NewType: screen.TypeCommunity}),
+			screen.Send(router.TargetMsg{Type: target, Inner: open}),
+			screen.Send(screen.ChangeMsg{NewType: target}),
 		)}
 
 		// like the web, opening marks it read right away, and a failed read is ignored like a missed notification
@@ -365,29 +373,36 @@ func (s Screen) items() []ui.Component {
 
 	items := make([]ui.Component, len(s.activities))
 	for i, activity := range s.activities {
-		var prefix string
-		switch activity.Type {
-		case "new_reply":
-			prefix = "Reply from "
-		case "indirect_replies":
-			prefix = "New replies under post from "
-		}
-
-		if prefix == "" || activity.Post == nil || activity.Post.Owner == nil {
+		var title string
+		switch {
+		case activity.Type == "new_request" && activity.From != nil:
+			nickname := ui.BoldStyle.Render(activity.From.Nickname.Value())
+			title = "New friend request from " + nickname
+			if activity.IsMutual {
+				title = nickname + " is your friend now"
+			}
+		case activity.Type == "new_reply" && activity.Post != nil && activity.Post.Owner != nil:
+			title = "Reply from " + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value())
+		case activity.Type == "indirect_replies" && activity.Post != nil && activity.Post.Owner != nil:
+			title = "New replies under post from " + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value())
+		default:
 			items[i] = ui.NewLabel(ui.MutedStyle.Render("unsupported activity"))
 			continue
 		}
 
-		title := prefix + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value()) +
-			ui.MutedStyle.Render(" · "+community.Ago(activity.Instant))
+		title += ui.MutedStyle.Render(" · " + community.Ago(activity.Instant))
 		if activity.IsRead {
 			title = ansi.Truncate(title, width, "…")
 		} else {
 			title = ansi.Truncate(title, width-2, "…") + ui.AccentStyle.Render(" ●")
 		}
 
-		line := ansi.Truncate(community.FirstLine(*activity.Post), width, "…")
-		items[i] = ui.NewButton(title+"\n"+line, screen.Send(openMsg{index: i}))
+		// a friend request has no post, so it takes one line, like the web
+		if activity.From == nil {
+			title += "\n" + ansi.Truncate(community.FirstLine(*activity.Post), width, "…")
+		}
+
+		items[i] = ui.NewButton(title, screen.Send(openMsg{index: i}))
 	}
 
 	return items
