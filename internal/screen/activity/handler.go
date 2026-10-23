@@ -367,7 +367,7 @@ func (s Screen) items() []ui.Component {
 	for i, activity := range s.activities {
 		var prefix string
 		switch activity.Type {
-		case "reply":
+		case "new_reply":
 			prefix = "Reply from "
 		case "indirect_replies":
 			prefix = "New replies under post from "
