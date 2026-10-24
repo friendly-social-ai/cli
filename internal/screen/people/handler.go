@@ -321,9 +321,6 @@ func (s Screen) card(entry sdk.FeedEntry) string {
 	if entry.IsRequest {
 		tags = append(tags, "wants to be friends")
 	}
-	if entry.IsExtendedNetwork {
-		tags = append(tags, "extended network")
-	}
 	if n := len(entry.CommonFriends); n > 0 {
 		tags = append(tags, fmt.Sprintf("%d common friends", n))
 	}
