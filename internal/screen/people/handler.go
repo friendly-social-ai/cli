@@ -232,7 +232,11 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case skipMsg:
 		return s.take(s.service.skip, "skipped %s")
 	case tookMsg:
-		return s, s.content.status.Notice(msg.notice)
+		// like the web, check activity, since answering a friend request marks it read
+		return s, tea.Batch(
+			s.content.status.Notice(msg.notice),
+			screen.Send(router.TargetMsg{Type: screen.TypeActivity, Inner: screen.PollMsg{}}),
+		)
 	case failedMsg:
 		s.entries = slices.Insert(s.entries, min(msg.index, len(s.entries)), msg.entry)
 		s.content.list.Set(s.items()...)

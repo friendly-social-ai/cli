@@ -123,7 +123,8 @@ func (s Screen) load() tea.Cmd {
 	}
 }
 
-// request runs fn for the shown person, then reloads the profile to show the new friendship and shows notice.
+// request runs fn for the shown person, then reloads the profile to show the new friendship and shows notice. Like the
+// web, it then checks activity, since answering a friend request marks it read.
 func (s Screen) request(status, notice string, fn func(*sdk.Authorization, sdk.UserDetails) error) tea.Cmd {
 	user, person := s.user, s.person
 	s.content.status.Busy(status)
@@ -133,7 +134,10 @@ func (s Screen) request(status, notice string, fn func(*sdk.Authorization, sdk.U
 		}
 
 		profile, err := s.service.get(user, person)
-		return router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{person: person.Id, profile: profile, err: err, notice: notice}}
+		return tea.BatchMsg{
+			screen.Send(router.TargetMsg{Type: screen.TypeUser, Inner: loadedMsg{person: person.Id, profile: profile, err: err, notice: notice}}),
+			screen.Send(router.TargetMsg{Type: screen.TypeActivity, Inner: screen.PollMsg{}}),
+		}
 	}
 }
 
