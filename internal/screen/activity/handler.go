@@ -238,10 +238,22 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case polledMsg:
 		cmd := s.notice(msg.unseen)
 
+		// the backend marks some activities read on its own, like a friend request answered from a profile
+		read := make(map[sdk.ActivityId]bool, len(msg.page.Data))
+		for _, activity := range msg.page.Data {
+			if activity.IsRead {
+				read[activity.Id] = true
+			}
+		}
+
 		// new activities go on top and the cursor stays on the same one
 		known := make(map[sdk.ActivityId]bool, len(s.activities))
-		for _, activity := range s.activities {
+		changed := false
+		for i, activity := range s.activities {
 			known[activity.Id] = true
+			if read[activity.Id] && !activity.IsRead {
+				s.activities[i].IsRead, changed = true, true
+			}
 		}
 
 		var fresh []sdk.Activity
@@ -252,6 +264,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		}
 
 		if len(fresh) == 0 {
+			if changed {
+				s.content.list.Set(s.items()...)
+			}
+
 			return s, cmd
 		}
 
