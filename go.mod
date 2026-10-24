@@ -16,8 +16,8 @@ require (
 	github.com/editorconfig/editorconfig-core-go/v2 v2.6.5
 	github.com/friendly-social-ai/golang-sdk v0.0.0-20261023142619-4a1e9ae5421b
 	github.com/go-text/typesetting v0.3.5
-	github.com/y3owk1n/fude/core v0.2.1
-	github.com/y3owk1n/fude/vim v0.2.1
+	github.com/y3owk1n/fude/core v0.3.0
+	github.com/y3owk1n/fude/vim v0.3.0
 	github.com/yuin/goldmark-emoji v1.0.5
 	golang.org/x/image v0.46.0
 )

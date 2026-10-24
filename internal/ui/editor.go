@@ -466,8 +466,12 @@ func (e *Editor) row(t kernel.Snapshot, start, end int, cursor bool) string {
 		}
 
 		w := vim.Column(t, line, pos+len(cluster), e.indent, nil) - col
-		if cluster == "\t" {
+		switch {
+		case cluster == "\t":
 			cluster = strings.Repeat(" ", w)
+		case len(cluster) == 1 && (cluster[0] < ' ' || cluster[0] == 0x7f):
+			// vim counts a control character as two cells, so it shows as ^ and a letter, like ^A for 0x01
+			cluster = "^" + string(cluster[0]^0x40)
 		}
 
 		switch {

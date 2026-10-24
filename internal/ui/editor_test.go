@@ -230,6 +230,20 @@ func TestEditorDrawsEveryRegionAndCursor(t *testing.T) {
 	}
 }
 
+func TestEditorShowsControlCharactersAsCaret(t *testing.T) {
+	e := newTestEditor(100)
+	e.Update(tea.PasteMsg{Content: "a\x01b\x7f"})
+	view, cursor := TakeCursor(e.View())
+	if view := ansi.Strip(view); !strings.Contains(view, "a^Ab^?") {
+		t.Errorf("View() = %q, want a^Ab^?", view)
+	}
+
+	// the cursor sits after the six cells, past the border and padding columns
+	if cursor == nil || cursor.X != 8 {
+		t.Errorf("cursor = %+v, want X 8", cursor)
+	}
+}
+
 func TestEditorPlacesTerminalCursorByMode(t *testing.T) {
 	e := newTestEditor(100)
 	typeText(e, "ab\ncd")
