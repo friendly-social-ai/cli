@@ -3,7 +3,7 @@
 A terminal client for Friendly, built with [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 This is a fork of the [official CLI](https://github.com/friendly-social/cli). It runs on the forked
-[Go SDK](https://github.com/friendly-social-ai/golang-sdk), pinned to its `main`.
+[Go SDK](https://git.getfriend.ly/ai/golang-sdk), pinned to its `main`.
 
 ## Installation
 
@@ -14,7 +14,7 @@ There's no official release for this project, you'll have to build from source a
 This project can be installed via [oku](https://github.com/y3owk1n/oku) with the following command:
 
 ```bash
-oku add github:friendly-social-ai/cli
+oku add git+https://git.getfriend.ly/ai/cli
 
 # then you can run it with
 friendly
@@ -25,7 +25,7 @@ friendly
 Requires Go 1.27.
 
 ```bash
-git clone https://github.com/friendly-social-ai/cli.git
+git clone https://git.getfriend.ly/ai/cli
 cd cli
 make run
 ```

@@ -1,11 +1,11 @@
 [package]
 name = "friendly"
 description = "Friendly TUI client"
-homepage = "https://github.com/friendly-social-ai/cli"
+homepage = "https://git.getfriend.ly/ai/cli"
 
 [version]
 from = "git-branch"
-repo = "https://github.com/friendly-social-ai/cli"
+repo = "https://git.getfriend.ly/ai/cli"
 branch = "main"
 
 [host]
@@ -14,7 +14,7 @@ git = { command = "git", apt = "git", dnf = "git", pacman = "git", when = { os =
 [build]
 needs = ["git"]
 deps = [{ ref = "./.oku/go.toml", version = "~1.27" }]
-source = { git = "https://github.com/friendly-social-ai/cli", tag = "{{tag}}" }
+source = { git = "https://git.getfriend.ly/ai/cli", tag = "{{tag}}" }
 
 [[build.step]]
 vendor = "go"
