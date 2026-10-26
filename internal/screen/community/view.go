@@ -12,11 +12,11 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"git.getfriend.ly/ai/cli/internal/keys"
+	"git.getfriend.ly/ai/cli/internal/screen"
+	"git.getfriend.ly/ai/cli/internal/ui"
+	sdk "git.getfriend.ly/ai/golang-sdk"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/friendly-social-ai/cli/internal/keys"
-	"github.com/friendly-social-ai/cli/internal/screen"
-	"github.com/friendly-social-ai/cli/internal/ui"
-	sdk "github.com/friendly-social-ai/golang-sdk"
 )
 
 var (

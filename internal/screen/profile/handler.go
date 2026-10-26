@@ -9,13 +9,13 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/friendly-social-ai/cli/internal/keys"
-	"github.com/friendly-social-ai/cli/internal/router"
-	"github.com/friendly-social-ai/cli/internal/screen"
-	"github.com/friendly-social-ai/cli/internal/screen/auth"
-	"github.com/friendly-social-ai/cli/internal/screen/user"
-	"github.com/friendly-social-ai/cli/internal/ui"
-	sdk "github.com/friendly-social-ai/golang-sdk"
+	"git.getfriend.ly/ai/cli/internal/keys"
+	"git.getfriend.ly/ai/cli/internal/router"
+	"git.getfriend.ly/ai/cli/internal/screen"
+	"git.getfriend.ly/ai/cli/internal/screen/auth"
+	"git.getfriend.ly/ai/cli/internal/screen/user"
+	"git.getfriend.ly/ai/cli/internal/ui"
+	sdk "git.getfriend.ly/ai/golang-sdk"
 )
 
 // Messages produced by key actions of the screen.

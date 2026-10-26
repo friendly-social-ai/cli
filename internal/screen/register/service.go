@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/friendly-social-ai/cli/internal/screen/auth"
-	sdk "github.com/friendly-social-ai/golang-sdk"
+	"git.getfriend.ly/ai/cli/internal/screen/auth"
+	sdk "git.getfriend.ly/ai/golang-sdk"
 )
 
 // Service provides registration logic.

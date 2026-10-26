@@ -5,15 +5,15 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"git.getfriend.ly/ai/cli/internal/keys"
+	"git.getfriend.ly/ai/cli/internal/router"
+	"git.getfriend.ly/ai/cli/internal/screen"
+	"git.getfriend.ly/ai/cli/internal/screen/auth"
+	"git.getfriend.ly/ai/cli/internal/screen/community"
+	"git.getfriend.ly/ai/cli/internal/screen/user"
+	"git.getfriend.ly/ai/cli/internal/ui"
+	sdk "git.getfriend.ly/ai/golang-sdk"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/friendly-social-ai/cli/internal/keys"
-	"github.com/friendly-social-ai/cli/internal/router"
-	"github.com/friendly-social-ai/cli/internal/screen"
-	"github.com/friendly-social-ai/cli/internal/screen/auth"
-	"github.com/friendly-social-ai/cli/internal/screen/community"
-	"github.com/friendly-social-ai/cli/internal/screen/user"
-	"github.com/friendly-social-ai/cli/internal/ui"
-	sdk "github.com/friendly-social-ai/golang-sdk"
 )
 
 // Messages of the screen.

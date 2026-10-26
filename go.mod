@@ -1,4 +1,4 @@
-module github.com/friendly-social-ai/cli
+module git.getfriend.ly/ai/cli
 
 go 1.27.0
 
@@ -7,6 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.10
 	charm.land/glamour/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.6
+	git.getfriend.ly/ai/golang-sdk v0.0.0-20261026155158-5e1193f93c5a
 	github.com/BurntSushi/toml v1.6.0
 	github.com/atotto/clipboard v0.1.4
 	github.com/charmbracelet/colorprofile v0.4.3
@@ -14,7 +15,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0
 	github.com/dop251/goja v0.0.0-20260923012348-67663e7a3b97
 	github.com/editorconfig/editorconfig-core-go/v2 v2.6.5
-	github.com/friendly-social-ai/golang-sdk v0.0.0-20261023142619-4a1e9ae5421b
 	github.com/go-text/typesetting v0.3.5
 	github.com/y3owk1n/fude/core v0.3.0
 	github.com/y3owk1n/fude/vim v0.3.0

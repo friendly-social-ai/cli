@@ -2,7 +2,7 @@ package router
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"github.com/friendly-social-ai/cli/internal/screen"
+	"git.getfriend.ly/ai/cli/internal/screen"
 )
 
 // BroadcastMsg tells router to broadcast inner message to all screens.

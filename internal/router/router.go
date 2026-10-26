@@ -8,10 +8,10 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"git.getfriend.ly/ai/cli/internal/keys"
+	"git.getfriend.ly/ai/cli/internal/screen"
+	"git.getfriend.ly/ai/cli/internal/ui"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/friendly-social-ai/cli/internal/keys"
-	"github.com/friendly-social-ai/cli/internal/screen"
-	"github.com/friendly-social-ai/cli/internal/ui"
 )
 
 // tabs are the screens of a logged in user, shown in the header and switched with keys.Navigation.Tabs in order.

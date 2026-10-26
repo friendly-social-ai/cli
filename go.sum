@@ -6,6 +6,8 @@ charm.land/glamour/v2 v2.0.1 h1:xl+r00A4aJWU0z8fgwKd9fQQ4rsphqGUzuEiXZP5n+c=
 charm.land/glamour/v2 v2.0.1/go.mod h1:jo9z8XqVKPeEFMVdvCRLGk++RyJ3CdUwgNr7EvXLw3k=
 charm.land/lipgloss/v2 v2.0.6 h1:EaGKeuA8FvF+v2BT5VmZd2LoYLaMZJXA5n34th8nCIQ=
 charm.land/lipgloss/v2 v2.0.6/go.mod h1:ipDDJNSGa1hlwDtSfW1s2/xR8Vdhbut4PXh2zEKZd0Q=
+git.getfriend.ly/ai/golang-sdk v0.0.0-20261026155158-5e1193f93c5a h1:uqm0k9DHCs+p3ziD0om8rWIAIC5F7JX1DHi02v/z9iw=
+git.getfriend.ly/ai/golang-sdk v0.0.0-20261026155158-5e1193f93c5a/go.mod h1:iRCUrSyNOu42/Fmzd+PPF82+g44EFW+d3dAGolJvrZc=
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
@@ -53,8 +55,6 @@ github.com/dop251/goja v0.0.0-20260923012348-67663e7a3b97 h1:L+bYfyqm+ZIeLsds4Th
 github.com/dop251/goja v0.0.0-20260923012348-67663e7a3b97/go.mod h1:u8yZRUavu+N4EnFFy6J5fVtjE7lEcZ2YyV2GcBXY9c8=
 github.com/editorconfig/editorconfig-core-go/v2 v2.6.5 h1:MTcuJQkIFRLfNn9FfAvdO0p3FhNyaCf+IGTwy0TxX6E=
 github.com/editorconfig/editorconfig-core-go/v2 v2.6.5/go.mod h1:SizrS3EM1vFF0v/JZlJ5LfK6tXhwln2823YZwNh/vBE=
-github.com/friendly-social-ai/golang-sdk v0.0.0-20261023142619-4a1e9ae5421b h1:AvfPqeS+Umawhi/uJMM0OI3xH+M0k+6IxBiB62RWEE8=
-github.com/friendly-social-ai/golang-sdk v0.0.0-20261023142619-4a1e9ae5421b/go.mod h1:Xvs5M9/+ADviVbrFE90JvHAGnAN1Maw4AaCLyaPZFS4=
 github.com/go-sourcemap/sourcemap v2.1.3+incompatible h1:W1iEw64niKVGogNgBN3ePyLFfuisuzeidWPMPWmECqU=
 github.com/go-sourcemap/sourcemap v2.1.3+incompatible/go.mod h1:F8jJfvm2KbVjc5NqelyYJmf/v5J0dwNLS2mL4sNA1Jg=
 github.com/go-text/typesetting v0.3.5 h1:XZPUooClHY0Vf/rFyUyuPRNEkawARaFzLMQcXLSEyPk=

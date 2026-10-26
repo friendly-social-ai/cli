@@ -3,7 +3,7 @@ package community
 import (
 	"testing"
 
-	sdk "github.com/friendly-social-ai/golang-sdk"
+	sdk "git.getfriend.ly/ai/golang-sdk"
 )
 
 func TestFirstLineShowsLeadingDisplayMath(t *testing.T) {

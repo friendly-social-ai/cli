@@ -10,11 +10,11 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"git.getfriend.ly/ai/cli/internal/keys"
+	"git.getfriend.ly/ai/cli/internal/logging"
+	"git.getfriend.ly/ai/cli/internal/router"
+	"git.getfriend.ly/ai/cli/internal/ui"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/friendly-social-ai/cli/internal/keys"
-	"github.com/friendly-social-ai/cli/internal/logging"
-	"github.com/friendly-social-ai/cli/internal/router"
-	"github.com/friendly-social-ai/cli/internal/ui"
 )
 
 // minWidth and minHeight are the smallest terminal the layout fits. A smaller one shows only a note about its size.

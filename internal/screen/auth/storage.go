@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	sdk "github.com/friendly-social-ai/golang-sdk"
+	sdk "git.getfriend.ly/ai/golang-sdk"
 )
 
 const (

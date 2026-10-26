@@ -2,7 +2,7 @@
 
 A terminal client for Friendly, built with [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
-This is a fork of the [official CLI](https://github.com/friendly-social/cli). It runs on the forked
+This is a fork of the [official CLI](https://git.getfriend.ly/cli). It runs on the forked
 [Go SDK](https://git.getfriend.ly/ai/golang-sdk), pinned to its `main`.
 
 ## Installation
