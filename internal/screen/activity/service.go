@@ -26,6 +26,10 @@ func (s *Service) read(user *sdk.Authorization, id sdk.ActivityId) error {
 	return s.client.ReadActivity(context.Background(), user, id)
 }
 
+func (s *Service) readAll(user *sdk.Authorization) error {
+	return s.client.ReadAllActivity(context.Background(), user)
+}
+
 func (s *Service) unseen(user *sdk.Authorization) (bool, error) {
 	id, err := s.client.GetNewUnreadActivity(context.Background(), user)
 	return id != nil, err

@@ -314,22 +314,15 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 
 		return s, nil
 	case readAllMsg:
-		var ids []sdk.ActivityId
 		for i := range s.activities {
-			if !s.activities[i].IsRead {
-				s.activities[i].IsRead = true
-				ids = append(ids, s.activities[i].Id)
-			}
+			s.activities[i].IsRead = true
 		}
 
 		s.content.list.Set(s.items()...)
 		user := s.user
 		// failed reads are ignored, as when opening one
 		return s, func() tea.Msg {
-			for _, id := range ids {
-				_ = s.service.read(user, id)
-			}
-
+			_ = s.service.readAll(user)
 			return nil
 		}
 	case openMsg:
