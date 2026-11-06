@@ -2,9 +2,11 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	sdk "git.getfriend.ly/ai/golang-sdk"
 )
@@ -99,4 +101,51 @@ func (s *Service) friends(user *sdk.Authorization) ([]sdk.UserDetails, error) {
 	}
 
 	return network.Friends, nil
+}
+
+// Errors of adding a friend by invite, worded for the status.
+var (
+	errInvalidInvite = errors.New("invalid invite link")
+	errInviteExpired = errors.New("invite expired")
+)
+
+// inviteURL prefixes the token in invite links, like createFriendInviteLink in the web.
+const inviteURL = "https://invite.getfriend.ly/"
+
+// invite returns the invite link of the user and when it expires. The backend returns the same token until it is
+// within an hour of expiring.
+func (s *Service) invite(user *sdk.Authorization) (string, time.Time, error) {
+	generated, err := s.client.GenerateFriendToken(context.Background(), user)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	return inviteURL + generated.Token.Value(), generated.Expiration, nil
+}
+
+// add adds the owner of invite, a link or a bare token, to the friends of the user.
+func (s *Service) add(user *sdk.Authorization, invite string) error {
+	token, err := parseInvite(invite)
+	if err != nil {
+		return err
+	}
+
+	err = s.client.AddFriend(context.Background(), user, token)
+	if errors.Is(err, sdk.ErrFriendTokenExpired) {
+		return errInviteExpired
+	}
+
+	return err
+}
+
+// parseInvite returns the token that ends invite. That covers a bare token, an invite link and the older
+// getfriend.ly/#?reference=add/<token> link.
+func parseInvite(invite string) (sdk.FriendToken, error) {
+	invite = strings.TrimSuffix(strings.TrimSpace(invite), "/")
+	token, err := sdk.NewFriendToken(invite[strings.LastIndex(invite, "/")+1:])
+	if err != nil {
+		return sdk.FriendToken{}, fmt.Errorf("profile: failed to read invite: %w", errInvalidInvite)
+	}
+
+	return token, nil
 }

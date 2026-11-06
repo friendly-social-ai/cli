@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
@@ -26,6 +27,10 @@ type (
 	editMsg         struct{}
 	cancelEditMsg   struct{}
 	saveMsg         struct{}
+	inviteMsg       struct{}
+	addMsg          struct{}
+	cancelAddMsg    struct{}
+	submitAddMsg    struct{}
 	// fieldMsg moves typing by step fields, down for a positive step and up for a negative one.
 	fieldMsg struct{ step int }
 	// openFriendMsg opens the profile of the friend at index.
@@ -51,6 +56,18 @@ type (
 		self *sdk.UserDetails
 		err  error
 	}
+	// invitedMsg carries the invite link of user and when it expires, or the error of creating it
+	invitedMsg struct {
+		user       *sdk.Authorization
+		link       string
+		expiration time.Time
+		err        error
+	}
+	// addedMsg carries the error of adding a friend by invite for user, nil on success
+	addedMsg struct {
+		user *sdk.Authorization
+		err  error
+	}
 )
 
 // Screen is a model of profile screen.
@@ -68,6 +85,14 @@ type Screen struct {
 	friends []sdk.UserDetails
 	// showEmail reveals bound email, which is masked by default
 	showEmail bool
+	// invite is the link others add the user by, empty until the user asks for it
+	invite struct {
+		link       string
+		expiration time.Time
+	}
+	// adding shows the field to paste an invite into. sending locks it until the request ends.
+	adding  bool
+	sending bool
 
 	content struct {
 		status *ui.Status
@@ -85,6 +110,9 @@ type Screen struct {
 			interests   *ui.Field
 			social      *ui.Field
 		}
+
+		// invite takes an invite link of another user
+		invite *ui.Field
 	}
 
 	width  int
@@ -122,6 +150,9 @@ func New(service *Service) Screen {
 		result.content.field.social,
 	}
 
+	result.content.invite = field("invite link", 0)
+	result.content.invite.Raw().Placeholder = "link or token"
+
 	result.content.list = ui.NewList()
 	result.content.friends = ui.NewList()
 	result.content.filter = ui.NewFilter()
@@ -138,8 +169,13 @@ func (Screen) Init() tea.Cmd {
 
 func (s Screen) actions() []ui.Action {
 	switch {
-	case s.saving:
+	case s.saving, s.sending:
 		return nil
+	case s.adding:
+		return []ui.Action{
+			{Key: keys.Bind("add", keys.Common.Confirm), Msg: submitAddMsg{}},
+			{Key: keys.Bind("cancel", keys.Common.Cancel), Msg: cancelAddMsg{}},
+		}
 	case s.editing:
 		return []ui.Action{
 			{Key: keys.Bind("save", keys.Common.Confirm), Msg: saveMsg{}},
@@ -184,6 +220,9 @@ func (s Screen) actions() []ui.Action {
 			actions = append(actions, ui.Action{Key: keys.Bind(desc, keys.Profile.ToggleEmail), Msg: toggleEmailMsg{}})
 		}
 
+		actions = append(actions,
+			ui.Action{Key: keys.Bind("copy invite link", keys.Profile.Invite), Msg: inviteMsg{}},
+			ui.Action{Key: keys.Bind("add friend", keys.Profile.AddFriend), Msg: addMsg{}})
 		return append(actions, ui.Action{Key: keys.Bind("logout", keys.Profile.Logout), Msg: logoutMsg{}})
 	}
 
@@ -293,8 +332,61 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		s.self = msg.self
 		s.stopEditing()
 		return s, s.content.status.Notice("profile saved")
+	case inviteMsg:
+		s.content.status.Busy("creating invite")
+		current := s.user
+		return s, func() tea.Msg {
+			link, expiration, err := s.service.invite(current)
+			return router.TargetMsg{Type: screen.TypeProfile, Inner: invitedMsg{user: current, link: link, expiration: expiration, err: err}}
+		}
+	case invitedMsg:
+		// drop the invite of a user who logged out before it arrived
+		if msg.user != s.user {
+			return s, nil
+		}
+
+		if msg.err != nil {
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
+			return s, nil
+		}
+
+		s.invite.link, s.invite.expiration = msg.link, msg.expiration
+		return s, tea.Batch(tea.SetClipboard(msg.link), s.content.status.Notice("copied invite link"))
+	case addMsg:
+		s.adding = true
+		s.content.invite.Raw().SetValue("")
+		_, cmd := s.content.invite.Update(ui.FocusMsg{})
+		return s, cmd
+	case cancelAddMsg:
+		s.stopAdding()
+		s.content.status.Set("")
+		return s, nil
+	case submitAddMsg:
+		s.sending = true
+		s.content.status.Busy("adding friend")
+		current, invite := s.user, s.content.invite.Value()
+		return s, func() tea.Msg {
+			return router.TargetMsg{Type: screen.TypeProfile, Inner: addedMsg{user: current, err: s.service.add(current, invite)}}
+		}
+	case addedMsg:
+		// drop the result for a user who logged out before it arrived
+		if msg.user != s.user {
+			return s, nil
+		}
+
+		s.sending = false
+		if msg.err != nil {
+			// the field stays open with the invite, so the user can fix it or try again
+			s.content.status.Set(ui.DangerStyle.Render(screen.ErrorText(msg.err)))
+			return s, nil
+		}
+
+		s.stopAdding()
+		return s, tea.Batch(s.content.status.Notice("added friend"), s.reloadFriends())
 	case auth.LogoutMsg:
 		s.user, s.self, s.friends, s.showEmail, s.editing = nil, nil, nil, false, false
+		s.invite.link, s.invite.expiration = "", time.Time{}
+		s.stopAdding()
 		s.content.filter.Stop()
 		s.content.filter.Clear()
 		s.content.friends.Reset()
@@ -302,6 +394,8 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 		return s, nil
 	case auth.LoginMsg:
 		s.user, s.self, s.showEmail, s.editing = msg.User, nil, false, false
+		s.invite.link, s.invite.expiration = "", time.Time{}
+		s.stopAdding()
 		s.content.status.Busy("loading")
 		return s, func() tea.Msg {
 			self, err := s.service.get(msg.User)
@@ -364,7 +458,10 @@ func (s Screen) Update(msg tea.Msg) (screen.Model, tea.Cmd) {
 	case s.editing && !s.saving:
 		_, cmd := s.content.list.Update(msg)
 		return s, cmd
-	case s.editing:
+	case s.adding && !s.sending:
+		_, cmd := s.content.invite.Update(msg)
+		return s, cmd
+	case s.editing, s.adding:
 		return s, nil
 	}
 
@@ -430,6 +527,12 @@ func (s Screen) listed() []int {
 	return listed
 }
 
+// stopAdding hides the invite field and unfocuses it.
+func (s *Screen) stopAdding() {
+	s.adding, s.sending = false, false
+	s.content.invite.Update(ui.UnfocusMsg{})
+}
+
 // stopEditing hides the edit form and unfocuses its field.
 func (s *Screen) stopEditing() {
 	s.editing = false
@@ -469,12 +572,18 @@ func (s Screen) profile() string {
 		email = s.shownEmail()
 	}
 
+	invite := ""
+	if s.invite.link != "" {
+		invite = s.invite.link + ui.MutedStyle.Render(" expires "+s.invite.expiration.Local().Format("Mon 15:04"))
+	}
+
 	// long descriptions wrap to the window instead of running off its edge
 	return lipgloss.NewStyle().Width(max(s.width, 20)).Render(ui.BoldStyle.Render(s.self.Nickname.Value()) + "\n" + ui.Fields(
 		"email", email,
 		"description", ui.Emojize(s.self.Description.Value()),
 		"interests", strings.Join(interests, ", "),
-		"social link", s.self.SocialLink.Value()))
+		"social link", s.self.SocialLink.Value(),
+		"invite link", invite))
 }
 
 // Unsaved reports whether the profile is being edited.
@@ -482,9 +591,9 @@ func (s Screen) Unsaved() bool {
 	return s.editing
 }
 
-// Typing reports whether the edit form or the filter takes typed text.
+// Typing reports whether the edit form, the invite field or the filter takes typed text.
 func (s Screen) Typing() bool {
-	return s.editing || s.content.filter.Typing()
+	return s.editing || s.adding || s.content.filter.Typing()
 }
 
 func (s Screen) Status() *ui.Status {
@@ -521,6 +630,11 @@ func (s Screen) View() string {
 		}
 
 		parts = append(parts, ui.DangerStyle.Render(warning+" Press "+keys.Profile.Logout.Key()+" again to confirm."))
+	}
+
+	if s.adding {
+		s.content.invite.Raw().SetWidth(max(s.width-10-lipgloss.Width(s.content.invite.Raw().Prompt), 10))
+		parts = append(parts, s.content.invite.View())
 	}
 
 	if profile != "" {
