@@ -7,7 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.10
 	charm.land/glamour/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.6
-	git.getfriend.ly/ai/golang-sdk v0.0.0-20261102140609-189444445792
+	git.getfriend.ly/ai/golang-sdk v0.0.0-20261106165617-996a72f2a63c
 	github.com/BurntSushi/toml v1.6.0
 	github.com/atotto/clipboard v0.1.4
 	github.com/charmbracelet/colorprofile v0.4.3
