@@ -80,6 +80,8 @@ screen, or a screen key that a navigation key would take first. Nothing from the
 | | `skip` | `x` |
 | `profile` | `edit` | `e` |
 | | `toggle_email` | `v` |
+| | `link_email` | `m` |
+| | `unlink_email` | `u` |
 | | `invite` | `i` |
 | | `add_friend` | `a` |
 | | `logout` | `x` |

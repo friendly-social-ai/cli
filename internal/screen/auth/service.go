@@ -7,8 +7,8 @@ import (
 	sdk "git.getfriend.ly/ai/golang-sdk"
 )
 
-// locale is the language of login e-mail. Backend accepts either "en" or "ru".
-var locale = sdk.NewEmailLocale("en")
+// Locale is the language of e-mails the backend sends. The backend accepts either "en" or "ru".
+var Locale = sdk.NewEmailLocale("en")
 
 // Service provides e-mail login logic.
 type Service struct {
@@ -28,7 +28,7 @@ func (s *Service) send(emailString string) error {
 		return fmt.Errorf("auth: failed to create email: %w", err)
 	}
 
-	err = s.client.SendLoginRequest(context.Background(), email, locale)
+	err = s.client.SendLoginRequest(context.Background(), email, Locale)
 	if err != nil {
 		return fmt.Errorf("auth: failed to send login code: %w", err)
 	}

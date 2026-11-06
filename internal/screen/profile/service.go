@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
 
+	"git.getfriend.ly/ai/cli/internal/screen/auth"
 	sdk "git.getfriend.ly/ai/golang-sdk"
 )
 
@@ -103,10 +105,11 @@ func (s *Service) friends(user *sdk.Authorization) ([]sdk.UserDetails, error) {
 	return network.Friends, nil
 }
 
-// Errors of adding a friend by invite, worded for the status.
+// Errors of adding a friend by invite and of confirming an email, worded for the status.
 var (
 	errInvalidInvite = errors.New("invalid invite link")
 	errInviteExpired = errors.New("invite expired")
+	errWrongCode     = errors.New("wrong or expired code")
 )
 
 // inviteURL prefixes the token in invite links, like createFriendInviteLink in the web.
@@ -148,4 +151,37 @@ func parseInvite(invite string) (sdk.FriendToken, error) {
 	}
 
 	return token, nil
+}
+
+// link emails a code that confirm takes to bind email to the user. The backend sends no new code while an earlier
+// one to email is still active.
+func (s *Service) link(user *sdk.Authorization, email string) error {
+	address, err := sdk.NewEmail(strings.TrimSpace(email))
+	if err != nil {
+		return fmt.Errorf("profile: failed to create email: %w", err)
+	}
+
+	return s.client.LinkEmail(context.Background(), user, address, auth.Locale)
+}
+
+// confirm checks code and binds the email that link sent it to, replacing any bound email.
+func (s *Service) confirm(user *sdk.Authorization, code string) error {
+	emailCode, err := sdk.NewEmailCode(strings.TrimSpace(code))
+	if err != nil {
+		return fmt.Errorf("profile: failed to create code: %w", err)
+	}
+
+	// the backend answers 403 to a wrong code, an expired code and a code out of attempts alike
+	err = s.client.ConfirmEmail(context.Background(), user, emailCode)
+	var apiErr sdk.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == http.StatusForbidden {
+		return errWrongCode
+	}
+
+	return err
+}
+
+// unlink removes the email bound to the user.
+func (s *Service) unlink(user *sdk.Authorization) error {
+	return s.client.UnlinkEmail(context.Background(), user)
 }

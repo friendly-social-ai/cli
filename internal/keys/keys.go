@@ -181,9 +181,11 @@ var People = struct{ Connect, Skip *Action }{
 }
 
 // Profile holds keys of the profile screen.
-var Profile = struct{ Edit, ToggleEmail, Invite, AddFriend, Logout *Action }{
+var Profile = struct{ Edit, ToggleEmail, LinkEmail, UnlinkEmail, Invite, AddFriend, Logout *Action }{
 	Edit:        define("profile", "edit", "e"),
 	ToggleEmail: define("profile", "toggle_email", "v"),
+	LinkEmail:   define("profile", "link_email", "m"),
+	UnlinkEmail: define("profile", "unlink_email", "u"),
 	Invite:      define("profile", "invite", "i"),
 	AddFriend:   define("profile", "add_friend", "a"),
 	Logout:      define("profile", "logout", "x"),

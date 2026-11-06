@@ -63,6 +63,8 @@ skip                = "x"
 [profile]
 edit                = "e"
 toggle_email        = "v"
+link_email          = "m"
+unlink_email        = "u"
 invite              = "i"
 add_friend          = "a"
 logout              = "x"
