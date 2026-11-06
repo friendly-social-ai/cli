@@ -240,6 +240,11 @@ func (s Screen) actions() []ui.Action {
 			actions = append(actions, ui.Action{Key: keys.Bind("edit profile", keys.Profile.Edit), Msg: editMsg{}})
 		}
 
+		// the footer drops hints from the end when they don't fit, so the rarely used email keys and logout come last
+		actions = append(actions,
+			ui.Action{Key: keys.Bind("invite", keys.Profile.Invite), Msg: inviteMsg{}},
+			ui.Action{Key: keys.Bind("add friend", keys.Profile.AddFriend), Msg: addMsg{}})
+
 		if s.email() != "" {
 			desc := "show email"
 			if s.showEmail {
@@ -254,9 +259,6 @@ func (s Screen) actions() []ui.Action {
 			actions = append(actions, ui.Action{Key: keys.Bind("link email", keys.Profile.LinkEmail), Msg: emailMsg{}})
 		}
 
-		actions = append(actions,
-			ui.Action{Key: keys.Bind("invite", keys.Profile.Invite), Msg: inviteMsg{}},
-			ui.Action{Key: keys.Bind("add friend", keys.Profile.AddFriend), Msg: addMsg{}})
 		return append(actions, ui.Action{Key: keys.Bind("logout", keys.Profile.Logout), Msg: logoutMsg{}})
 	}
 

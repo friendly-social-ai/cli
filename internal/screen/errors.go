@@ -34,9 +34,14 @@ func ErrorText(err error) string {
 		}
 	case errors.As(err, &netErr):
 		return "can't reach the server"
+	// the SDK words these with an example that doesn't fit the status
+	case errors.Is(err, sdk.ErrInvalidEmail), errors.Is(err, sdk.ErrTooLongEmail):
+		return "invalid email"
+	case errors.Is(err, sdk.ErrEmailCodeLengthMustBe8), errors.Is(err, sdk.ErrInvalidEmailCode):
+		return "code must be 8 digits"
 	}
 
-	// the innermost error is the specific one, like an invalid e-mail
+	// the innermost error is the specific one, like an e-mail used by another user
 	for errors.Unwrap(err) != nil {
 		err = errors.Unwrap(err)
 	}
