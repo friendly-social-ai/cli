@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 
@@ -63,7 +64,9 @@ func NewGraphics() *Graphics {
 	}
 
 	term = strings.ToLower(strings.TrimSpace(term))
-	if !strings.HasPrefix(term, "ghostty") && !strings.HasPrefix(term, "kitty") {
+	if !slices.ContainsFunc([]string{"ghostty", "kitty", "rex"}, func(name string) bool {
+		return strings.HasPrefix(term, name)
+	}) {
 		return nil
 	}
 
