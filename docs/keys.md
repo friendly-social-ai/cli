@@ -83,6 +83,7 @@ screen, or a screen key that a navigation key would take first. Nothing from the
 | | `link_email` | `m` |
 | | `unlink_email` | `u` |
 | | `invite` | `i` |
+| | `revoke_invite` | `r` |
 | | `add_friend` | `a` |
 | | `logout` | `x` |
 | `user` | `connect` | `a` |

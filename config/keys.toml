@@ -66,6 +66,7 @@ toggle_email        = "v"
 link_email          = "m"
 unlink_email        = "u"
 invite              = "i"
+revoke_invite       = "r"
 add_friend          = "a"
 logout              = "x"
 

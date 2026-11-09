@@ -116,9 +116,14 @@ var (
 const inviteURL = "https://invite.getfriend.ly/"
 
 // invite returns the invite link of the user and when it expires. The backend returns the same token until it is
-// within an hour of expiring.
-func (s *Service) invite(user *sdk.Authorization) (string, time.Time, error) {
-	generated, err := s.client.GenerateFriendToken(context.Background(), user)
+// within an hour of expiring, unless revoke asks for a new one, which stops the old link working.
+func (s *Service) invite(user *sdk.Authorization, revoke bool) (string, time.Time, error) {
+	generate := s.client.GenerateFriendToken
+	if revoke {
+		generate = s.client.ForceGenerateFriendToken
+	}
+
+	generated, err := generate(context.Background(), user)
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -126,14 +131,25 @@ func (s *Service) invite(user *sdk.Authorization) (string, time.Time, error) {
 	return inviteURL + generated.Token.Value(), generated.Expiration, nil
 }
 
-// add adds the owner of invite, a link or a bare token, to the friends of the user.
-func (s *Service) add(user *sdk.Authorization, invite string) error {
+// lookup returns the token of invite, a link or a bare token, and the profile of its owner.
+func (s *Service) lookup(invite string) (sdk.FriendToken, *sdk.FriendTokenOwner, error) {
 	token, err := parseInvite(invite)
 	if err != nil {
-		return err
+		return sdk.FriendToken{}, nil, err
 	}
 
-	err = s.client.AddFriend(context.Background(), user, token)
+	owner, err := s.client.GetFriendTokenOwner(context.Background(), token)
+	var apiErr sdk.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound {
+		return sdk.FriendToken{}, nil, errInvalidInvite
+	}
+
+	return token, owner, err
+}
+
+// add adds the owner of token to the friends of the user.
+func (s *Service) add(user *sdk.Authorization, token sdk.FriendToken) error {
+	err := s.client.AddFriend(context.Background(), user, token)
 	if errors.Is(err, sdk.ErrFriendTokenExpired) {
 		return errInviteExpired
 	}
