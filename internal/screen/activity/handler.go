@@ -392,6 +392,8 @@ func (s Screen) items() []ui.Component {
 			}
 		case activity.Type == "new_reply" && activity.Post != nil && activity.Post.Owner != nil:
 			title = "Reply from " + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value())
+		case activity.Type == "indirect_replies" && activity.Post != nil && activity.Post.Deleted():
+			title = "New replies under post"
 		case activity.Type == "indirect_replies" && activity.Post != nil && activity.Post.Owner != nil:
 			title = "New replies under post from " + ui.BoldStyle.Render(activity.Post.Owner.Nickname.Value())
 		default:
