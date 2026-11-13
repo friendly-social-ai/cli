@@ -139,9 +139,8 @@ func (s *Service) lookup(invite string) (sdk.FriendToken, *sdk.FriendTokenOwner,
 	}
 
 	owner, err := s.client.GetFriendTokenOwner(context.Background(), token)
-	var apiErr sdk.APIError
-	if errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound {
-		return sdk.FriendToken{}, nil, errInvalidInvite
+	if errors.Is(err, sdk.ErrFriendTokenExpired) {
+		return sdk.FriendToken{}, nil, errInviteExpired
 	}
 
 	return token, owner, err
