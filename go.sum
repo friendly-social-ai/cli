@@ -10,6 +10,8 @@ git.getfriend.ly/ai/golang-sdk v0.0.0-20261106165617-996a72f2a63c h1:SrCnbYmo6iw
 git.getfriend.ly/ai/golang-sdk v0.0.0-20261106165617-996a72f2a63c/go.mod h1:iRCUrSyNOu42/Fmzd+PPF82+g44EFW+d3dAGolJvrZc=
 git.getfriend.ly/ai/golang-sdk v0.0.0-20261109093452-57198310923d h1:3Xw5+UNnUeZfUiKt8HZpmbqN/osar2MfqtlGXQgwNcc=
 git.getfriend.ly/ai/golang-sdk v0.0.0-20261109093452-57198310923d/go.mod h1:iRCUrSyNOu42/Fmzd+PPF82+g44EFW+d3dAGolJvrZc=
+git.getfriend.ly/ai/golang-sdk v0.0.0-20261113014128-02add90e7bf4 h1:gto5VS8PzBClp9VJesN1ucV0JulKZFGNAhH2RhZovFA=
+git.getfriend.ly/ai/golang-sdk v0.0.0-20261113014128-02add90e7bf4/go.mod h1:iRCUrSyNOu42/Fmzd+PPF82+g44EFW+d3dAGolJvrZc=
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
