@@ -39,7 +39,7 @@ const (
 	// suggestionLimit is the number of shortcodes the composer suggests at once.
 	suggestionLimit = 6
 	// charLimit is the most characters a post may have.
-	charLimit = 4096
+	charLimit = 10240
 )
 
 // items builds elements of the current mode. List mode shows posts. Post mode shows the opened post and its replies.
